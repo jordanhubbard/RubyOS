@@ -24,7 +24,7 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 | Chipset laboratory | display lists, copper/blitter/sprites/audio | Ruby playfields, Copper commands, Blitter, Sprite, raster preview | Partial |
 | Concurrency | ARM64/x86 SMP, pthread substrate, no-GIL workers | single-core pthread compatibility | Missing |
 | Debug/automation | QMP/native debug, captures, performance metrics | deterministic QEMU smokes and SDL captures | Partial |
-| Teaching examples | curated storage/network/graphics/audio/internals lessons | one remote desktop example | Missing |
+| Teaching examples | curated storage/network/graphics/audio/internals lessons | executable Ruby lessons for storage, networking, graphics, audio, internals, plus remote desktop | Complete |
 
 ## Delivery order
 

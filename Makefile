@@ -17,7 +17,7 @@ DISK_IMAGE := $(CURDIR)/build/disk.img
 RUBY_PC := PKG_CONFIG_PATH=$(CURDIR)/build/host-ruby/lib/pkgconfig pkg-config
 BUILDER_IMAGE := pythonos-builder
 
-.PHONY: all ruby smoke test test-ext2 test-network bridge test-bridge embed-probe baremetal-arm64 baremetal-smoke ruby-arm64 ruby-x86_64 rubyos-x86_64 rubyos-x86_64-smoke rubyos-arm64 rubyos-arm64-smoke rubyos-arm64-gui rubyos-arm64-gui-smoke rubyos-arm64-repl rubyos-arm64-repl-smoke rubyos-arm64-storage rubyos-arm64-storage-smoke rubyos-arm64-network rubyos-arm64-network-smoke disk \
+.PHONY: all ruby smoke test teaching-examples test-ext2 test-network bridge test-bridge embed-probe baremetal-arm64 baremetal-smoke ruby-arm64 ruby-x86_64 rubyos-x86_64 rubyos-x86_64-smoke rubyos-arm64 rubyos-arm64-smoke rubyos-arm64-gui rubyos-arm64-gui-smoke rubyos-arm64-repl rubyos-arm64-repl-smoke rubyos-arm64-storage rubyos-arm64-storage-smoke rubyos-arm64-network rubyos-arm64-network-smoke disk \
 	clean distclean provenance
 
 all: smoke
@@ -32,6 +32,9 @@ smoke: $(HOST_RUBY_STAMP)
 
 test: $(HOST_RUBY_STAMP)
 	$(HOST_RUBY) -I kernel test/kernel_test.rb
+
+teaching-examples: $(HOST_RUBY_STAMP)
+	./test/examples_smoke.sh
 
 test-ext2: $(HOST_RUBY_STAMP)
 	./test/ext2_smoke.sh

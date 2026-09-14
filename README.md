@@ -33,6 +33,7 @@ Run it with:
 ```sh
 make smoke
 make test
+make teaching-examples
 make test-ext2
 make test-network
 make test-bridge
@@ -73,6 +74,14 @@ is completed.
 
 The initial platform libc is adapted from PythonOS and retains its BSD license
 in `platform/PYTHONOS-LICENSE`.
+
+## Learn by changing Ruby
+
+`make teaching-examples` runs focused lessons in `examples/` for VFS and file
+descriptors, typed network packets, compositor drawing, PCM synthesis, device
+binding, and Fiber scheduling. They use the private source-built Ruby and the
+same classes embedded into the bare-metal kernel, so each example is a small
+starting point rather than a parallel mock API.
 
 ## SDL remote desktop
 
