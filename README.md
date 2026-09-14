@@ -140,7 +140,9 @@ round trip to a source-built-Ruby host service. The interface address, gateway,
 netmask, DNS server, and lease time come from a Ruby DHCP client. Packet framing,
 checksums, DNS compression parsing, and connection sequencing are ordinary Ruby
 objects. A host-forwarded connection also exercises the server-side TCP
-handshake and evaluates Ruby through the freestanding kernel's TCP REPL.
+handshake and evaluates Ruby through the freestanding kernel's TCP REPL. The
+REPL demultiplexes simultaneous connections, preserves a private Ruby binding
+for each client, and shares the live RubyOS object graph between them.
 
 For an interactive session:
 
