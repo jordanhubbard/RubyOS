@@ -39,6 +39,14 @@ module RubyOS
       scheduler.run
 
       clock = Timekeeper.new
+      memory = Memory::Manager.system
+      free_before = memory.snapshot.free_bytes
+      probe_frame = memory.allocate
+      free_during = memory.snapshot.free_bytes
+      memory.release(probe_frame)
+      free_after = memory.snapshot.free_bytes
+      RubyOS.invariant(free_during < free_before, "page allocation did not consume heap")
+      RubyOS.invariant(free_after > free_during, "page release did not return heap")
 
       filesystem = FS::TmpFS.new.seed(
         "tmp" => {},
@@ -50,8 +58,9 @@ module RubyOS
       output.puts "kernel: #{console.name} -> #{console.driver.class}"
       output.puts "kernel: fibers #{trace.inspect}"
       output.puts "kernel: timer #{timer_trace.inspect}"
+      output.puts "kernel: memory #{memory.snapshot.used_bytes}/#{memory.snapshot.total_bytes} bytes"
       output.puts "kernel: Ruby owns the machine"
-      @state = { bus:, scheduler:, trace:, timer_trace:, vfs:, clock: }.freeze
+      @state = { bus:, scheduler:, trace:, timer_trace:, vfs:, clock:, memory: }.freeze
     end
   end
 end

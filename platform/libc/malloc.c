@@ -228,6 +228,7 @@ void *aligned_alloc(size_t alignment, size_t size) {
 // Statistics (useful for the kernel shell)
 size_t malloc_free_bytes(void) {
     spin_lock(&heap_lock);
+    if (!heap_initialized) heap_init();
     size_t total = 0;
     for (int o = MIN_ORDER; o <= MAX_ORDER; o++) {
         block_header_t *b = free_lists[o - MIN_ORDER];
@@ -235,4 +236,8 @@ size_t malloc_free_bytes(void) {
     }
     spin_unlock(&heap_lock);
     return total;
+}
+
+size_t malloc_total_bytes(void) {
+    return HEAP_SIZE;
 }

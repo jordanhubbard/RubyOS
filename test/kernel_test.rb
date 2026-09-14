@@ -16,6 +16,29 @@ assert(state[:trace] == [[0, :start], [1, :start], [0, :finish], [1, :finish]], 
 assert(state[:scheduler].tasks.all? { |task| task.state == :complete }, "task completion")
 assert(state[:timer_trace] == [:sleep, :wake], "bare scheduler deadline")
 
+memory = RubyOS::Memory::Manager.new(backend: RubyOS::Memory::SimulatedBackend.new(16_384))
+initial_memory = memory.snapshot
+frames = memory.allocate_many(2)
+assert(frames.map(&:address) == [0x1000, 0x2000], "page frames have aligned addresses")
+assert(memory.snapshot.used_bytes == initial_memory.used_bytes + 8_192, "page allocation metrics")
+memory.release_many(frames)
+assert(memory.snapshot == initial_memory, "page release restores allocator metrics")
+begin
+  memory.release(frames.first)
+  raise "released page frame was accepted twice"
+rescue RubyOS::Memory::InvalidFrame
+  nil
+end
+
+small_memory = RubyOS::Memory::Manager.new(backend: RubyOS::Memory::SimulatedBackend.new(4_096))
+begin
+  small_memory.allocate_many(2)
+  raise "out-of-memory allocation succeeded"
+rescue NoMemoryError
+  nil
+end
+assert(small_memory.snapshot.free_bytes == 4_096, "partial allocation rolls back")
+
 fake_now = 0.0
 timed = RubyOS::Scheduler.new(monotonic_ms: -> { fake_now },
                               sleeper: ->(delay) { fake_now += delay })

@@ -3,7 +3,10 @@
 #include "kernel_source.h"
 
 extern void *aligned_alloc(size_t alignment, size_t size);
+extern void free(void *memory);
 extern void *memset(void *destination, int byte, size_t length);
+extern size_t malloc_free_bytes(void);
+extern size_t malloc_total_bytes(void);
 extern void rubyos_timer_init(void);
 extern uint64_t rubyos_timer_ticks(void);
 
@@ -138,6 +141,25 @@ static VALUE hal_dma_alloc(VALUE self, VALUE requested)
     return ULL2NUM((unsigned long long)(uintptr_t)memory);
 }
 
+static VALUE hal_dma_free(VALUE self, VALUE address)
+{
+    (void)self;
+    free((void *)(uintptr_t)NUM2ULL(address));
+    return Qnil;
+}
+
+static VALUE hal_heap_total_bytes(VALUE self)
+{
+    (void)self;
+    return ULL2NUM(malloc_total_bytes());
+}
+
+static VALUE hal_heap_free_bytes(VALUE self)
+{
+    (void)self;
+    return ULL2NUM(malloc_free_bytes());
+}
+
 static uint64_t monotonic_ticks(void)
 {
     uint64_t value;
@@ -239,6 +261,9 @@ void rubyos_kernel_main(uint64_t dtb_address)
     rb_define_module_function(hal, "mmio_read8", hal_mmio_read8, 1);
     rb_define_module_function(hal, "mmio_write8", hal_mmio_write8, 2);
     rb_define_module_function(hal, "dma_alloc", hal_dma_alloc, 1);
+    rb_define_module_function(hal, "dma_free", hal_dma_free, 1);
+    rb_define_module_function(hal, "heap_total_bytes", hal_heap_total_bytes, 0);
+    rb_define_module_function(hal, "heap_free_bytes", hal_heap_free_bytes, 0);
     rb_define_module_function(hal, "monotonic_ns", hal_monotonic_ns, 0);
     rb_define_module_function(hal, "sleep_us", hal_sleep_us, 1);
     rb_define_module_function(hal, "interrupt_ticks", hal_interrupt_ticks, 0);

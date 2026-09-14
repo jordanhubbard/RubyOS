@@ -7,4 +7,5 @@ timeout 30 qemu-system-x86_64 -m 768M -cdrom "$root/build/baremetal/rubyos-x86_6
 grep -Fq '[RubyOS/x86_64] boot: entering CRuby 4.0.6' "$log"
 grep -Fq '[RubyOS/x86_64] boot: IDT/PIT timer IRQs active' "$log"
 grep -Fq 'kernel: Ruby owns the machine' "$log"
+grep -Fq 'kernel: memory ' "$log"
 echo 'RubyOS x86_64 CRuby smoke PASS'

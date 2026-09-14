@@ -43,6 +43,7 @@ void *calloc(size_t n, size_t size);
 void *realloc(void *ptr, size_t size);
 void *aligned_alloc(size_t alignment, size_t size);
 size_t malloc_free_bytes(void);
+size_t malloc_total_bytes(void);
 
 // ── String / memory ───────────────────────────────────────────────────────────
 void  *memset(void *dst, int c, size_t n);
