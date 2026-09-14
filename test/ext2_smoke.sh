@@ -17,3 +17,4 @@ mkfs.ext2 -q -F -t ext2 -b 4096 -d "$temporary/root" "$temporary/disk.img"
 
 RUBYOS_EXT2_IMAGE="$temporary/disk.img" \
     "$root/build/host-ruby/bin/ruby" -I "$root/kernel" "$root/test/ext2_test.rb"
+e2fsck -fn "$temporary/disk.img"

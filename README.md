@@ -100,7 +100,9 @@ input under QEMU. The prompt evaluates ordinary Ruby and provides `help`,
 `make rubyos-arm64-storage-smoke` adds a generated ext2 disk to QEMU. Ruby
 discovers it through a Ruby VirtIO-MMIO block driver, parses ext2 without a C
 filesystem library, and mounts its persistent `/home` and `/apps` trees into
-the VFS. The current ext2 milestone is read-only; tmpfs remains writable.
+the VFS. Files created or replaced from the Ruby shell are allocated and
+written back to the disk. Ext2 deletion, arbitrary shrinking, and allocation
+beyond single-indirect blocks remain later storage work.
 
 For an interactive session:
 

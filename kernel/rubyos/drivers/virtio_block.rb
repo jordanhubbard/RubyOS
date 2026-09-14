@@ -79,6 +79,22 @@ module RubyOS
         bytes_from_dma(@data, SECTOR_SIZE)
       end
 
+      def write(offset, bytes)
+        bytes = String(bytes).b
+        raise RangeError, "block write outside device" if offset.negative? || offset + bytes.bytesize > size
+        until bytes.empty?
+          sector_number = offset / SECTOR_SIZE
+          within = offset % SECTOR_SIZE
+          count = [bytes.bytesize, SECTOR_SIZE - within].min
+          sector = within.zero? && count == SECTOR_SIZE ? bytes.byteslice(0, count) : read_sector(sector_number)
+          sector[within, count] = bytes.byteslice(0, count) unless within.zero? && count == SECTOR_SIZE
+          write_sector(sector_number, sector)
+          offset += count
+          bytes = bytes.byteslice(count..) || +"".b
+        end
+        self
+      end
+
       def write_sector(number, bytes)
         bytes = String(bytes).b
         raise ArgumentError, "sector must contain 512 bytes" unless bytes.bytesize == SECTOR_SIZE

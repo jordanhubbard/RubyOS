@@ -22,12 +22,21 @@ large = vfs.read_file("/disk/home/large.bin")
 assert(large.bytesize == 70_000, "single-indirect ext2 file size")
 assert(large == "R" * 70_000, "single-indirect ext2 file data")
 
-begin
-  vfs.write_file("/disk/home/nope", "denied")
-  raise "read-only ext2 accepted a write"
-rescue RubyOS::FS::PermissionDenied
-  nil
-end
+vfs.write_file("/disk/home/created.txt", "written by Ruby")
+assert(vfs.read_file("/disk/home/created.txt") == "written by Ruby", "ext2 create and write")
+vfs.write_file("/disk/home/created.txt", "replacement")
+assert(vfs.read_file("/disk/home/created.txt") == "replacement", "ext2 truncate and rewrite")
+vfs.mkdir("/disk/home/projects")
+vfs.write_file("/disk/home/projects/readme", "nested write")
+assert(vfs.read_file("/disk/home/projects/readme") == "nested write", "ext2 directory creation")
 
+device.close
+
+device = RubyOS::FS::Ext2::FileBlockDevice.new(path)
+filesystem = RubyOS::FS::Ext2.new(device)
+assert(filesystem.root.lookup("home").lookup("created.txt").read(0, 32) == "replacement",
+       "ext2 changes survive remount")
+assert(filesystem.root.lookup("home").lookup("projects").lookup("readme").read(0, 32) == "nested write",
+       "ext2 directory survives remount")
 device.close
 puts "RubyOS ext2 exploration: PASS"
