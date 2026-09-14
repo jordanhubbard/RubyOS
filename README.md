@@ -113,7 +113,8 @@ reply from the virtual gateway. It then completes a TCP handshake and payload
 round trip to a source-built-Ruby host service. The interface address, gateway,
 netmask, DNS server, and lease time come from a Ruby DHCP client. Packet framing,
 checksums, DNS compression parsing, and connection sequencing are ordinary Ruby
-objects; TCP listening and the network REPL remain subsequent networking milestones.
+objects. A host-forwarded connection also exercises the server-side TCP
+handshake and evaluates Ruby through the freestanding kernel's TCP REPL.
 
 For an interactive session:
 

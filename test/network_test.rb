@@ -66,4 +66,20 @@ answer = [0x5255, 0x8180, 1, 1, 0, 0].pack("n6") +
 dns = RubyOS::Net::DNSMessage.new(answer)
 assert(dns.addresses.first.to_s == "192.0.2.1", "compressed DNS A response")
 
+connection = Class.new do
+  attr_reader :written
+  def read(timeout_ms:) = "6 * 7"
+  def write(bytes) = (@written = bytes).bytesize
+end.new
+listener = Class.new do
+  def initialize(connection) = (@connection = connection)
+  def accept(timeout_ms:) = @connection
+end.new(connection)
+stack_double = Class.new do
+  def initialize(listener) = (@listener = listener)
+  def listen(_port) = @listener
+end.new(listener)
+RubyOS::Net::REPLServer.new(stack_double).serve_once
+assert(connection.written == "=> 42\n", "TCP Ruby REPL evaluation")
+
 puts "RubyOS network packets: PASS"

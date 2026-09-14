@@ -17,6 +17,10 @@ module RubyOS
       echo = stack.tcp_echo(lease.gateway, 18_081, "ruby-over-tcp")
       RubyOS.invariant(echo == "echo:ruby-over-tcp", "TCP echo response did not match")
       output.puts "network: TCP echo round trip via #{lease.gateway}:18081"
+      repl = Net::REPLServer.new(stack)
+      output.puts "network: Ruby REPL ready on #{repl.port}"
+      response = repl.serve_once
+      output.puts "network: Ruby REPL evaluated #{response.strip}"
       stack
     end
   end

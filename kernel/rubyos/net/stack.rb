@@ -96,6 +96,32 @@ module RubyOS
         raise Error, "UDP request to #{destination}:#{port} timed out"
       end
 
+      def listen(port)
+        TCPListener.new(self, Integer(port))
+      end
+
+      def transmit_tcp(destination, remote_mac, segment)
+        send_ip(destination, remote_mac, IPv4Packet::TCP,
+                segment.encode(source_ip: address, destination_ip: destination))
+      end
+
+      def wait_for_tcp_frame(timeout_ms:)
+        deadline = RubyOS::HAL.monotonic_ns + timeout_ms * 1_000_000
+        while RubyOS::HAL.monotonic_ns < deadline
+          bytes = device.receive
+          next unless bytes
+          frame = EthernetFrame.decode(bytes)
+          next unless frame.ethertype == EthernetFrame::IPV4
+          packet = IPv4Packet.decode(frame.payload)
+          next unless packet.protocol == IPv4Packet::TCP
+          segment = TCPSegment.decode(packet.payload, source_ip: packet.source,
+                                      destination_ip: packet.destination)
+          tuple = [frame, packet, segment]
+          return tuple if yield(*tuple)
+        end
+        nil
+      end
+
       def resolve(ip, timeout_ms: 3_000)
         return @arp.fetch(ip) if @arp.key?(ip)
         zero = MACAddress.new("\0".b * 6)
