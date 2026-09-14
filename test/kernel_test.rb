@@ -55,6 +55,13 @@ compositor.handle("kind" => 4, "button" => 1,
                   "x" => first_window.x + first_window.width - 12, "y" => first_window.y + 10)
 assert(!compositor.windows.include?(first_window), "window close hit target")
 
+editor = RubyOS::Apps::Editor.new(path: "/home/editor.txt")
+editor.save("Edited by a Ruby object.\n")
+assert(state.fetch(:vfs).read_file("/home/editor.txt") == "Edited by a Ruby object.\n",
+       "Editor persists through VFS")
+viewer = RubyOS::Apps::ImageViewer.new
+assert(viewer.launch(compositor).title == "Image Viewer", "Image Viewer launches a window")
+
 shell_input = ["1 + 2\n", "version\n", "exit\n"]
 shell_output = StringIO.new
 RubyOS::Shell.new(input: -> { shell_input.shift }, output: shell_output).run

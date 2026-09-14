@@ -48,5 +48,56 @@ module RubyOS
         end
       end
     end
+
+    class Editor < Application
+      attr_reader :path, :content
+
+      def initialize(path: "/home/welcome.txt", **)
+        super(**)
+        @path = path
+        @content = kernel.state.fetch(:vfs).read_file(path)
+      rescue FS::NotFound
+        @content = +""
+      end
+
+      def save(text)
+        @content = String(text)
+        kernel.state.fetch(:vfs).write_file(path, @content)
+        self
+      end
+
+      def build_window
+        GUI::Window.new("Editor - #{path}", x: 72, y: 54, width: 350, height: 164,
+                        background: 0x171a24).tap do |window|
+          content.lines.first(4).each_with_index do |line, index|
+            window.add(GUI::Label.new(line.chomp, x: 0, y: index * 22, color: 0xe7e1ed))
+          end
+          window.add(GUI::Label.new("Ruby String -> VFS#write_file", x: 0, y: 94, color: 0xc3e88d))
+        end
+      end
+    end
+
+    class PixelArt < GUI::View
+      def draw(surface)
+        super
+        colors = [0xff668a, 0xffd866, 0x78dce8, 0xa9dc76, 0xab9df2]
+        5.times do |row|
+          8.times do |column|
+            color = colors[(row + column * 2) % colors.length]
+            surface.fill_rect(x + column * 20, y + row * 14, 18, 12, color)
+          end
+        end
+      end
+    end
+
+    class ImageViewer < Application
+      def build_window
+        GUI::Window.new("Image Viewer", x: 116, y: 48, width: 220, height: 150,
+                        background: 0x10151f).tap do |window|
+          window.add(PixelArt.new(x: 10, y: 4, width: 160, height: 70))
+          window.add(GUI::Label.new("Ruby-generated pixels", x: 10, y: 84, color: 0xe8dff5))
+        end
+      end
+    end
   end
 end

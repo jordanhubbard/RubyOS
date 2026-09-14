@@ -5,11 +5,24 @@ module RubyOS
     class Surface
       attr_reader :client, :handle, :width, :height
 
-      def initialize(client, handle:, width:, height:)
+      def initialize(client, handle:, width:, height:, owned: false)
         @client = client
         @handle = Integer(handle)
         @width = Integer(width)
         @height = Integer(height)
+        @owned = owned
+      end
+
+
+      def self.create(client, width:, height:)
+        result = client.call("surface.create", { w: width, h: height })
+        new(client, handle: result.fetch("handle"), width:, height:, owned: true)
+      end
+
+      def self.load_image(client, bytes)
+        result = client.call("surface.load_image", {}, payload: String(bytes).b)
+        new(client, handle: result.fetch("handle"), width: result.fetch("w"),
+            height: result.fetch("h"), owned: true)
       end
 
       def fill_rect(x, y, width, height, color)
@@ -22,6 +35,29 @@ module RubyOS
         parameters = { handle:, x:, y:, text: String(text), fg: Integer(color) }
         parameters[:bg] = Integer(background) unless background.nil?
         client.call("text.draw", parameters)
+        self
+      end
+
+
+      def upload(pixels)
+        pixels = String(pixels).b
+        raise ArgumentError, "pixel buffer must contain width*height*4 bytes" unless pixels.bytesize == width * height * 4
+        client.call("surface.upload", { handle: }, payload: pixels)
+        self
+      end
+
+      def blit_to(destination, x:, y:, source_rect: nil)
+        parameters = { src: handle, dst: destination.handle,
+                       dst_rect: { x:, y:, w: width, h: height } }
+        parameters[:src_rect] = source_rect if source_rect
+        client.call("surface.blit", parameters)
+        destination
+      end
+
+      def destroy
+        return self unless @owned
+        client.call("surface.destroy", { handle: })
+        @owned = false
         self
       end
     end

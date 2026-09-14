@@ -16,11 +16,11 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 | Remote display | UART/VirtIO/TCP protocol-v1 SDL companion | hosted TCP and bare-metal VirtIO console | Complete |
 | GUI API | SDL-compatible surfaces, events, images, fonts | Ruby `Surface` and basic widget hierarchy | Partial |
 | Desktop | compositor, windows, menu bar, dock, wallpaper, shortcuts | Ruby compositor, focus/z-order, windows, menu bar, dock | Partial |
-| Apps | terminal, editor, files, image viewer, monitor, clock, settings | About, Files, Terminal, and System Monitor Ruby windows | Partial |
+| Apps | terminal, editor, files, image viewer, monitor, clock, settings | About, Files, Terminal, VFS Editor, Image Viewer, System Monitor | Partial |
 | Demos and games | graphics/audio demos and arcade games | none | Missing |
 | Input | PS/2 and VirtIO input, canonical event queue | SDL event queue routed through Ruby window and dock hit testing | Partial |
 | Audio | AC97/Intel HDA/bridge mixer and sound API | host bridge vocabulary only | Missing |
-| Images | PNG/JPEG decoding and viewer | host-side SDL_image operations | Partial |
+| Images | PNG/JPEG decoding and viewer | Ruby remote surfaces, raw upload, PNG/JPEG decode/blit, Image Viewer | Partial |
 | Chipset laboratory | display lists, copper/blitter/sprites/audio | none | Missing |
 | Concurrency | ARM64/x86 SMP, pthread substrate, no-GIL workers | single-core pthread compatibility | Missing |
 | Debug/automation | QMP/native debug, captures, performance metrics | deterministic QEMU smokes and SDL captures | Partial |

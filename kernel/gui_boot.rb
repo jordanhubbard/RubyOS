@@ -19,6 +19,8 @@ module RubyOS
         .register("Files", Apps::Files.new)
         .register("Terminal", Apps::Terminal.new)
         .register("Monitor", Apps::SystemMonitor.new)
+        .register("Editor", Apps::Editor.new)
+        .register("Image", Apps::ImageViewer.new)
       applications.each do |name, application|
         compositor.add_dock_item(name) { application.launch(compositor) }
       end

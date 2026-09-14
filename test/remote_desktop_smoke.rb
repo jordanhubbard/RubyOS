@@ -52,6 +52,15 @@ begin
   root_view.add(RubyOS::GUI::Label.new("CRuby 4 + Prism + SDL", x: 52, y: 104,
                                        color: 0x9cdcfe))
   root_view.draw(desktop.surface)
+  pixels = [0x20, 0x66, 0xff, 0, 0x66, 0xcc, 0x44, 0,
+            0xff, 0x66, 0x99, 0, 0xcc, 0xcc, 0x55, 0].pack("C*")
+  image = RubyOS::Bridge::Surface.create(client, width: 2, height: 2)
+  image.upload(pixels).blit_to(desktop.surface, x: 440, y: 20)
+  png = ["89504e470d0a1a0a0000000d494844520000000200000002010300000048789f67" \
+         "00000006504c5445ff3366ffffffb9d15e980000000c4944415408d763606060" \
+         "0000000400012734270a0000000049454e44ae426082"].pack("H*")
+  decoded = RubyOS::Bridge::Surface.load_image(client, png)
+  decoded.blit_to(desktop.surface, x: 444, y: 20)
   desktop.present
   raise "event response is not an array" unless desktop.events.is_a?(Array)
   injected = client.call("debug.event.inject", { kind: 4, x: 20, y: 30, button: 1 })
@@ -60,6 +69,8 @@ begin
   raise "wrong injected event" unless event["kind"] == 4 && event["x"] == 20 && event["y"] == 30
   desktop.capture(capture_path)
   raise "desktop capture is empty" unless File.size?(capture_path)
+  image.destroy
+  decoded.destroy
   desktop.close
   client.call("shutdown")
   client.close
