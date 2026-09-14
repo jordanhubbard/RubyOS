@@ -1,0 +1,7 @@
+/build/
+/deps/
+/.tickets/
+*.log
+/bridge/**/*.d
+/bridge/**/*.o
+/bridge/rubyos_bridge
