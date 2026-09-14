@@ -68,9 +68,8 @@ Prism, Ruby-defined devices, and cooperative Fibers on QEMU's `virt` machine.
 `make rubyos-x86_64-smoke` independently cross-builds CRuby with its amd64
 Fiber coroutine backend, packages a Multiboot2 ELF with GRUB, and boots the
 same embedded Ruby kernel under `qemu-system-x86_64`. Its early port currently
-provides COM1, static TLS, SSE, a heap, and provisional TSC-backed time; ARM64
-remains the full device-integration target while x86 timer and interrupt work
-is completed.
+provides COM1, static TLS, SSE, a heap, a 100 Hz PIT clock, and an IDT with a
+boot-time exception probe; ARM64 remains the full device-integration target.
 
 The initial platform libc is adapted from PythonOS and retains its BSD license
 in `platform/PYTHONOS-LICENSE`.
