@@ -63,6 +63,10 @@ begin
          "0000000400012734270a0000000049454e44ae426082"].pack("H*")
   decoded = RubyOS::Bridge::Surface.load_image(client, png)
   decoded.blit_to(desktop.surface, x: 444, y: 20)
+  jpeg = ["ffd8ffe000104a46494600010200000100010000fffe000f4c61766336312e332e31303000ffdb0043000804040404040505050505050606060606060606060606060607070708080807070706060707080808080909090808080809090a0a0a0c0c0b0b0e0e0e111114ffc400680001010000000000000000000000000000050601010100000000000000000000000000000506100001040101090100000000000000000003040602010500a58555171314b408d436110002020202030101000000000000000003020104061211051300221421ffc00011080008000803012200021100031100ffda000c03010002110311003f003530f38ce6385623b922c88b18d29368973129b064a69151b23d0a2c8c20d2830d3f75125440a2231c6553842aa89e727b47c7367b4be2d543cff14d5dc3e129d03a530ec729659d0d7ef2d9ad5535ce61abd22286987f2c4535f00586494f22d7831bee7739084fe6dc7b4380d2abd8a64697022b6d4322bdd608c718cc670d40551ab95c8ad2c524ec4332eaac5766d639f7ffd9"].pack("H*")
+  decoded_jpeg = RubyOS::Bridge::Surface.load_image(client, jpeg)
+  raise "JPEG dimensions changed" unless [decoded_jpeg.width, decoded_jpeg.height] == [8, 8]
+  decoded_jpeg.blit_to(desktop.surface, x: 448, y: 20)
   font = RubyOS::Bridge::Font.open_default(client, point_size: 14)
   measured = font.measure("Ruby")
   raise "invalid SDL_ttf measurement" unless measured.all?(&:positive?)
@@ -82,6 +86,7 @@ begin
   raise "desktop capture is empty" unless File.size?(capture_path)
   image.destroy
   decoded.destroy
+  decoded_jpeg.destroy
   rendered_text.destroy
   font.close
   desktop.close

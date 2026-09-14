@@ -20,7 +20,7 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 | Demos and games | graphics/audio demos and arcade games | Ruby Chipset Workbench desktop demo | Partial |
 | Input | PS/2 and VirtIO input, canonical event queue | SDL mouse, key, and UTF-8 text events routed through Ruby compositor focus and widgets | Partial |
 | Audio | AC97/Intel HDA/bridge mixer and sound API | Ruby PCM/waveform mixer and bare-metal SDL audio bridge | Partial |
-| Images | PNG/JPEG decoding and viewer | Ruby remote surfaces, raw upload, PNG/JPEG decode/blit, Image Viewer | Partial |
+| Images | PNG/JPEG decoding and viewer | Ruby remote surfaces, raw upload, bare-metal PNG/JPEG decode/blit, and Image Viewer | Complete |
 | Chipset laboratory | display lists, copper/blitter/sprites/audio | Ruby playfields, Copper commands, Blitter, Sprite, raster preview | Partial |
 | Concurrency | ARM64/x86 SMP, pthread substrate, no-GIL workers | single-core pthread compatibility | Missing |
 | Debug/automation | QMP/native debug, captures, performance metrics | deterministic QEMU smokes and SDL captures | Partial |

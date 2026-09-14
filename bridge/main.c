@@ -1380,6 +1380,11 @@ static int op_surface_load_image(BridgeState *st, int id, cJSON *params) {
         return send_err(st->fd, id, 4, "payload_len required");
     }
     size_t plen = (size_t)jp->valuedouble;
+    int wanted = IMG_INIT_PNG | IMG_INIT_JPG;
+    int initialized = IMG_Init(wanted);
+    if ((initialized & wanted) != wanted) {
+        return send_err(st->fd, id, 11, IMG_GetError());
+    }
     char *payload = NULL;
     if (read_payload_trailer(st->fd, plen, &payload) != 0) return -1;
 
