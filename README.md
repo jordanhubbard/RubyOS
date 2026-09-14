@@ -112,8 +112,8 @@ Ruby-owned VirtIO-MMIO NIC, ARP resolution, IPv4, and ICMP by receiving an echo
 reply from the virtual gateway. It then completes a TCP handshake and payload
 round trip to a source-built-Ruby host service. The interface address, gateway,
 netmask, DNS server, and lease time come from a Ruby DHCP client. Packet framing,
-checksums, and connection sequencing are ordinary Ruby objects; TCP listening
-and DNS remain subsequent networking milestones.
+checksums, DNS compression parsing, and connection sequencing are ordinary Ruby
+objects; TCP listening and the network REPL remain subsequent networking milestones.
 
 For an interactive session:
 

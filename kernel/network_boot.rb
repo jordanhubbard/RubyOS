@@ -12,6 +12,8 @@ module RubyOS
       reply = stack.ping(lease.gateway)
       RubyOS.invariant(reply, "ICMP echo reply not received")
       output.puts "network: ICMP echo reply from #{lease.gateway}"
+      resolved = Net::DNSClient.new(stack, lease.dns).resolve("example.com")
+      output.puts "network: DNS example.com -> #{resolved} via #{lease.dns}"
       echo = stack.tcp_echo(lease.gateway, 18_081, "ruby-over-tcp")
       RubyOS.invariant(echo == "echo:ruby-over-tcp", "TCP echo response did not match")
       output.puts "network: TCP echo round trip via #{lease.gateway}:18081"

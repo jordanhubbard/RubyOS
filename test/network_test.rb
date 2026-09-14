@@ -57,4 +57,13 @@ decoded_dhcp = RubyOS::Net::DHCPMessage.decode(wire)
 assert(decoded_dhcp.transaction == 0x12345678, "DHCP transaction round trip")
 assert(decoded_dhcp.message_type == RubyOS::Net::DHCPMessage::DISCOVER, "DHCP option decoding")
 
+query = RubyOS::Net::DNSMessage.query(0x5255, "ruby.example")
+assert(query.byteslice(0, 2).unpack1("n") == 0x5255, "DNS query identifier")
+assert(query.include?("\x04ruby\x07example\0".b), "DNS label encoding")
+answer = [0x5255, 0x8180, 1, 1, 0, 0].pack("n6") +
+         "\x04ruby\x07example\0".b + [1, 1].pack("nn") +
+         "\xc0\x0c".b + [1, 1, 60, 4].pack("nnNn") + [192, 0, 2, 1].pack("C*")
+dns = RubyOS::Net::DNSMessage.new(answer)
+assert(dns.addresses.first.to_s == "192.0.2.1", "compressed DNS A response")
+
 puts "RubyOS network packets: PASS"

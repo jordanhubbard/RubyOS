@@ -76,6 +76,26 @@ module RubyOS
         reply.payload
       end
 
+      def udp_exchange(destination, port, payload, source_port:, timeout_ms: 5_000)
+        destination = IPv4Address.new(destination) unless destination.is_a?(IPv4Address)
+        remote_mac = resolve(destination, timeout_ms:)
+        segment = UDPSegment.new(source_port, port, String(payload).b)
+        send_ip(destination, remote_mac, IPv4Packet::UDP,
+                segment.encode(source_ip: address, destination_ip: destination))
+        deadline = RubyOS::HAL.monotonic_ns + timeout_ms * 1_000_000
+        while RubyOS::HAL.monotonic_ns < deadline
+          bytes = device.receive
+          next unless bytes
+          frame = EthernetFrame.decode(bytes)
+          next unless frame.ethertype == EthernetFrame::IPV4
+          packet = IPv4Packet.decode(frame.payload)
+          next unless packet.protocol == IPv4Packet::UDP && packet.source == destination
+          reply = UDPSegment.decode(packet.payload)
+          return reply.payload if reply.destination_port == source_port && reply.source_port == port
+        end
+        raise Error, "UDP request to #{destination}:#{port} timed out"
+      end
+
       def resolve(ip, timeout_ms: 3_000)
         return @arp.fetch(ip) if @arp.key?(ip)
         zero = MACAddress.new("\0".b * 6)

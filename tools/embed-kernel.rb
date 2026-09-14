@@ -15,6 +15,7 @@ paths = %w[
   kernel/rubyos/net/address.rb
   kernel/rubyos/net/packet.rb
   kernel/rubyos/net/dhcp.rb
+  kernel/rubyos/net/dns.rb
   kernel/rubyos/net/tcp.rb
   kernel/rubyos/net/stack.rb
   kernel/rubyos/gui/ui.rb
