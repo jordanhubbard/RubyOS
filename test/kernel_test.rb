@@ -34,6 +34,27 @@ button = RubyOS::GUI::Button.new("Run", action: ->(_) { button_clicked = true })
 assert(button.handle(:click), "button consumes click")
 assert(button_clicked, "button action")
 
+surface = Class.new do
+  attr_reader :operations
+  def initialize = (@operations = [])
+  def fill_rect(*arguments) = operations << [:fill_rect, *arguments]
+  def draw_text(*arguments, **options) = operations << [:draw_text, *arguments, options]
+end.new
+compositor = RubyOS::GUI::Compositor.new(width: 480, height: 300)
+first_window = RubyOS::GUI::Window.new("First", x: 20, y: 30, width: 180, height: 120)
+second_window = RubyOS::GUI::Window.new("Second", x: 80, y: 60, width: 180, height: 120)
+compositor.add_window(first_window)
+compositor.add_window(second_window)
+assert(compositor.focused_window == second_window, "new window receives focus")
+assert(compositor.window_at(100, 90) == second_window, "hit testing follows z-order")
+compositor.focus(first_window)
+assert(compositor.focused_window == first_window, "window focus raises z-order")
+compositor.draw(surface, uptime: "42 ms")
+assert(surface.operations.any? { |operation| operation.include?("First") }, "window chrome rendering")
+compositor.handle("kind" => 4, "button" => 1,
+                  "x" => first_window.x + first_window.width - 12, "y" => first_window.y + 10)
+assert(!compositor.windows.include?(first_window), "window close hit target")
+
 shell_input = ["1 + 2\n", "version\n", "exit\n"]
 shell_output = StringIO.new
 RubyOS::Shell.new(input: -> { shell_input.shift }, output: shell_output).run

@@ -20,6 +20,7 @@ The first slice proves the language-level architecture on a source-built CRuby:
 - Ruby-native Ethernet, ARP, IPv4, ICMP, and UDP packet objects
 - `Device`, `Driver`, and `Bus` object protocols
 - a Ruby-native `Element -> View -> Container/Label -> Button` GUI hierarchy
+- a Ruby compositor with focus/z-order, windows, menu bar, dock, and system apps
 - a forked SDL2 companion plus an idiomatic Ruby
   `Transport -> Client -> Surface -> RemoteDesktop` hierarchy
 - PythonOS-compatible length-prefixed bridge framing
@@ -92,6 +93,11 @@ The wire protocol is currently unauthenticated and unencrypted. Keep it on
 loopback or a trusted private/SSH-forwarded connection. VirtIO console is the
 current bare-metal transport; a future TCP transport can implement the same
 small byte-stream interface without changing the SDL or Ruby object layers.
+
+The bare-metal desktop is composed by Ruby objects rather than a fixed bridge
+scene. `Compositor` owns window focus and z-order, while `Application`
+subclasses build About, Files, Terminal, and System Monitor windows from live
+kernel state. The SDL companion remains a rendering and input device.
 
 ## Bare-metal Ruby console
 

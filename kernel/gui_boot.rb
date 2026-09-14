@@ -13,17 +13,19 @@ module RubyOS
 
       desktop = Bridge::RemoteDesktop.new(client, width: 480, height: 300,
                                            title: "RubyOS Bare-Metal Desktop")
-      root = GUI::Container.new(x: 0, y: 0, width: 480, height: 300,
-                                background: 0x171321)
-      root.add(GUI::View.new(x: 24, y: 24, width: 432, height: 252,
-                             background: 0x3b245c))
-      root.add(GUI::View.new(x: 36, y: 58, width: 408, height: 196,
-                             background: 0x21182f))
-      root.add(GUI::Label.new("Ruby owns this bare-metal desktop",
-                              x: 52, y: 78, color: 0xffd866))
-      root.add(GUI::Label.new("CRuby 4 + Prism + VirtIO + SDL",
-                              x: 52, y: 104, color: 0x9cdcfe))
-      root.draw(desktop.surface)
+      compositor = GUI::Compositor.new(width: 480, height: 300, title: "RubyOS")
+      applications = Apps::Registry.new
+        .register("About", Apps::About.new)
+        .register("Files", Apps::Files.new)
+        .register("Terminal", Apps::Terminal.new)
+        .register("Monitor", Apps::SystemMonitor.new)
+      applications.each do |name, application|
+        compositor.add_dock_item(name) { application.launch(compositor) }
+      end
+      applications.fetch("About").launch(compositor)
+      applications.fetch("Files").launch(compositor)
+      applications.fetch("Terminal").launch(compositor)
+      compositor.draw(desktop.surface, uptime: "#{state.fetch(:clock).milliseconds} ms")
       desktop.present
       desktop.capture("/tmp/rubyos-baremetal-desktop.bmp")
       desktop.close
