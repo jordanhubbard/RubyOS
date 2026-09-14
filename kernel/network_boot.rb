@@ -6,14 +6,15 @@ module RubyOS
 
     def boot_network(output: $stdout)
       device = Drivers::VirtioNet.find
-      stack = Net::Stack.new(device, address: "10.0.2.15", gateway: "10.0.2.2")
-      output.puts "network: #{device.mac} 10.0.2.15"
-      reply = stack.ping("10.0.2.2")
+      lease = Net::DHCPClient.new(device).acquire
+      stack = Net::Stack.new(device, address: lease.address, gateway: lease.gateway)
+      output.puts "network: DHCP #{device.mac} #{lease.address} gateway #{lease.gateway}"
+      reply = stack.ping(lease.gateway)
       RubyOS.invariant(reply, "ICMP echo reply not received")
-      output.puts "network: ICMP echo reply from 10.0.2.2"
-      echo = stack.tcp_echo("10.0.2.2", 18_081, "ruby-over-tcp")
+      output.puts "network: ICMP echo reply from #{lease.gateway}"
+      echo = stack.tcp_echo(lease.gateway, 18_081, "ruby-over-tcp")
       RubyOS.invariant(echo == "echo:ruby-over-tcp", "TCP echo response did not match")
-      output.puts "network: TCP echo round trip via 10.0.2.2:18081"
+      output.puts "network: TCP echo round trip via #{lease.gateway}:18081"
       stack
     end
   end

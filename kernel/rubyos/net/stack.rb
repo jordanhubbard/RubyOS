@@ -7,8 +7,8 @@ module RubyOS
 
       def initialize(device, address:, gateway:)
         @device = device
-        @address = IPv4Address.new(address)
-        @gateway = IPv4Address.new(gateway)
+        @address = address.is_a?(IPv4Address) ? address : IPv4Address.new(address)
+        @gateway = gateway.is_a?(IPv4Address) ? gateway : IPv4Address.new(gateway)
         @arp = {}
         @identification = 0
       end

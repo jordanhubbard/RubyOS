@@ -33,7 +33,7 @@ if [[ $status -ne 0 && $status -ne 124 ]]; then
 fi
 
 cat "$output_file"
-grep -q 'network: 52:54:00:12:34:56 10.0.2.15' "$output_file"
+grep -q 'network: DHCP 52:54:00:12:34:56 10.0.2.15 gateway 10.0.2.2' "$output_file"
 grep -q 'network: ICMP echo reply from 10.0.2.2' "$output_file"
 grep -q 'network: TCP echo round trip via 10.0.2.2:18081' "$output_file"
 ! grep -q 'FATAL\|EXCEPTION\|ASSERT\|\[BUG\]' "$output_file"

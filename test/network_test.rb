@@ -48,4 +48,13 @@ decoded_tcp = RubyOS::Net::TCPSegment.decode(tcp_bytes, source_ip:, destination_
 assert(decoded_tcp.sequence == 123, "TCP sequence round trip")
 assert(decoded_tcp.payload == "ruby-stream", "TCP payload round trip")
 
+dhcp = RubyOS::Net::DHCPMessage.new(transaction: 0x12345678, client_mac: source_mac,
+                                    options: { 53 => [RubyOS::Net::DHCPMessage::DISCOVER].pack("C") })
+wire = dhcp.encode.dup
+wire.setbyte(0, 2)
+wire[16, 4] = source_ip.bytes
+decoded_dhcp = RubyOS::Net::DHCPMessage.decode(wire)
+assert(decoded_dhcp.transaction == 0x12345678, "DHCP transaction round trip")
+assert(decoded_dhcp.message_type == RubyOS::Net::DHCPMessage::DISCOVER, "DHCP option decoding")
+
 puts "RubyOS network packets: PASS"
