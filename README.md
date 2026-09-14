@@ -109,8 +109,10 @@ beyond single-indirect blocks remain later storage work.
 
 `make rubyos-arm64-network-smoke` attaches QEMU user networking and proves a
 Ruby-owned VirtIO-MMIO NIC, ARP resolution, IPv4, and ICMP by receiving an echo
-reply from the virtual gateway. Packet framing and checksums are ordinary Ruby
-objects; TCP, DHCP, and DNS remain subsequent networking milestones.
+reply from the virtual gateway. It then completes a TCP handshake and payload
+round trip to a source-built-Ruby host service. Packet framing, checksums, and
+connection sequencing are ordinary Ruby objects; TCP listening, DHCP, and DNS
+remain subsequent networking milestones.
 
 For an interactive session:
 

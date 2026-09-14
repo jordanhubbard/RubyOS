@@ -11,6 +11,9 @@ module RubyOS
       reply = stack.ping("10.0.2.2")
       RubyOS.invariant(reply, "ICMP echo reply not received")
       output.puts "network: ICMP echo reply from 10.0.2.2"
+      echo = stack.tcp_echo("10.0.2.2", 18_081, "ruby-over-tcp")
+      RubyOS.invariant(echo == "echo:ruby-over-tcp", "TCP echo response did not match")
+      output.puts "network: TCP echo round trip via 10.0.2.2:18081"
       stack
     end
   end

@@ -14,6 +14,7 @@ paths = %w[
   kernel/rubyos/drivers/virtio_net.rb
   kernel/rubyos/net/address.rb
   kernel/rubyos/net/packet.rb
+  kernel/rubyos/net/tcp.rb
   kernel/rubyos/net/stack.rb
   kernel/rubyos/gui/ui.rb
   kernel/rubyos/bridge/protocol.rb

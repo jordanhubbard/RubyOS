@@ -40,4 +40,12 @@ assert(decoded_ip.identification == 42, "IPv4 identification round trip")
 assert(RubyOS::Net::UDPSegment.decode(decoded_ip.payload).destination_port == 53,
        "IPv4 UDP demultiplexing")
 
+tcp = RubyOS::Net::TCPSegment.new(49_152, 443, 123, 456,
+                                  RubyOS::Net::TCPSegment::PSH | RubyOS::Net::TCPSegment::ACK,
+                                  32_768, "ruby-stream")
+tcp_bytes = tcp.encode(source_ip:, destination_ip:)
+decoded_tcp = RubyOS::Net::TCPSegment.decode(tcp_bytes, source_ip:, destination_ip:)
+assert(decoded_tcp.sequence == 123, "TCP sequence round trip")
+assert(decoded_tcp.payload == "ruby-stream", "TCP payload round trip")
+
 puts "RubyOS network packets: PASS"
