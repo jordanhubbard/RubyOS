@@ -17,6 +17,7 @@ The first slice proves the language-level architecture on a source-built CRuby:
 - a cooperative `Fiber` kernel scheduler
 - ARM generic-counter monotonic time, sleeping, and a Ruby session clock
 - a Ruby VFS/tmpfs with mount routing and file-descriptor semantics
+- Ruby-native Ethernet, ARP, IPv4, ICMP, and UDP packet objects
 - `Device`, `Driver`, and `Bus` object protocols
 - a Ruby-native `Element -> View -> Container/Label -> Button` GUI hierarchy
 - a forked SDL2 companion plus an idiomatic Ruby
@@ -32,6 +33,7 @@ Run it with:
 make smoke
 make test
 make test-ext2
+make test-network
 make test-bridge
 make embed-probe
 make baremetal-smoke

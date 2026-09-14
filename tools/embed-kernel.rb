@@ -11,6 +11,8 @@ paths = %w[
   kernel/rubyos/driver.rb
   kernel/rubyos/device.rb
   kernel/rubyos/drivers/virtio_block.rb
+  kernel/rubyos/net/address.rb
+  kernel/rubyos/net/packet.rb
   kernel/rubyos/gui/ui.rb
   kernel/rubyos/bridge/protocol.rb
   kernel/rubyos/bridge/codec.rb

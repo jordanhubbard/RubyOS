@@ -12,7 +12,7 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 | Device model | buses and typed drivers | `Bus`, `Device`, `Driver` mixin | Partial |
 | Memory | physical allocator, DMA, mmap, heap metrics | buddy heap, mmap shim, DMA HAL | Partial |
 | Storage | VFS, tmpfs, ext2, mounted persistent `/home` | Ruby VFS/tmpfs plus writable ext2 over bare-metal VirtIO block at `/home` and `/apps` | Partial |
-| Network | VirtIO net, Ethernet, ARP, IPv4, ICMP, UDP, TCP, DHCP, DNS | hosted TCP display transport only | Missing |
+| Network | VirtIO net, Ethernet, ARP, IPv4, ICMP, UDP, TCP, DHCP, DNS | Ruby Ethernet/ARP/IPv4/ICMP/UDP codecs plus hosted display TCP | Partial |
 | Remote display | UART/VirtIO/TCP protocol-v1 SDL companion | hosted TCP and bare-metal VirtIO console | Complete |
 | GUI API | SDL-compatible surfaces, events, images, fonts | Ruby `Surface` and basic widget hierarchy | Partial |
 | Desktop | compositor, windows, menu bar, dock, wallpaper, shortcuts | static remote desktop scene | Missing |
