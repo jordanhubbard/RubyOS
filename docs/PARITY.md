@@ -11,7 +11,7 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 | Interactive shell | serial and multi-session TCP REPL, commands, editor | bare-metal serial Ruby evaluation plus device/task commands | Partial |
 | Device model | buses and typed drivers | `Bus`, `Device`, `Driver` mixin | Partial |
 | Memory | physical allocator, DMA, mmap, heap metrics | buddy heap, mmap shim, DMA HAL | Partial |
-| Storage | VFS, tmpfs, ext2, mounted persistent `/home` | libc file stubs only | Missing |
+| Storage | VFS, tmpfs, ext2, mounted persistent `/home` | Ruby VFS/tmpfs, descriptor API, mount routing, bare-metal shell access | Partial |
 | Network | VirtIO net, Ethernet, ARP, IPv4, ICMP, UDP, TCP, DHCP, DNS | hosted TCP display transport only | Missing |
 | Remote display | UART/VirtIO/TCP protocol-v1 SDL companion | hosted TCP and bare-metal VirtIO console | Complete |
 | GUI API | SDL-compatible surfaces, events, images, fonts | Ruby `Surface` and basic widget hierarchy | Partial |
@@ -28,8 +28,8 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 
 ## Delivery order
 
-Parity work follows dependency order: interactive shell and timer services;
-VFS/tmpfs/ext2; VirtIO networking and TCP REPL; input and compositor; apps;
+Parity work follows dependency order: timer services; ext2 and persistent
+VirtIO block storage; VirtIO networking and TCP REPL; input and compositor; apps;
 audio and image APIs; chipset laboratory; SMP; x86_64 boot; then parity-level
 automation and teaching examples. Each row moves to complete only when a
 bare-metal integration test covers the corresponding behavior.

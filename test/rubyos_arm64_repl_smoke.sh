@@ -9,7 +9,7 @@ cleanup() {
     rm -f "$output_file" "$input_file"
 }
 trap cleanup EXIT
-printf '1 + 2\ndevices\ntasks\n' >"$input_file"
+printf '1 + 2\ndevices\ntasks\nls /\ncat /home/welcome.txt\nwrite /home/note hello-ruby\ncat /home/note\n' >"$input_file"
 
 set +e
 timeout 25s qemu-system-aarch64 -M virt -cpu cortex-a72 -m 512M \
@@ -28,5 +28,9 @@ grep -q 'rubyos> 1 + 2' "$output_file"
 grep -q '=> 3' "$output_file"
 grep -q 'COM1: RubyOS::SerialDriver' "$output_file"
 grep -q 'ruby-task-0: complete' "$output_file"
+grep -q 'tmp  home  apps' "$output_file"
+grep -q 'Welcome to RubyOS. Ruby is the kernel.' "$output_file"
+grep -q '10 bytes' "$output_file"
+grep -q 'hello-ruby' "$output_file"
 ! grep -q 'FATAL\|EXCEPTION\|ASSERT\|\[BUG\]' "$output_file"
 echo 'RubyOS bare-metal CRuby REPL smoke: PASS'

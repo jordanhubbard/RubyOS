@@ -12,6 +12,7 @@ module RubyOS
 end
 
 require "rubyos/scheduler"
+require "rubyos/fs"
 require "rubyos/shell"
 require "rubyos/driver"
 require "rubyos/device"

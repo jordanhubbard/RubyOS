@@ -30,10 +30,17 @@ module RubyOS
       end
       scheduler.run
 
+      filesystem = FS::TmpFS.new.seed(
+        "tmp" => {},
+        "home" => { "welcome.txt" => "Welcome to RubyOS. Ruby is the kernel.\n" },
+        "apps" => {}
+      )
+      vfs = FS::VFS.new.mount("/", filesystem)
+
       output.puts "kernel: #{console.name} -> #{console.driver.class}"
       output.puts "kernel: fibers #{trace.inspect}"
       output.puts "kernel: Ruby owns the machine"
-      @state = { bus:, scheduler:, trace: }.freeze
+      @state = { bus:, scheduler:, trace:, vfs: }.freeze
     end
   end
 end

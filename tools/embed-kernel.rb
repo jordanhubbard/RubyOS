@@ -4,6 +4,7 @@ root = File.expand_path("..", __dir__)
 paths = %w[
   kernel/rubyos.rb
   kernel/rubyos/scheduler.rb
+  kernel/rubyos/fs.rb
   kernel/rubyos/shell.rb
   kernel/rubyos/driver.rb
   kernel/rubyos/device.rb
