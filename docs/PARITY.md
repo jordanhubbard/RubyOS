@@ -18,7 +18,7 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 | Desktop | compositor, windows, menu bar, dock, wallpaper, shortcuts | Ruby compositor, focus/z-order, windows, menu bar, dock | Partial |
 | Apps | terminal, editor, files, image viewer, monitor, clock, settings | About, Files, Terminal, and System Monitor Ruby windows | Partial |
 | Demos and games | graphics/audio demos and arcade games | none | Missing |
-| Input | PS/2 and VirtIO input, canonical event queue | SDL bridge event polling | Partial |
+| Input | PS/2 and VirtIO input, canonical event queue | SDL event queue routed through Ruby window and dock hit testing | Partial |
 | Audio | AC97/Intel HDA/bridge mixer and sound API | host bridge vocabulary only | Missing |
 | Images | PNG/JPEG decoding and viewer | host-side SDL_image operations | Partial |
 | Chipset laboratory | display lists, copper/blitter/sprites/audio | none | Missing |

@@ -27,11 +27,18 @@ module RubyOS
       applications.fetch("Terminal").launch(compositor)
       compositor.draw(desktop.surface, uptime: "#{state.fetch(:clock).milliseconds} ms")
       desktop.present
+      client.call("debug.event.inject", { kind: 4, x: 260, y: 280, button: 1 })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(compositor.focused_window.title == "System Monitor",
+                       "dock input did not launch System Monitor")
+      compositor.draw(desktop.surface, uptime: "#{state.fetch(:clock).milliseconds} ms")
+      desktop.present
       desktop.capture("/tmp/rubyos-baremetal-desktop.bmp")
       desktop.close
       client.call("shutdown")
       client.close
       RubyOS::HAL.serial_write("[RubyOS/arm64] remote SDL desktop: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS/arm64] SDL input routing: PASS\n")
       true
     end
   end

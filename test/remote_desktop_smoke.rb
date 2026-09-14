@@ -54,6 +54,10 @@ begin
   root_view.draw(desktop.surface)
   desktop.present
   raise "event response is not an array" unless desktop.events.is_a?(Array)
+  injected = client.call("debug.event.inject", { kind: 4, x: 20, y: 30, button: 1 })
+  raise "event injection failed" unless injected.fetch("queued")
+  event = desktop.events.fetch(0)
+  raise "wrong injected event" unless event["kind"] == 4 && event["x"] == 20 && event["y"] == 30
   desktop.capture(capture_path)
   raise "desktop capture is empty" unless File.size?(capture_path)
   desktop.close

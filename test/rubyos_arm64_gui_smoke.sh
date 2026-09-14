@@ -45,6 +45,7 @@ fi
 cat "$serial_log"
 cat "$bridge_log"
 grep -q 'remote SDL desktop: PASS' "$serial_log"
+grep -q 'SDL input routing: PASS' "$serial_log"
 ! grep -q 'FATAL\|EXCEPTION\|ASSERT\|\[BUG\]' "$serial_log"
 test -s "$capture"
 file "$capture" | grep -q '480 x 300'

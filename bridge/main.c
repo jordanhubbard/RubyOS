@@ -862,6 +862,33 @@ static int op_event_poll(BridgeState *st, int id, cJSON *params) {
     return send_ok(st->fd, id, r);
 }
 
+static int op_debug_event_inject(BridgeState *st, int id, cJSON *params) {
+    BridgeEvent event = {0};
+    cJSON *kind = cJSON_GetObjectItemCaseSensitive(params, "kind");
+    cJSON *x = cJSON_GetObjectItemCaseSensitive(params, "x");
+    cJSON *y = cJSON_GetObjectItemCaseSensitive(params, "y");
+    cJSON *button = cJSON_GetObjectItemCaseSensitive(params, "button");
+    cJSON *code = cJSON_GetObjectItemCaseSensitive(params, "code");
+    cJSON *mod = cJSON_GetObjectItemCaseSensitive(params, "mod");
+    cJSON *text = cJSON_GetObjectItemCaseSensitive(params, "text");
+    if (!cJSON_IsNumber(kind) || kind->valueint < EVT_KEY_DOWN || kind->valueint > EVT_QUIT) {
+        return send_err(st->fd, id, 4, "debug.event.inject: valid kind required");
+    }
+    event.kind = kind->valueint;
+    event.x = cJSON_IsNumber(x) ? x->valueint : 0;
+    event.y = cJSON_IsNumber(y) ? y->valueint : 0;
+    event.button = cJSON_IsNumber(button) ? button->valueint : 0;
+    event.code = cJSON_IsNumber(code) ? code->valueint : 0;
+    event.mod = cJSON_IsNumber(mod) ? mod->valueint : 0;
+    if (cJSON_IsString(text) && text->valuestring) {
+        snprintf(event.text, sizeof(event.text), "%s", text->valuestring);
+    }
+    evt_enqueue(&event);
+    cJSON *result = cJSON_CreateObject();
+    cJSON_AddBoolToObject(result, "queued", 1);
+    return send_ok(st->fd, id, result);
+}
+
 /* ─── Bounded host file transfer ─────────────────────────────────────── */
 
 #define FILE_CHUNK_MAX (32 * 1024)
@@ -1799,6 +1826,7 @@ static const struct {
     { "host.export.abort",  op_host_export_abort  },
     { "debug.metrics",      op_debug_metrics      },
     { "debug.capture",      op_debug_capture      },
+    { "debug.event.inject", op_debug_event_inject },
 };
 
 #define OP_TABLE_LEN ((int)(sizeof(OP_TABLE) / sizeof(OP_TABLE[0])))

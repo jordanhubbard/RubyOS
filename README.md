@@ -97,7 +97,9 @@ small byte-stream interface without changing the SDL or Ruby object layers.
 The bare-metal desktop is composed by Ruby objects rather than a fixed bridge
 scene. `Compositor` owns window focus and z-order, while `Application`
 subclasses build About, Files, Terminal, and System Monitor windows from live
-kernel state. The SDL companion remains a rendering and input device.
+kernel state. SDL mouse events are normalized by the bridge and routed through
+Ruby hit testing; the bare-metal smoke clicks the dock to launch and focus the
+System Monitor. The SDL companion remains a rendering and input device.
 
 ## Bare-metal Ruby console
 
