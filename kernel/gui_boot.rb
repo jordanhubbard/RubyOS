@@ -35,12 +35,21 @@ module RubyOS
                        "dock input did not launch System Monitor")
       compositor.draw(desktop.surface, uptime: "#{state.fetch(:clock).milliseconds} ms")
       desktop.present
+      audio = Sound::BridgeOutput.new(client)
+      chord = Sound::Mixer.new.mix(
+        Sound::Waveform.sine(220, duration_ms: 40, amplitude: 0.10),
+        Sound::Waveform.sine(330, duration_ms: 40, amplitude: 0.10)
+      )
+      audio.play(chord)
+      RubyOS.invariant(audio.queued_bytes >= 0, "SDL audio queue unavailable")
+      audio.close
       desktop.capture("/tmp/rubyos-baremetal-desktop.bmp")
       desktop.close
       client.call("shutdown")
       client.close
       RubyOS::HAL.serial_write("[RubyOS/arm64] remote SDL desktop: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] SDL input routing: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS/arm64] SDL audio bridge: PASS\n")
       true
     end
   end

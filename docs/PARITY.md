@@ -19,7 +19,7 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 | Apps | terminal, editor, files, image viewer, monitor, clock, settings | About, Files, Terminal, VFS Editor, Image Viewer, System Monitor | Partial |
 | Demos and games | graphics/audio demos and arcade games | none | Missing |
 | Input | PS/2 and VirtIO input, canonical event queue | SDL event queue routed through Ruby window and dock hit testing | Partial |
-| Audio | AC97/Intel HDA/bridge mixer and sound API | host bridge vocabulary only | Missing |
+| Audio | AC97/Intel HDA/bridge mixer and sound API | Ruby PCM/waveform mixer and bare-metal SDL audio bridge | Partial |
 | Images | PNG/JPEG decoding and viewer | Ruby remote surfaces, raw upload, PNG/JPEG decode/blit, Image Viewer | Partial |
 | Chipset laboratory | display lists, copper/blitter/sprites/audio | none | Missing |
 | Concurrency | ARM64/x86 SMP, pthread substrate, no-GIL workers | single-core pthread compatibility | Missing |

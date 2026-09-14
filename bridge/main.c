@@ -49,6 +49,7 @@
 /* ─── Logging ───────────────────────────────────────────────────────────── */
 
 static int g_verbose = 0;
+static SDL_AudioDeviceID g_audio_device = 0;
 /* When set (by op_batch), send_ok/send_err become no-ops so individual
  * ops inside a batch don't write per-op responses. The batch handler
  * sends ONE response after running all child ops. */
@@ -697,6 +698,7 @@ static int op_hello(BridgeState *st, int id, cJSON *params) {
     cJSON_AddItemToArray(features, cJSON_CreateString("oneway"));
     cJSON_AddItemToArray(features, cJSON_CreateString("file.drop"));
     cJSON_AddItemToArray(features, cJSON_CreateString("file.export"));
+    cJSON_AddItemToArray(features, cJSON_CreateString("audio.pcm"));
     cJSON_AddItemToObject(r, "features", features);
     if (peer_proto != 0 && peer_proto != BRIDGE_PROTOCOL_VERSION) {
         LOG_WARN("peer requested protocol v%d, we are v%d",
@@ -887,6 +889,67 @@ static int op_debug_event_inject(BridgeState *st, int id, cJSON *params) {
     cJSON *result = cJSON_CreateObject();
     cJSON_AddBoolToObject(result, "queued", 1);
     return send_ok(st->fd, id, result);
+}
+
+static int op_audio_open(BridgeState *st, int id, cJSON *params) {
+    cJSON *jrate = cJSON_GetObjectItemCaseSensitive(params, "rate");
+    int rate = cJSON_IsNumber(jrate) ? jrate->valueint : 48000;
+    if (rate < 8000 || rate > 192000)
+        return send_err(st->fd, id, 4, "audio.open: rate must be 8000..192000");
+    if (g_audio_device) SDL_CloseAudioDevice(g_audio_device);
+    if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0)
+        return send_err(st->fd, id, 6, SDL_GetError());
+    SDL_AudioSpec wanted = {0}, obtained = {0};
+    wanted.freq = rate;
+    wanted.format = AUDIO_S16LSB;
+    wanted.channels = 2;
+    wanted.samples = 1024;
+    g_audio_device = SDL_OpenAudioDevice(NULL, 0, &wanted, &obtained, 0);
+    if (!g_audio_device) return send_err(st->fd, id, 6, SDL_GetError());
+    SDL_PauseAudioDevice(g_audio_device, 0);
+    cJSON *result = cJSON_CreateObject();
+    cJSON_AddNumberToObject(result, "rate", obtained.freq);
+    cJSON_AddNumberToObject(result, "channels", obtained.channels);
+    cJSON_AddNumberToObject(result, "bits", SDL_AUDIO_BITSIZE(obtained.format));
+    return send_ok(st->fd, id, result);
+}
+
+static int op_audio_queue(BridgeState *st, int id, cJSON *params) {
+    cJSON *jlength = cJSON_GetObjectItemCaseSensitive(params, "payload_len");
+    if (!cJSON_IsNumber(jlength) || jlength->valuedouble < 0)
+        return send_err(st->fd, id, 4, "audio.queue: payload_len required");
+    size_t length = (size_t)jlength->valuedouble;
+    char *payload = NULL;
+    if (read_payload_trailer(st->fd, length, &payload) != 0) return -1;
+    if (!g_audio_device) {
+        free(payload);
+        return send_err(st->fd, id, 7, "audio device is not open");
+    }
+    if ((length % 4) != 0 || SDL_QueueAudio(g_audio_device, payload, (Uint32)length) != 0) {
+        free(payload);
+        return send_err(st->fd, id, 9, SDL_GetError());
+    }
+    free(payload);
+    cJSON *result = cJSON_CreateObject();
+    cJSON_AddNumberToObject(result, "queued_bytes", SDL_GetQueuedAudioSize(g_audio_device));
+    return send_ok(st->fd, id, result);
+}
+
+static int op_audio_status(BridgeState *st, int id, cJSON *params) {
+    if (!g_audio_device) return send_err(st->fd, id, 7, "audio device is not open");
+    cJSON *result = cJSON_CreateObject();
+    cJSON_AddNumberToObject(result, "queued_bytes", SDL_GetQueuedAudioSize(g_audio_device));
+    return send_ok(st->fd, id, result);
+}
+
+static int op_audio_close(BridgeState *st, int id, cJSON *params) {
+    if (g_audio_device) {
+        SDL_ClearQueuedAudio(g_audio_device);
+        SDL_CloseAudioDevice(g_audio_device);
+        g_audio_device = 0;
+    }
+    SDL_QuitSubSystem(SDL_INIT_AUDIO);
+    return send_ok(st->fd, id, NULL);
 }
 
 /* ─── Bounded host file transfer ─────────────────────────────────────── */
@@ -1819,6 +1882,10 @@ static const struct {
     { "surface.upload_scaled", op_surface_upload_scaled },
     { "text.draw",          op_text_draw          },
     { "event.poll",         op_event_poll         },
+    { "audio.open",         op_audio_open         },
+    { "audio.queue",        op_audio_queue        },
+    { "audio.status",       op_audio_status       },
+    { "audio.close",        op_audio_close        },
     { "host.file.read",     op_host_file_read     },
     { "host.export.begin",  op_host_export_begin  },
     { "host.export.chunk",  op_host_export_chunk  },
@@ -1897,6 +1964,10 @@ static int serve_fd(int fd) {
 }
 
 static void cleanup_sdl(void) {
+    if (g_audio_device) {
+        SDL_CloseAudioDevice(g_audio_device);
+        g_audio_device = 0;
+    }
     if (g_window.open) {
         SDL_DestroyTexture(g_window.texture);
         SDL_DestroyRenderer(g_window.renderer);

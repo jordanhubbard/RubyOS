@@ -23,6 +23,13 @@ assert(clock.format_hms == "12:34:58", "session wall clock advances from monoton
 clock.clear_wall_clock
 assert(!clock.wall_clock_set?, "session wall clock clears")
 
+quiet = RubyOS::Sound::PCM.new([20_000, -20_000])
+loud = RubyOS::Sound::PCM.new([20_000, -20_000])
+mixed = RubyOS::Sound::Mixer.new.mix(quiet, loud)
+assert(mixed.samples == [32_767, -32_768], "PCM mixer saturates int16")
+tone = RubyOS::Sound::Waveform.sine(440, duration_ms: 10)
+assert(tone.frames == 480 && tone.stereo_bytes.bytesize == 1_920, "sine waveform PCM shape")
+
 frame = RubyOS::Bridge::Protocol.encode_json_frame('{"v":1}')
 assert(RubyOS::Bridge::Protocol.decode_length(frame.byteslice(0, 4)) == 7, "bridge length")
 document = { "v" => 1, "ok" => true, "values" => [nil, -3, "Ruby\nOS"] }

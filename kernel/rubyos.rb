@@ -13,6 +13,7 @@ end
 
 require "rubyos/scheduler"
 require "rubyos/timekeeper"
+require "rubyos/sound"
 require "rubyos/fs"
 require "rubyos/fs/ext2"
 require "rubyos/shell"

@@ -9,7 +9,7 @@ capture="/tmp/rubyos-baremetal-desktop.bmp"
 port="$($root/build/host-ruby/bin/ruby -rsocket -e 'server = TCPServer.new("127.0.0.1", 0); puts server.local_address.ip_port; server.close')"
 
 rm -f "$serial_log" "$bridge_log" "$capture"
-RUBYOS_DESKTOP_MODE=headless SDL_VIDEODRIVER=dummy \
+RUBYOS_DESKTOP_MODE=headless SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
     "$root/bridge/rubyos_bridge" --listen-tcp "127.0.0.1:$port" \
     >"$bridge_log" 2>&1 &
 bridge_pid=$!
@@ -46,6 +46,7 @@ cat "$serial_log"
 cat "$bridge_log"
 grep -q 'remote SDL desktop: PASS' "$serial_log"
 grep -q 'SDL input routing: PASS' "$serial_log"
+grep -q 'SDL audio bridge: PASS' "$serial_log"
 ! grep -q 'FATAL\|EXCEPTION\|ASSERT\|\[BUG\]' "$serial_log"
 test -s "$capture"
 file "$capture" | grep -q '480 x 300'

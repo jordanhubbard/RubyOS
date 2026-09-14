@@ -13,7 +13,8 @@ capture_path = File.join(root, "build", "rubyos-remote-desktop.bmp")
 
 environment = {
   "RUBYOS_DESKTOP_MODE" => "headless",
-  "SDL_VIDEODRIVER" => "dummy"
+  "SDL_VIDEODRIVER" => "dummy",
+  "SDL_AUDIODRIVER" => "dummy"
 }
 bridge_pid = Process.spawn(environment,
                            File.join(root, "bridge", "rubyos_bridge"),
@@ -38,6 +39,7 @@ begin
   client = RubyOS::Bridge::Client.new(transport)
   hello = client.hello
   raise "wrong bridge agent" unless hello.fetch("agent") == "rubyos_bridge"
+  raise "audio feature missing" unless client.features.include?("audio.pcm")
 
   desktop = RubyOS::Bridge::RemoteDesktop.new(client, width: 480, height: 300,
                                                title: "RubyOS Remote Desktop")
@@ -61,6 +63,10 @@ begin
          "0000000400012734270a0000000049454e44ae426082"].pack("H*")
   decoded = RubyOS::Bridge::Surface.load_image(client, png)
   decoded.blit_to(desktop.surface, x: 444, y: 20)
+  audio = RubyOS::Sound::BridgeOutput.new(client)
+  audio.play(RubyOS::Sound::Waveform.sine(440, duration_ms: 10))
+  raise "audio queue status invalid" unless audio.queued_bytes >= 0
+  audio.close
   desktop.present
   raise "event response is not an array" unless desktop.events.is_a?(Array)
   injected = client.call("debug.event.inject", { kind: 4, x: 20, y: 30, button: 1 })

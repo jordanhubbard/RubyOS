@@ -101,7 +101,9 @@ kernel state, with VFS-backed Editor and Image Viewer applications alongside
 them. Ruby `Surface` objects create, upload, decode PNG/JPEG through SDL_image,
 blit, and destroy remote image resources. SDL mouse events are normalized by the bridge and routed through
 Ruby hit testing; the bare-metal smoke clicks the dock to launch and focus the
-System Monitor. The SDL companion remains a rendering and input device.
+System Monitor. Ruby sine generators and a saturating PCM mixer stream stereo
+audio through the same companion. The SDL companion remains a rendering,
+input, and audio device.
 
 ## Bare-metal Ruby console
 
