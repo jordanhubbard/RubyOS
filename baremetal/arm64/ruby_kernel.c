@@ -136,6 +136,48 @@ static VALUE hal_dma_alloc(VALUE self, VALUE requested)
     return ULL2NUM((unsigned long long)(uintptr_t)memory);
 }
 
+static uint64_t monotonic_ticks(void)
+{
+    uint64_t value;
+    __asm__ volatile("isb; mrs %0, cntpct_el0" : "=r"(value));
+    return value;
+}
+
+static uint64_t counter_frequency(void)
+{
+    uint64_t value;
+    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(value));
+    return value;
+}
+
+static VALUE hal_monotonic_ns(VALUE self)
+{
+    uint64_t ticks = monotonic_ticks();
+    uint64_t frequency = counter_frequency();
+    uint64_t seconds = ticks / frequency;
+    uint64_t remainder = ticks % frequency;
+    (void)self;
+    return ULL2NUM(seconds * 1000000000ULL +
+                   remainder * 1000000000ULL / frequency);
+}
+
+static VALUE hal_sleep_us(VALUE self, VALUE requested)
+{
+    uint64_t microseconds = NUM2ULL(requested);
+    uint64_t frequency = counter_frequency();
+    uint64_t delay = microseconds / 1000000ULL * frequency;
+    uint64_t remainder = microseconds % 1000000ULL;
+    uint64_t deadline;
+    (void)self;
+
+    delay += (remainder * frequency + 999999ULL) / 1000000ULL;
+    deadline = monotonic_ticks() + delay;
+    while ((int64_t)(deadline - monotonic_ticks()) > 0) {
+        __asm__ volatile("yield");
+    }
+    return Qnil;
+}
+
 static VALUE exception_full_message(VALUE error)
 {
     return rb_funcall(error, rb_intern("full_message"), 0);
@@ -185,6 +227,8 @@ void rubyos_kernel_main(uint64_t dtb_address)
     rb_define_module_function(hal, "mmio_read8", hal_mmio_read8, 1);
     rb_define_module_function(hal, "mmio_write8", hal_mmio_write8, 2);
     rb_define_module_function(hal, "dma_alloc", hal_dma_alloc, 1);
+    rb_define_module_function(hal, "monotonic_ns", hal_monotonic_ns, 0);
+    rb_define_module_function(hal, "sleep_us", hal_sleep_us, 1);
     rb_eval_string_protect(rubyos_kernel_source, &state);
     if (state != 0) {
         VALUE error = rb_errinfo();

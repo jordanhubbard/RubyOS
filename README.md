@@ -15,6 +15,8 @@ The first slice proves the language-level architecture on a source-built CRuby:
 - Ruby 4.0.6 bootstrapped and installed privately in `build/host-ruby`
 - the same CRuby source cross-built as a freestanding ARM64 static runtime
 - a cooperative `Fiber` kernel scheduler
+- ARM generic-counter monotonic time, sleeping, and a Ruby session clock
+- a Ruby VFS/tmpfs with mount routing and file-descriptor semantics
 - `Device`, `Driver`, and `Bus` object protocols
 - a Ruby-native `Element -> View -> Container/Label -> Button` GUI hierarchy
 - a forked SDL2 companion plus an idiomatic Ruby
@@ -90,7 +92,8 @@ small byte-stream interface without changing the SDL or Ruby object layers.
 
 `make rubyos-arm64-repl-smoke` builds the console kernel and drives its PL011
 input under QEMU. The prompt evaluates ordinary Ruby and provides `help`,
-`version`, `devices`, and `tasks` commands backed by live kernel objects.
+`version`, `devices`, `tasks`, `uptime`, `sleep`, `time`, `ls`, `cat`, and
+`write` commands backed by live kernel objects.
 
 For an interactive session:
 

@@ -1,10 +1,4 @@
-/*
- * time.c — Time functions backed by the PIT tick counter.
- *
- * The PIT fires at 100 Hz (configured in pit.c). Each tick is 10 ms.
- * _pit_ticks is incremented by the timer interrupt handler via
- * pit_tick() declared here and called from kernel.scheduler.tick().
- */
+/* Monotonic time from the ARM generic counter or the legacy PIT ticks. */
 
 #include "include/libc.h"
 #include <stdint.h>
@@ -17,11 +11,53 @@ volatile uint64_t _pit_ticks = 0;
 void pit_tick(void) { _pit_ticks++; }
 #endif
 
+#ifdef ARCH_ARM64
+static uint64_t counter_ticks(void) {
+    uint64_t value;
+    __asm__ volatile("isb; mrs %0, cntpct_el0" : "=r"(value));
+    return value;
+}
+
+static uint64_t counter_frequency(void) {
+    uint64_t value;
+    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(value));
+    return value;
+}
+#endif
+
+uint64_t rubyos_monotonic_ns(void) {
+#ifdef ARCH_ARM64
+    uint64_t ticks = counter_ticks();
+    uint64_t frequency = counter_frequency();
+    return ticks / frequency * 1000000000ULL +
+           ticks % frequency * 1000000000ULL / frequency;
+#else
+    return _pit_ticks * (1000000000ULL / TICK_HZ);
+#endif
+}
+
+void rubyos_sleep_ns(uint64_t nanoseconds) {
+#ifdef ARCH_ARM64
+    uint64_t frequency = counter_frequency();
+    uint64_t delay = nanoseconds / 1000000000ULL * frequency;
+    uint64_t remainder = nanoseconds % 1000000000ULL;
+    uint64_t deadline;
+    delay += (remainder * frequency + 999999999ULL) / 1000000000ULL;
+    deadline = counter_ticks() + delay;
+    while ((int64_t)(deadline - counter_ticks()) > 0)
+        __asm__ volatile("yield");
+#else
+    uint64_t deadline = rubyos_monotonic_ns() + nanoseconds;
+    while ((int64_t)(deadline - rubyos_monotonic_ns()) > 0)
+        __asm__ volatile("pause");
+#endif
+}
+
 // ── time_t / gettimeofday ─────────────────────────────────────────────────────
 
 // We don't have a real-time clock yet — report time-since-boot
 time_t time(time_t *t) {
-    time_t sec = (time_t)(_pit_ticks / TICK_HZ);
+    time_t sec = (time_t)(rubyos_monotonic_ns() / 1000000000ULL);
     if (t) *t = sec;
     return sec;
 }
@@ -29,8 +65,9 @@ time_t time(time_t *t) {
 int gettimeofday(struct timeval *tv, void *tz) {
     (void)tz;
     if (tv) {
-        tv->tv_sec  = (time_t)(_pit_ticks / TICK_HZ);
-        tv->tv_usec = (suseconds_t)((_pit_ticks % TICK_HZ) * (1000000 / TICK_HZ));
+        uint64_t now = rubyos_monotonic_ns();
+        tv->tv_sec  = (time_t)(now / 1000000000ULL);
+        tv->tv_usec = (suseconds_t)((now % 1000000000ULL) / 1000ULL);
     }
     return 0;
 }
@@ -38,19 +75,28 @@ int gettimeofday(struct timeval *tv, void *tz) {
 int clock_gettime(clockid_t id, struct timespec *ts) {
     (void)id;
     if (ts) {
-        ts->tv_sec  = (time_t)(_pit_ticks / TICK_HZ);
-        ts->tv_nsec = (long)((_pit_ticks % TICK_HZ) * (1000000000LL / TICK_HZ));
+        uint64_t now = rubyos_monotonic_ns();
+        ts->tv_sec  = (time_t)(now / 1000000000ULL);
+        ts->tv_nsec = (long)(now % 1000000000ULL);
     }
     return 0;
 }
 
 clock_t clock(void) {
-    return (clock_t)_pit_ticks;
+    return (clock_t)(rubyos_monotonic_ns() / 1000ULL);
 }
 
 int clock_getres(clockid_t id, struct timespec *ts) {
     (void)id;
-    if (ts) { ts->tv_sec = 0; ts->tv_nsec = 1000000000LL / TICK_HZ; }
+    if (ts) {
+        ts->tv_sec = 0;
+#ifdef ARCH_ARM64
+        ts->tv_nsec = (long)((1000000000ULL + counter_frequency() - 1) /
+                             counter_frequency());
+#else
+        ts->tv_nsec = 1000000000LL / TICK_HZ;
+#endif
+    }
     return 0;
 }
 

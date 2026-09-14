@@ -548,10 +548,25 @@ struct lconv *localeconv(void) { return &_lconv; }
 
 // ── Misc ──────────────────────────────────────────────────────────────────────
 
-unsigned int sleep(unsigned int seconds) { (void)seconds; return 0; }
-int usleep(unsigned int us) { (void)us; return 0; }
+extern void rubyos_sleep_ns(uint64_t nanoseconds);
+
+unsigned int sleep(unsigned int seconds) {
+    rubyos_sleep_ns((uint64_t)seconds * 1000000000ULL);
+    return 0;
+}
+int usleep(unsigned int us) {
+    rubyos_sleep_ns((uint64_t)us * 1000ULL);
+    return 0;
+}
 int nanosleep(const struct timespec *req, struct timespec *rem) {
-    (void)req; (void)rem; return 0;
+    if (rem) { rem->tv_sec = 0; rem->tv_nsec = 0; }
+    if (!req || req->tv_sec < 0 || req->tv_nsec < 0 || req->tv_nsec >= 1000000000L) {
+        errno = EINVAL;
+        return -1;
+    }
+    rubyos_sleep_ns((uint64_t)req->tv_sec * 1000000000ULL +
+                    (uint64_t)req->tv_nsec);
+    return 0;
 }
 
 int pause(void) { errno = EINTR; return -1; }

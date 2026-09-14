@@ -9,7 +9,7 @@ cleanup() {
     rm -f "$output_file" "$input_file"
 }
 trap cleanup EXIT
-printf '1 + 2\ndevices\ntasks\nls /\ncat /home/welcome.txt\nwrite /home/note hello-ruby\ncat /home/note\n' >"$input_file"
+printf '1 + 2\nProcess.clock_gettime(Process::CLOCK_MONOTONIC, :nanosecond) > 0\ndevices\ntasks\nuptime\nsleep 5\ntime 12:34:56\nls /\ncat /home/welcome.txt\nwrite /home/note hello-ruby\ncat /home/note\n' >"$input_file"
 
 set +e
 timeout 25s qemu-system-aarch64 -M virt -cpu cortex-a72 -m 512M \
@@ -26,8 +26,12 @@ cat "$output_file"
 grep -q 'RubyOS console -- Ruby is the kernel' "$output_file"
 grep -q 'rubyos> 1 + 2' "$output_file"
 grep -q '=> 3' "$output_file"
+grep -q '=> true' "$output_file"
 grep -q 'COM1: RubyOS::SerialDriver' "$output_file"
 grep -q 'ruby-task-0: complete' "$output_file"
+grep -Eq '[0-9]+ ms' "$output_file"
+grep -q 'slept 5 ms' "$output_file"
+grep -q '12:34:56' "$output_file"
 grep -q 'tmp  home  apps' "$output_file"
 grep -q 'Welcome to RubyOS. Ruby is the kernel.' "$output_file"
 grep -q '10 bytes' "$output_file"

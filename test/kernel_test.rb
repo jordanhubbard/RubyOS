@@ -15,6 +15,14 @@ assert(output.string.include?("Ruby owns the machine"), "boot marker")
 assert(state[:trace] == [[0, :start], [1, :start], [0, :finish], [1, :finish]], "fiber order")
 assert(state[:scheduler].tasks.all? { |task| task.state == :complete }, "task completion")
 
+samples = [1_000_000_000, 1_001_500_000, 3_001_500_000, 5_001_500_000]
+clock = RubyOS::Timekeeper.new(monotonic_ns: -> { samples.shift })
+assert(clock.milliseconds == 1, "monotonic milliseconds")
+clock.set_hms(12, 34, 56)
+assert(clock.format_hms == "12:34:58", "session wall clock advances from monotonic time")
+clock.clear_wall_clock
+assert(!clock.wall_clock_set?, "session wall clock clears")
+
 frame = RubyOS::Bridge::Protocol.encode_json_frame('{"v":1}')
 assert(RubyOS::Bridge::Protocol.decode_length(frame.byteslice(0, 4)) == 7, "bridge length")
 document = { "v" => 1, "ok" => true, "values" => [nil, -3, "Ruby\nOS"] }

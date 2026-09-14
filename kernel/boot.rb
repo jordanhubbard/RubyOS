@@ -30,6 +30,8 @@ module RubyOS
       end
       scheduler.run
 
+      clock = Timekeeper.new
+
       filesystem = FS::TmpFS.new.seed(
         "tmp" => {},
         "home" => { "welcome.txt" => "Welcome to RubyOS. Ruby is the kernel.\n" },
@@ -40,7 +42,7 @@ module RubyOS
       output.puts "kernel: #{console.name} -> #{console.driver.class}"
       output.puts "kernel: fibers #{trace.inspect}"
       output.puts "kernel: Ruby owns the machine"
-      @state = { bus:, scheduler:, trace:, vfs: }.freeze
+      @state = { bus:, scheduler:, trace:, vfs:, clock: }.freeze
     end
   end
 end

@@ -7,6 +7,9 @@ module RubyOS
       "version" => "show the running Ruby implementation",
       "devices" => "list devices and bound drivers",
       "tasks" => "list scheduler tasks and states",
+      "uptime" => "show monotonic uptime in milliseconds",
+      "time" => "show or set the session clock: time [HH:MM:SS|clear]",
+      "sleep" => "sleep using the kernel timer: sleep milliseconds",
       "ls" => "list a VFS directory: ls [path]",
       "cat" => "read a VFS file: cat path",
       "write" => "replace a VFS file: write path text"
@@ -57,6 +60,15 @@ module RubyOS
       when "tasks"
         scheduler = RubyOS::Kernel.state&.fetch(:scheduler, nil)
         scheduler&.tasks&.each { |task| @output.puts "#{task.name}: #{task.state}" }
+      when "uptime"
+        @output.puts "#{clock.milliseconds} ms"
+      when "time"
+        set_time(arguments.first) unless arguments.empty?
+        @output.puts clock.format_hms
+      when "sleep"
+        duration = Integer(arguments.fetch(0))
+        clock.sleep(duration)
+        @output.puts "slept #{duration} ms"
       when "ls"
         path = arguments.first || "/"
         @output.puts filesystem.readdir(path).reject { |entry| [".", ".."].include?(entry) }.join("  ")
@@ -66,7 +78,7 @@ module RubyOS
         filesystem.write_file(arguments.fetch(0), arguments.fetch(1, ""))
         @output.puts "#{arguments.fetch(1, "").bytesize} bytes"
       end
-    rescue FS::Error, IndexError => error
+    rescue FS::Error, ArgumentError, IndexError => error
       @output.puts "#{error.class}: #{error.message}"
     end
 
@@ -79,6 +91,18 @@ module RubyOS
 
     def filesystem
       RubyOS::Kernel.state.fetch(:vfs)
+    end
+
+    def clock
+      RubyOS::Kernel.state.fetch(:clock)
+    end
+
+    def set_time(value)
+      return clock.clear_wall_clock if value == "clear"
+
+      parts = value.split(":").map { |part| Integer(part) }
+      raise ArgumentError, "expected HH:MM[:SS]" unless (2..3).cover?(parts.length)
+      clock.set_hms(parts.fetch(0), parts.fetch(1), parts.fetch(2, 0))
     end
   end
 end

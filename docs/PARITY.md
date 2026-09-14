@@ -6,9 +6,9 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 | Area | PythonOS baseline | RubyOS evidence | Status |
 |---|---|---|---|
 | Source-built language runtime | Cross-built CPython | CRuby 4.0.6, Prism, static ARM64 ELF | Complete |
-| Bare-metal boot | x86_64 and ARM64, exceptions, timers | ARM64 EL1/FPU/TLS/exceptions | Partial |
-| Scheduler | asyncio tasks, timers, AP workers | Cooperative Ruby Fibers | Partial |
-| Interactive shell | serial and multi-session TCP REPL, commands, editor | bare-metal serial Ruby evaluation plus device/task commands | Partial |
+| Bare-metal boot | x86_64 and ARM64, exceptions, timers | ARM64 EL1/FPU/TLS/exceptions and generic counter | Partial |
+| Scheduler | asyncio tasks, timers, AP workers | Cooperative Ruby Fibers and monotonic `Timekeeper` | Partial |
+| Interactive shell | serial and multi-session TCP REPL, commands, editor | bare-metal Ruby evaluation plus device/task/time/VFS commands | Partial |
 | Device model | buses and typed drivers | `Bus`, `Device`, `Driver` mixin | Partial |
 | Memory | physical allocator, DMA, mmap, heap metrics | buddy heap, mmap shim, DMA HAL | Partial |
 | Storage | VFS, tmpfs, ext2, mounted persistent `/home` | Ruby VFS/tmpfs, descriptor API, mount routing, bare-metal shell access | Partial |
@@ -28,8 +28,8 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 
 ## Delivery order
 
-Parity work follows dependency order: timer services; ext2 and persistent
-VirtIO block storage; VirtIO networking and TCP REPL; input and compositor; apps;
+Parity work follows dependency order: timer interrupts and scheduler deadlines;
+ext2 and persistent VirtIO block storage; VirtIO networking and TCP REPL; input and compositor; apps;
 audio and image APIs; chipset laboratory; SMP; x86_64 boot; then parity-level
 automation and teaching examples. Each row moves to complete only when a
 bare-metal integration test covers the corresponding behavior.
