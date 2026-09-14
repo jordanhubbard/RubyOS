@@ -6,9 +6,11 @@ paths = %w[
   kernel/rubyos/scheduler.rb
   kernel/rubyos/timekeeper.rb
   kernel/rubyos/fs.rb
+  kernel/rubyos/fs/ext2.rb
   kernel/rubyos/shell.rb
   kernel/rubyos/driver.rb
   kernel/rubyos/device.rb
+  kernel/rubyos/drivers/virtio_block.rb
   kernel/rubyos/gui/ui.rb
   kernel/rubyos/bridge/protocol.rb
   kernel/rubyos/bridge/codec.rb
@@ -16,6 +18,7 @@ paths = %w[
   kernel/rubyos/bridge/desktop.rb
   kernel/rubyos/bridge/virtio_console.rb
   kernel/boot.rb
+  kernel/storage_boot.rb
   kernel/gui_boot.rb
 ]
 
@@ -25,6 +28,9 @@ source = paths.map do |path|
   end.join
 end.join("\n")
 source << "\nRubyOS::Kernel.boot\n"
+if ENV["RUBYOS_EMBED_STORAGE"] == "1"
+  source << "RubyOS::Kernel.mount_persistent_storage\n"
+end
 if ENV["RUBYOS_EMBED_DESKTOP"] == "1"
   source << "RubyOS::Kernel.boot_remote_desktop\n"
 end

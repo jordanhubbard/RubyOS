@@ -9,10 +9,12 @@ ARM64_RUBY_STAMP := $(CURDIR)/build/baremetal/ruby-freestanding/.rubyos-built
 ARM64_RUBYOS_ELF := $(CURDIR)/build/baremetal/rubyos-arm64/rubyos.elf
 ARM64_GUI_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-gui/rubyos.elf
 ARM64_REPL_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-repl/rubyos.elf
+ARM64_STORAGE_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-storage/rubyos.elf
+DISK_IMAGE := $(CURDIR)/build/disk.img
 RUBY_PC := PKG_CONFIG_PATH=$(CURDIR)/build/host-ruby/lib/pkgconfig pkg-config
 BUILDER_IMAGE := pythonos-builder
 
-.PHONY: all ruby smoke test bridge test-bridge embed-probe baremetal-arm64 baremetal-smoke ruby-arm64 rubyos-arm64 rubyos-arm64-smoke rubyos-arm64-gui rubyos-arm64-gui-smoke rubyos-arm64-repl rubyos-arm64-repl-smoke \
+.PHONY: all ruby smoke test test-ext2 bridge test-bridge embed-probe baremetal-arm64 baremetal-smoke ruby-arm64 rubyos-arm64 rubyos-arm64-smoke rubyos-arm64-gui rubyos-arm64-gui-smoke rubyos-arm64-repl rubyos-arm64-repl-smoke rubyos-arm64-storage rubyos-arm64-storage-smoke disk \
 	clean distclean provenance
 
 all: smoke
@@ -27,6 +29,9 @@ smoke: $(HOST_RUBY_STAMP)
 
 test: $(HOST_RUBY_STAMP)
 	$(HOST_RUBY) -I kernel test/kernel_test.rb
+
+test-ext2: $(HOST_RUBY_STAMP)
+	./test/ext2_smoke.sh
 
 bridge:
 	$(MAKE) -C bridge
@@ -87,6 +92,22 @@ $(ARM64_REPL_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
 
 rubyos-arm64-repl-smoke: $(ARM64_REPL_ELF)
 	./test/rubyos_arm64_repl_smoke.sh
+
+disk: $(DISK_IMAGE)
+$(DISK_IMAGE): tools/build-disk.sh
+	./tools/build-disk.sh $@
+
+rubyos-arm64-storage: $(ARM64_STORAGE_ELF)
+$(ARM64_STORAGE_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
+		baremetal/arm64/boot.S baremetal/arm64/ruby_kernel.c \
+		baremetal/arm64/platform_stubs.c baremetal/arm64/setjmp.S \
+		baremetal/arm64/linker.ld tools/embed-kernel.rb $(shell find kernel -type f -name '*.rb') \
+		$(wildcard platform/libc/*.c platform/libc/include/*.h platform/libc/include/sys/*.h platform/boot/*.h)
+	docker run --rm --platform linux/arm64 --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
+		env RUBYOS_EMBED_REPL=1 RUBYOS_EMBED_STORAGE=1 RUBYOS_ARM64_VARIANT=rubyos-arm64-storage ./tools/build-rubyos-arm64.sh
+
+rubyos-arm64-storage-smoke: $(ARM64_STORAGE_ELF) $(DISK_IMAGE)
+	./test/rubyos_arm64_storage_smoke.sh
 
 $(EMBED_PROBE): tools/embed_probe.c Makefile $(HOST_RUBY_STAMP)
 	cc -o $@ tools/embed_probe.c $$($(RUBY_PC) --cflags ruby-4.0) \

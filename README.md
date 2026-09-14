@@ -31,6 +31,7 @@ Run it with:
 ```sh
 make smoke
 make test
+make test-ext2
 make test-bridge
 make embed-probe
 make baremetal-smoke
@@ -38,6 +39,7 @@ make ruby-arm64
 make rubyos-arm64-smoke
 make rubyos-arm64-gui-smoke
 make rubyos-arm64-repl-smoke
+make rubyos-arm64-storage-smoke
 make provenance
 ```
 
@@ -94,6 +96,11 @@ small byte-stream interface without changing the SDL or Ruby object layers.
 input under QEMU. The prompt evaluates ordinary Ruby and provides `help`,
 `version`, `devices`, `tasks`, `uptime`, `sleep`, `time`, `ls`, `cat`, and
 `write` commands backed by live kernel objects.
+
+`make rubyos-arm64-storage-smoke` adds a generated ext2 disk to QEMU. Ruby
+discovers it through a Ruby VirtIO-MMIO block driver, parses ext2 without a C
+filesystem library, and mounts its persistent `/home` and `/apps` trees into
+the VFS. The current ext2 milestone is read-only; tmpfs remains writable.
 
 For an interactive session:
 

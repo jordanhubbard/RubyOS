@@ -118,6 +118,14 @@ module RubyOS
       end
     end
 
+    class NodeFS
+      attr_reader :root
+
+      def initialize(root)
+        @root = root
+      end
+    end
+
     class VFS
       Handle = Data.define(:node, :flags, :offset)
 
