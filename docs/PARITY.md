@@ -16,7 +16,7 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 | Remote display | UART/VirtIO/TCP protocol-v1 SDL companion | hosted TCP and bare-metal VirtIO console | Complete |
 | GUI API | SDL-compatible surfaces, events, images, fonts | Ruby `Surface` and widget hierarchy with focused keyboard/text dispatch | Partial |
 | Desktop | compositor, windows, menu bar, dock, wallpaper, shortcuts | Ruby compositor, focus/z-order, windows, menu bar, dock | Partial |
-| Apps | terminal, editor, files, image viewer, monitor, clock, settings | About, Files, Terminal, VFS Editor, Image Viewer, System Monitor | Partial |
+| Apps | terminal, editor, files, image viewer, monitor, clock, settings | About, interactive Terminal, VFS Editor, Files, Image Viewer, System Monitor, Clock, Settings | Complete |
 | Demos and games | graphics/audio demos and arcade games | Ruby Chipset Workbench desktop demo | Partial |
 | Input | PS/2 and VirtIO input, canonical event queue | SDL mouse, key, and UTF-8 text events routed through Ruby compositor focus and widgets | Partial |
 | Audio | AC97/Intel HDA/bridge mixer and sound API | Ruby PCM/waveform mixer and bare-metal SDL audio bridge | Partial |

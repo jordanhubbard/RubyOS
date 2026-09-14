@@ -92,6 +92,13 @@ input.handle("kind" => 1, "code" => 0, "text" => "y")
 input.handle("kind" => 1, "code" => 13)
 assert(submitted == "ruby", "text input insertion, backspace, and submit")
 
+settings = RubyOS::Apps::Settings.new
+settings_window = settings.launch(compositor)
+compositor.handle("kind" => 4, "button" => 1,
+                  "x" => settings_window.x + 16,
+                  "y" => settings_window.y + RubyOS::GUI::Window::TITLE_HEIGHT + 50)
+assert(!settings.animations, "window click dispatch reaches Settings button")
+
 editor = RubyOS::Apps::Editor.new(path: "/home/editor.txt")
 editor.save("Edited by a Ruby object.\n")
 assert(state.fetch(:vfs).read_file("/home/editor.txt") == "Edited by a Ruby object.\n",

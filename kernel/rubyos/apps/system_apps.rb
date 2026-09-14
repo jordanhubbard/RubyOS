@@ -64,6 +64,41 @@ module RubyOS
       end
     end
 
+    class Clock < Application
+      def build_window
+        clock = kernel.state.fetch(:clock)
+        GUI::Window.new("RubyOS Clock", x: 174, y: 72, width: 180, height: 96,
+                        background: 0x171a24).tap do |window|
+          window.add(GUI::Label.new(clock.format_hms, x: 36, y: 10, color: 0xffd866))
+          window.add(GUI::Label.new("monotonic + session time", x: 0, y: 38, color: 0xa8d8ff))
+        end
+      end
+    end
+
+    class Settings < Application
+      attr_reader :animations
+
+      def initialize(**options)
+        super
+        @animations = true
+      end
+
+      def toggle_animations(*)
+        @animations = !animations
+        @status.text = "Animations: #{animations ? 'on' : 'off'}"
+        @status.invalidate
+      end
+
+      def build_window
+        GUI::Window.new("Settings", x: 126, y: 58, width: 230, height: 120,
+                        background: 0x202336).tap do |window|
+          @status = window.add(GUI::Label.new("Animations: on", x: 4, y: 4, color: 0xe8dff5))
+          window.add(GUI::Button.new("Toggle", x: 4, y: 36, width: 72, height: 24,
+                                     background: 0x553184, action: method(:toggle_animations)))
+        end
+      end
+    end
+
     class Editor < Application
       attr_reader :path, :content
 

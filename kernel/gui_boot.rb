@@ -15,6 +15,7 @@ module RubyOS
                                            title: "RubyOS Bare-Metal Desktop")
       compositor = GUI::Compositor.new(width: 480, height: 300, title: "RubyOS")
       terminal = Apps::Terminal.new
+      settings = Apps::Settings.new
       applications = Apps::Registry.new
         .register("About", Apps::About.new)
         .register("Files", Apps::Files.new)
@@ -23,7 +24,11 @@ module RubyOS
         .register("Editor", Apps::Editor.new)
         .register("Image", Apps::ImageViewer.new)
         .register("Chipset", Apps::ChipsetWorkbench.new)
-      dock_labels = { "Terminal" => "Term", "Monitor" => "Mon", "Chipset" => "Chip" }
+        .register("Clock", Apps::Clock.new)
+        .register("Settings", settings)
+      dock_labels = { "About" => "Abt", "Files" => "File", "Terminal" => "Term",
+                      "Monitor" => "Mon", "Editor" => "Edit", "Image" => "Img",
+                      "Chipset" => "Chip", "Clock" => "Clk", "Settings" => "Set" }
       applications.each do |name, application|
         compositor.add_dock_item(dock_labels.fetch(name, name)) { application.launch(compositor) }
       end
@@ -35,9 +40,16 @@ module RubyOS
       client.call("debug.event.inject", { kind: 1, code: 13 })
       desktop.events.each { |event| compositor.handle(event) }
       RubyOS.invariant(terminal.last_result == "=> 6", "keyboard input did not reach Terminal")
+      clock_window = applications.fetch("Clock").launch(compositor)
+      settings_window = settings.launch(compositor)
+      client.call("debug.event.inject", { kind: 4, x: 145, y: 137, button: 1 })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(!settings.animations, "Settings button did not receive mouse input")
+      compositor.close(settings_window)
+      compositor.close(clock_window)
       compositor.draw(desktop.surface, uptime: "#{state.fetch(:clock).milliseconds} ms")
       desktop.present
-      client.call("debug.event.inject", { kind: 4, x: 260, y: 280, button: 1 })
+      client.call("debug.event.inject", { kind: 4, x: 180, y: 280, button: 1 })
       desktop.events.each { |event| compositor.handle(event) }
       RubyOS.invariant(compositor.focused_window.title == "System Monitor",
                        "dock input did not launch System Monitor")
@@ -58,6 +70,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS/arm64] remote SDL desktop: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] SDL input routing: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] keyboard Terminal input: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS/arm64] core desktop apps: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] SDL audio bridge: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] Ruby chipset workbench: PASS\n")
       true

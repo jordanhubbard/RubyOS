@@ -105,9 +105,10 @@ small byte-stream interface without changing the SDL or Ruby object layers.
 
 The bare-metal desktop is composed by Ruby objects rather than a fixed bridge
 scene. `Compositor` owns window focus and z-order, while `Application`
-subclasses build About, Files, Terminal, and System Monitor windows from live
-kernel state, with VFS-backed Editor and Image Viewer applications alongside
-them. Ruby `Surface` objects create, upload, decode PNG/JPEG through SDL_image,
+subclasses build About, Files, interactive Terminal, System Monitor, Clock, and
+Settings windows from live kernel state, with VFS-backed Editor and Image
+Viewer applications alongside them. Ruby `Surface` objects create, upload,
+decode PNG/JPEG through SDL_image,
 blit, and destroy remote image resources. SDL mouse events are normalized by the bridge and routed through
 Ruby hit testing; keyboard and UTF-8 text events follow window focus into Ruby
 widgets, including a live Terminal evaluator and VFS-persisted Editor. The

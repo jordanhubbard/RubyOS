@@ -52,6 +52,12 @@ module RubyOS
       end
 
       def handle(event)
+        if event.fetch("kind", 0) == 4 && event.fetch("button", 0) == 1
+          local_x = event.fetch("x") - x - 10
+          local_y = event.fetch("y") - y - TITLE_HEIGHT - 9
+          child = children.reverse.find { |candidate| candidate.contains?(local_x, local_y) }
+          return true if child&.enabled && child.handle(:click)
+        end
         children.reverse_each { |child| return true if child.enabled && child.handle(event) }
         false
       end
@@ -121,7 +127,12 @@ module RubyOS
         end
         window = window_at(point_x, point_y)
         return false unless window
-        window.close_hit?(point_x, point_y) ? close(window) : focus(window)
+        if window.close_hit?(point_x, point_y)
+          close(window)
+        else
+          focus(window)
+          window.handle(event)
+        end
         true
       end
 
