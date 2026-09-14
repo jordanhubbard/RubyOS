@@ -18,15 +18,20 @@ end
 
 first = connect.call
 second = connect.call
-first.write('local_only = 41')
-response = first.readpartial(4096)
+exchange = lambda do |socket, line|
+  socket.write(line)
+  socket.readpartial(4096)
+end
+response = exchange.call(first, 'local_only = 41')
 abort "unexpected first response: #{response.inspect}" unless response == "=> 41\n"
-second.write('defined?(local_only)')
-response = second.readpartial(4096)
+response = exchange.call(second, 'defined?(local_only)')
 abort "session namespace leaked: #{response.inspect}" unless response == "=> nil\n"
-first.write('local_only + 1')
-response = first.readpartial(4096)
+response = exchange.call(first, 'local_only + 1')
 abort "first namespace was not retained: #{response.inspect}" unless response == "=> 42\n"
+response = exchange.call(first, 'write /home/network.txt shared')
+abort "TCP shell write failed: #{response.inspect}" unless response == "6 bytes\n"
+response = exchange.call(second, 'cat /home/network.txt')
+abort "TCP sessions do not share VFS: #{response.inspect}" unless response == "shared"
 puts "multi-session Ruby REPL PASS"
 first.close
 second.close

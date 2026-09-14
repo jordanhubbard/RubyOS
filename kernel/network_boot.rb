@@ -19,7 +19,7 @@ module RubyOS
       output.puts "network: TCP echo round trip via #{lease.gateway}:18081"
       repl = Net::REPLServer.new(stack)
       output.puts "network: Ruby REPL ready on #{repl.port}"
-      result = repl.serve_many(response_count: 3)
+      result = repl.serve_many(response_count: 5)
       output.puts "network: Ruby REPL multiplexed #{result.fetch(:sessions)} sessions and #{result.fetch(:evaluations)} evaluations"
       stack
     end

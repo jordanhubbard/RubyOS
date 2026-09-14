@@ -8,7 +8,7 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 | Source-built language runtime | Cross-built CPython | CRuby 4.0.6 with Prism and native Fiber context backends, cross-built as static ARM64 and x86_64 kernels | Complete |
 | Bare-metal boot | x86_64 and ARM64, exceptions, timers | ARM64 EL1/FPU/TLS/exceptions plus 100 Hz GICv2/v3 timer IRQs; x86_64 Multiboot2/long-mode/SSE/TLS boot | Partial |
 | Scheduler | asyncio tasks, timers, AP workers | Cooperative Ruby Fibers, timed sleep/deadline queue, monotonic `Timekeeper` | Partial |
-| Interactive shell | serial and multi-session TCP REPL, commands, editor | bare-metal serial commands plus simultaneous TCP sessions with private bindings and shared kernel objects | Partial |
+| Interactive shell | serial and multi-session TCP REPL, commands, editor | shared serial/TCP command processor, simultaneous TCP sessions with private bindings and shared VFS/kernel objects, GUI editor | Complete |
 | Device model | buses and typed drivers | `Bus`, `Device`, `Driver` mixin | Partial |
 | Memory | physical allocator, DMA, mmap, heap metrics | buddy heap, mmap shim, DMA HAL | Partial |
 | Storage | VFS, tmpfs, ext2, mounted persistent `/home` | Ruby VFS/tmpfs plus writable ext2 over bare-metal VirtIO block, with sparse files, arbitrary truncate, double-indirect traversal, create, unlink, and rmdir | Complete |
@@ -29,7 +29,6 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 ## Delivery order
 
 Parity work follows dependency order: scheduler preemption;
-full TCP REPL shell commands; input and compositor; apps;
-audio and image APIs; chipset laboratory; x86_64 interrupts and timers; SMP; then parity-level
+native input paths; audio devices; chipset depth; x86_64 interrupts and timers; SMP; then parity-level
 automation and teaching examples. Each row moves to complete only when a
 bare-metal integration test covers the corresponding behavior.

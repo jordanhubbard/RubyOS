@@ -4,8 +4,17 @@ module RubyOS
   module Net
     class REPLServer
       Session = Struct.new(:remote_ip, :remote_mac, :remote_port, :sequence,
-                           :acknowledgment, :context, :evaluations,
+                           :acknowledgment, :context, :shell, :output, :evaluations,
                            keyword_init: true)
+
+      class SessionOutput
+        attr_reader :string
+
+        def initialize = (@string = +"")
+        def clear = @string.clear
+        def write(value) = (@string << String(value))
+        def puts(value = "") = write("#{value}\n")
+      end
 
       attr_reader :port
 
@@ -53,7 +62,7 @@ module RubyOS
           next if segment.payload.empty?
           next unless segment.sequence == session.acknowledgment
           session.acknowledgment = (segment.sequence + segment.payload.bytesize) & 0xffffffff
-          response = evaluate(segment.payload, session.context)
+          response = evaluate(segment.payload, session)
           transmit(session, TCPSegment::PSH | TCPSegment::ACK, response)
           session.sequence = (session.sequence + response.bytesize) & 0xffffffff
           session.evaluations += 1
@@ -67,11 +76,14 @@ module RubyOS
 
       def accept_syn(key, ethernet, ip, segment)
         sequence = (0x5255_4259 + @sessions.length * 0x1000) & 0xffffffff
+        context = Object.new.instance_eval { binding }
+        output = SessionOutput.new
+        shell = RubyOS::Shell.new(input: -> { nil }, output:, context:)
         session = Session.new(remote_ip: ip.source, remote_mac: ethernet.source,
                               remote_port: segment.source_port,
                               sequence: (sequence + 1) & 0xffffffff,
                               acknowledgment: (segment.sequence + 1) & 0xffffffff,
-                              context: Object.new.instance_eval { binding }, evaluations: 0)
+                              context:, shell:, output:, evaluations: 0)
         @sessions[key] = session
         syn_ack = TCPSegment.new(port, session.remote_port, sequence, session.acknowledgment,
                                  TCPSegment::SYN | TCPSegment::ACK, 65_535, +"".b)
@@ -84,10 +96,10 @@ module RubyOS
         @stack.transmit_tcp(session.remote_ip, session.remote_mac, segment)
       end
 
-      def evaluate(source, context)
-        "=> #{eval(source, context).inspect}\n"
-      rescue Exception => error
-        "#{error.class}: #{error.message}\n"
+      def evaluate(source, session)
+        session.output.clear
+        session.shell.execute_line(source)
+        session.output.string.dup
       end
     end
   end

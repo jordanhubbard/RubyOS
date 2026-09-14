@@ -30,18 +30,18 @@ module RubyOS
         RubyOS::HAL.serial_write("rubyos> ") if defined?(RubyOS::HAL)
         line = @input.call
         break if line.nil?
-        line = line.strip
-        next if line.empty?
-        break if line == "exit"
-
-        name, *arguments = line.split(" ", 3)
-        if COMMANDS.key?(name)
-          command(name, arguments)
-        else
-          evaluate(line)
-        end
+        break if execute_line(line) == :exit
       end
       self
+    end
+
+    def execute_line(line)
+      line = String(line).strip
+      return :continue if line.empty?
+      return :exit if line == "exit"
+      name, *arguments = line.split(" ", 3)
+      COMMANDS.key?(name) ? command(name, arguments) : evaluate(line)
+      :continue
     end
 
     private
