@@ -11,8 +11,10 @@ paths = %w[
   kernel/rubyos/driver.rb
   kernel/rubyos/device.rb
   kernel/rubyos/drivers/virtio_block.rb
+  kernel/rubyos/drivers/virtio_net.rb
   kernel/rubyos/net/address.rb
   kernel/rubyos/net/packet.rb
+  kernel/rubyos/net/stack.rb
   kernel/rubyos/gui/ui.rb
   kernel/rubyos/bridge/protocol.rb
   kernel/rubyos/bridge/codec.rb
@@ -21,6 +23,7 @@ paths = %w[
   kernel/rubyos/bridge/virtio_console.rb
   kernel/boot.rb
   kernel/storage_boot.rb
+  kernel/network_boot.rb
   kernel/gui_boot.rb
 ]
 
@@ -32,6 +35,9 @@ end.join("\n")
 source << "\nRubyOS::Kernel.boot\n"
 if ENV["RUBYOS_EMBED_STORAGE"] == "1"
   source << "RubyOS::Kernel.mount_persistent_storage\n"
+end
+if ENV["RUBYOS_EMBED_NETWORK"] == "1"
+  source << "RubyOS::Kernel.boot_network\n"
 end
 if ENV["RUBYOS_EMBED_DESKTOP"] == "1"
   source << "RubyOS::Kernel.boot_remote_desktop\n"

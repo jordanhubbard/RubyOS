@@ -42,6 +42,7 @@ make rubyos-arm64-smoke
 make rubyos-arm64-gui-smoke
 make rubyos-arm64-repl-smoke
 make rubyos-arm64-storage-smoke
+make rubyos-arm64-network-smoke
 make provenance
 ```
 
@@ -105,6 +106,11 @@ filesystem library, and mounts its persistent `/home` and `/apps` trees into
 the VFS. Files created or replaced from the Ruby shell are allocated and
 written back to the disk. Ext2 deletion, arbitrary shrinking, and allocation
 beyond single-indirect blocks remain later storage work.
+
+`make rubyos-arm64-network-smoke` attaches QEMU user networking and proves a
+Ruby-owned VirtIO-MMIO NIC, ARP resolution, IPv4, and ICMP by receiving an echo
+reply from the virtual gateway. Packet framing and checksums are ordinary Ruby
+objects; TCP, DHCP, and DNS remain subsequent networking milestones.
 
 For an interactive session:
 
