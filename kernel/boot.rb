@@ -30,6 +30,14 @@ module RubyOS
       end
       scheduler.run
 
+      retired = scheduler.spawn("ruby-retired") { raise "retired task resumed" }
+      RubyOS.invariant(scheduler.kill(retired.pid), "ready task was not killed")
+      RubyOS.invariant(scheduler.reap(retired).equal?(retired), "killed task was not reaped")
+      scheduler.spawn("ruby-request", auto_reap: true) { :served }
+      scheduler.run
+      RubyOS.invariant(scheduler.tasks.none? { |task| task.name == "ruby-request" },
+                       "short-lived task was not auto-reaped")
+
       timer_trace = []
       scheduler.spawn("ruby-timer") do
         timer_trace << :sleep
@@ -59,6 +67,7 @@ module RubyOS
       output.puts "kernel: devices #{bus.topology.join(', ')}"
       output.puts "kernel: fibers #{trace.inspect}"
       output.puts "kernel: timer #{timer_trace.inspect}"
+      output.puts "kernel: scheduler lifecycle kill/reap/auto-reap"
       output.puts "kernel: memory #{memory.snapshot.used_bytes}/#{memory.snapshot.total_bytes} bytes"
       output.puts "kernel: Ruby owns the machine"
       @state = { bus:, scheduler:, trace:, timer_trace:, vfs:, clock:, memory: }.freeze

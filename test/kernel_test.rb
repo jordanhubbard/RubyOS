@@ -73,6 +73,18 @@ timed.run
 assert(timed_trace == [:early, :late], "sleeping tasks wake in deadline order")
 assert(fake_now == 12.0, "scheduler sleeps until next deadline")
 
+lifecycle = RubyOS::Scheduler.new(monotonic_ms: -> { 0.0 }, sleeper: ->(_) {})
+doomed = lifecycle.spawn("doomed") { raise "killed task ran" }
+assert(lifecycle.kill(doomed.pid), "scheduler kills a ready task by PID")
+assert(doomed.state == :killed && lifecycle.reap(doomed).equal?(doomed), "killed task reaping")
+zombie = lifecycle.spawn("zombie") { :ruby_result }
+lifecycle.spawn("request", auto_reap: true) { :short_lived }
+lifecycle.run
+assert(zombie.result == :ruby_result && zombie.state == :complete, "completed task result lifecycle")
+assert(zombie.ticks == 1 && lifecycle.ticks == 2, "per-task CPU tick accounting")
+assert(lifecycle.ps == [zombie], "short-lived task auto-reaping")
+assert(lifecycle.reap(zombie.pid).equal?(zombie) && lifecycle.ps.empty?, "completed task reaping")
+
 samples = [1_000_000_000, 1_001_500_000, 3_001_500_000, 5_001_500_000]
 clock = RubyOS::Timekeeper.new(monotonic_ns: -> { samples.shift })
 assert(clock.milliseconds == 1, "monotonic milliseconds")

@@ -1,12 +1,17 @@
 # frozen_string_literal: true
 
 module RubyOS
-  # Cooperative kernel scheduler. A timer interrupt will eventually call
-  # #tick; the hosted exploration drives it directly. Fibers make suspension
-  # and resumption explicit and keep the design idiomatic Ruby.
+  # Cooperative kernel scheduler. Hardware timer IRQs supply monotonic time;
+  # Fibers switch at explicit Ruby scheduling points, matching PythonOS's
+  # cooperative asyncio baseline without interrupting the CRuby VM unsafely.
   class Scheduler
-    Task = Struct.new(:name, :fiber, :state, :result, :failure, :wake_at,
-                      keyword_init: true)
+    TICK_HZ = 100
+
+    Task = Struct.new(:pid, :name, :fiber, :state, :result, :failure, :wake_at,
+                      :ticks, :auto_reap, keyword_init: true) do
+      def alive? = fiber.alive? && ![:killed, :complete, :failed].include?(state)
+      def terminal? = [:killed, :complete, :failed].include?(state)
+    end
 
     attr_reader :ticks
 
@@ -15,12 +20,13 @@ module RubyOS
       @sleeping = []
       @tasks = []
       @ticks = 0
+      @next_pid = 1
       @current = nil
       @monotonic_ms = monotonic_ms || method(:platform_monotonic_ms)
       @sleeper = sleeper || method(:platform_sleep)
     end
 
-    def spawn(name, &body)
+    def spawn(name, auto_reap: false, &body)
       raise ArgumentError, "task body required" unless body
 
       task = nil
@@ -34,7 +40,9 @@ module RubyOS
           task.state = :failed
         end
       end
-      task = Task.new(name:, fiber:, state: :ready, result: nil, failure: nil, wake_at: nil)
+      task = Task.new(pid: @next_pid, name:, fiber:, state: :ready, result: nil,
+                      failure: nil, wake_at: nil, ticks: 0, auto_reap:)
+      @next_pid += 1
       @tasks << task
       @run_queue << task
       task
@@ -48,10 +56,13 @@ module RubyOS
 
       @current = task
       task.state = :running
+      task.ticks += 1
       task.fiber.resume if task.fiber.alive?
       if task.fiber.alive? && task.state != :sleeping
         task.state = :ready
         @run_queue << task
+      elsif task.auto_reap
+        @tasks.delete(task)
       end
       true
     ensure
@@ -87,11 +98,41 @@ module RubyOS
       @tasks.dup.freeze
     end
 
+    alias ps tasks
+
+    def kill(task_or_pid)
+      task = resolve_task(task_or_pid)
+      return false unless task && !task.terminal?
+
+      @run_queue.delete(task)
+      @sleeping.delete(task)
+      task.state = :killed
+      task.wake_at = nil
+      true
+    end
+
+    def reap(task_or_pid)
+      task = resolve_task(task_or_pid)
+      return nil unless task&.terminal?
+
+      @tasks.delete(task)
+      task
+    end
+
     def uptime_ms
       now_ms
     end
 
     private
+
+    def resolve_task(task_or_pid)
+      return task_or_pid if task_or_pid.is_a?(Task) && @tasks.include?(task_or_pid)
+
+      pid = Integer(task_or_pid)
+      @tasks.find { |task| task.pid == pid }
+    rescue ArgumentError, TypeError
+      nil
+    end
 
     def wake_sleepers
       ready, waiting = @sleeping.partition { |task| task.wake_at <= now_ms }
