@@ -6,6 +6,10 @@ module RubyOS
   module Kernel
     module_function
 
+    def state
+      @state
+    end
+
     def boot(output: $stdout)
       output.puts "RubyOS #{RubyOS::VERSION}"
       output.puts RUBY_DESCRIPTION
@@ -29,7 +33,7 @@ module RubyOS
       output.puts "kernel: #{console.name} -> #{console.driver.class}"
       output.puts "kernel: fibers #{trace.inspect}"
       output.puts "kernel: Ruby owns the machine"
-      { bus:, scheduler:, trace: }
+      @state = { bus:, scheduler:, trace: }.freeze
     end
   end
 end

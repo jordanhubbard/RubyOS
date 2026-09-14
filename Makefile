@@ -8,10 +8,11 @@ ARM64_RUBY_LIB := $(CURDIR)/build/baremetal/ruby-freestanding/libruby-static.a
 ARM64_RUBY_STAMP := $(CURDIR)/build/baremetal/ruby-freestanding/.rubyos-built
 ARM64_RUBYOS_ELF := $(CURDIR)/build/baremetal/rubyos-arm64/rubyos.elf
 ARM64_GUI_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-gui/rubyos.elf
+ARM64_REPL_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-repl/rubyos.elf
 RUBY_PC := PKG_CONFIG_PATH=$(CURDIR)/build/host-ruby/lib/pkgconfig pkg-config
 BUILDER_IMAGE := pythonos-builder
 
-.PHONY: all ruby smoke test bridge test-bridge embed-probe baremetal-arm64 baremetal-smoke ruby-arm64 rubyos-arm64 rubyos-arm64-smoke rubyos-arm64-gui rubyos-arm64-gui-smoke \
+.PHONY: all ruby smoke test bridge test-bridge embed-probe baremetal-arm64 baremetal-smoke ruby-arm64 rubyos-arm64 rubyos-arm64-smoke rubyos-arm64-gui rubyos-arm64-gui-smoke rubyos-arm64-repl rubyos-arm64-repl-smoke \
 	clean distclean provenance
 
 all: smoke
@@ -74,6 +75,18 @@ $(ARM64_GUI_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
 
 rubyos-arm64-gui-smoke: $(ARM64_GUI_ELF) bridge
 	./test/rubyos_arm64_gui_smoke.sh
+
+rubyos-arm64-repl: $(ARM64_REPL_ELF)
+$(ARM64_REPL_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
+		baremetal/arm64/boot.S baremetal/arm64/ruby_kernel.c \
+		baremetal/arm64/platform_stubs.c baremetal/arm64/setjmp.S \
+		baremetal/arm64/linker.ld tools/embed-kernel.rb $(shell find kernel -type f -name '*.rb') \
+		$(wildcard platform/libc/*.c platform/libc/include/*.h platform/libc/include/sys/*.h platform/boot/*.h)
+	docker run --rm --platform linux/arm64 --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
+		env RUBYOS_EMBED_REPL=1 RUBYOS_ARM64_VARIANT=rubyos-arm64-repl ./tools/build-rubyos-arm64.sh
+
+rubyos-arm64-repl-smoke: $(ARM64_REPL_ELF)
+	./test/rubyos_arm64_repl_smoke.sh
 
 $(EMBED_PROBE): tools/embed_probe.c Makefile $(HOST_RUBY_STAMP)
 	cc -o $@ tools/embed_probe.c $$($(RUBY_PC) --cflags ruby-4.0) \

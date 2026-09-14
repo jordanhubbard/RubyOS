@@ -26,4 +26,10 @@ button = RubyOS::GUI::Button.new("Run", action: ->(_) { button_clicked = true })
 assert(button.handle(:click), "button consumes click")
 assert(button_clicked, "button action")
 
+shell_input = ["1 + 2\n", "version\n", "exit\n"]
+shell_output = StringIO.new
+RubyOS::Shell.new(input: -> { shell_input.shift }, output: shell_output).run
+assert(shell_output.string.include?("=> 3"), "shell evaluates Ruby")
+assert(shell_output.string.include?(RUBY_VERSION), "shell version command")
+
 puts "RubyOS kernel exploration: PASS"

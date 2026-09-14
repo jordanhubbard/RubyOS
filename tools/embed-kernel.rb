@@ -4,6 +4,7 @@ root = File.expand_path("..", __dir__)
 paths = %w[
   kernel/rubyos.rb
   kernel/rubyos/scheduler.rb
+  kernel/rubyos/shell.rb
   kernel/rubyos/driver.rb
   kernel/rubyos/device.rb
   kernel/rubyos/gui/ui.rb
@@ -24,6 +25,9 @@ end.join("\n")
 source << "\nRubyOS::Kernel.boot\n"
 if ENV["RUBYOS_EMBED_DESKTOP"] == "1"
   source << "RubyOS::Kernel.boot_remote_desktop\n"
+end
+if ENV["RUBYOS_EMBED_REPL"] == "1"
+  source << "RubyOS::Shell.new.run\n"
 end
 
 puts "/* Generated from RubyOS kernel sources. */"

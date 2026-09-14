@@ -9,6 +9,7 @@ extern void *memset(void *destination, int byte, size_t length);
 #define PL011_DR   (*(volatile uint32_t *)(PL011_BASE + 0x000))
 #define PL011_FR   (*(volatile uint32_t *)(PL011_BASE + 0x018))
 #define PL011_TXFF (1U << 5)
+#define PL011_RXFE (1U << 4)
 
 static void serial_putc(char value)
 {
@@ -60,6 +61,34 @@ static VALUE hal_serial_write(VALUE self, VALUE message)
     (void)self;
     serial_puts(StringValueCStr(message));
     return Qnil;
+}
+
+static VALUE hal_serial_readline(VALUE self)
+{
+    char buffer[1024];
+    size_t length = 0;
+    (void)self;
+
+    for (;;) {
+        unsigned char byte;
+        while (PL011_FR & PL011_RXFE) __asm__ volatile("yield");
+        byte = (unsigned char)PL011_DR;
+        if (byte == 4 && length == 0) return Qnil;
+        if (byte == '\r' || byte == '\n') {
+            serial_puts("\n");
+            break;
+        }
+        if ((byte == 8 || byte == 127) && length > 0) {
+            --length;
+            serial_puts("\b \b");
+            continue;
+        }
+        if (byte >= 32 && length + 1 < sizeof(buffer)) {
+            buffer[length++] = (char)byte;
+            serial_putc((char)byte);
+        }
+    }
+    return rb_utf8_str_new(buffer, (long)length);
 }
 
 static VALUE hal_mmio_read32(VALUE self, VALUE address)
@@ -150,6 +179,7 @@ void rubyos_kernel_main(uint64_t dtb_address)
     rubyos = rb_define_module("RubyOS");
     hal = rb_define_module_under(rubyos, "HAL");
     rb_define_module_function(hal, "serial_write", hal_serial_write, 1);
+    rb_define_module_function(hal, "serial_readline", hal_serial_readline, 0);
     rb_define_module_function(hal, "mmio_read32", hal_mmio_read32, 1);
     rb_define_module_function(hal, "mmio_write32", hal_mmio_write32, 2);
     rb_define_module_function(hal, "mmio_read8", hal_mmio_read8, 1);

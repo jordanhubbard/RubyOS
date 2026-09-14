@@ -35,6 +35,7 @@ make baremetal-smoke
 make ruby-arm64
 make rubyos-arm64-smoke
 make rubyos-arm64-gui-smoke
+make rubyos-arm64-repl-smoke
 make provenance
 ```
 
@@ -84,3 +85,18 @@ The wire protocol is currently unauthenticated and unencrypted. Keep it on
 loopback or a trusted private/SSH-forwarded connection. VirtIO console is the
 current bare-metal transport; a future TCP transport can implement the same
 small byte-stream interface without changing the SDL or Ruby object layers.
+
+## Bare-metal Ruby console
+
+`make rubyos-arm64-repl-smoke` builds the console kernel and drives its PL011
+input under QEMU. The prompt evaluates ordinary Ruby and provides `help`,
+`version`, `devices`, and `tasks` commands backed by live kernel objects.
+
+For an interactive session:
+
+```sh
+make rubyos-arm64-repl
+qemu-system-aarch64 -M virt -cpu cortex-a72 -m 512M \
+  -nographic -monitor none -serial stdio \
+  -kernel build/baremetal/rubyos-arm64-repl/rubyos.elf
+```
