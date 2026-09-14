@@ -16,6 +16,30 @@ assert(state[:trace] == [[0, :start], [1, :start], [0, :finish], [1, :finish]], 
 assert(state[:scheduler].tasks.all? { |task| task.state == :complete }, "task completion")
 assert(state[:timer_trace] == [:sleep, :wake], "bare scheduler deadline")
 
+generic_driver = Class.new do
+  include RubyOS::Driver
+  matches kind: :network
+end
+specific_driver = Class.new do
+  include RubyOS::Driver
+  matches kind: :network, vendor_id: 0x1af4
+end
+device_bus = RubyOS::Bus.new(enumerators: [lambda {
+  [RubyOS::PCIDevice.new("virtio-net", vendor_id: 0x1af4, device_id: 0x1000,
+                         class_code: :network,
+                         resources: [RubyOS::MMIOResource.new(0x1000_1000, 0x1000),
+                                     RubyOS::IRQResource.new(5)], kind: :network)]
+}])
+device_bus.register_driver(generic_driver, priority: 99)
+device_bus.register_driver(specific_driver)
+device_bus.enumerate.bind_drivers
+network_device = device_bus.find_by_id(0x1af4, 0x1000).first
+assert(network_device.driver.is_a?(specific_driver), "most-specific driver binding")
+assert(network_device.resources.first.cover?(0x1000_1800), "typed MMIO resource range")
+assert(device_bus.topology.first.include?("driver="), "device topology reporting")
+removed_driver = network_device.unbind
+assert(removed_driver.device.nil? && !network_device.bound?, "driver remove lifecycle")
+
 memory = RubyOS::Memory::Manager.new(backend: RubyOS::Memory::SimulatedBackend.new(16_384))
 initial_memory = memory.snapshot
 frames = memory.allocate_many(2)

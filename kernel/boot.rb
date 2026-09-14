@@ -56,6 +56,7 @@ module RubyOS
       vfs = FS::VFS.new.mount("/", filesystem)
 
       output.puts "kernel: #{console.name} -> #{console.driver.class}"
+      output.puts "kernel: devices #{bus.topology.join(', ')}"
       output.puts "kernel: fibers #{trace.inspect}"
       output.puts "kernel: timer #{timer_trace.inspect}"
       output.puts "kernel: memory #{memory.snapshot.used_bytes}/#{memory.snapshot.total_bytes} bytes"
