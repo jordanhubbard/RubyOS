@@ -4,6 +4,8 @@
 
 extern void *aligned_alloc(size_t alignment, size_t size);
 extern void *memset(void *destination, int byte, size_t length);
+extern void rubyos_timer_init(void);
+extern uint64_t rubyos_timer_ticks(void);
 
 #define PL011_BASE 0x09000000UL
 #define PL011_DR   (*(volatile uint32_t *)(PL011_BASE + 0x000))
@@ -178,6 +180,12 @@ static VALUE hal_sleep_us(VALUE self, VALUE requested)
     return Qnil;
 }
 
+static VALUE hal_interrupt_ticks(VALUE self)
+{
+    (void)self;
+    return ULL2NUM(rubyos_timer_ticks());
+}
+
 static VALUE exception_full_message(VALUE error)
 {
     return rb_funcall(error, rb_intern("full_message"), 0);
@@ -200,6 +208,10 @@ void rubyos_kernel_main(uint64_t dtb_address)
     serial_puts("[RubyOS/arm64] boot: entering CRuby 4.0.6\n");
 
     serial_puts("[RubyOS/arm64] boot: RubyOS libc initialized\n");
+    rubyos_timer_init();
+    __asm__ volatile("msr daifclr, #2");
+    while (rubyos_timer_ticks() < 3) __asm__ volatile("yield");
+    serial_puts("[RubyOS/arm64] boot: timer IRQs active\n");
 
     ruby_sysinit(&argument_count, &argument_values);
     ruby_init_stack(&stack_anchor);
@@ -229,6 +241,7 @@ void rubyos_kernel_main(uint64_t dtb_address)
     rb_define_module_function(hal, "dma_alloc", hal_dma_alloc, 1);
     rb_define_module_function(hal, "monotonic_ns", hal_monotonic_ns, 0);
     rb_define_module_function(hal, "sleep_us", hal_sleep_us, 1);
+    rb_define_module_function(hal, "interrupt_ticks", hal_interrupt_ticks, 0);
     rb_eval_string_protect(rubyos_kernel_source, &state);
     if (state != 0) {
         VALUE error = rb_errinfo();

@@ -21,6 +21,7 @@ fi
 
 cat "$output_file"
 grep -q 'boot: RubyOS libc initialized' "$output_file"
+grep -q 'boot: timer IRQs active' "$output_file"
 grep -q 'RubyOS 0.0.1' "$output_file"
 grep -q 'kernel: COM1 -> RubyOS::SerialDriver' "$output_file"
 grep -q 'kernel: fibers \[\[0, :start\], \[1, :start\], \[0, :finish\], \[1, :finish\]\]' "$output_file"

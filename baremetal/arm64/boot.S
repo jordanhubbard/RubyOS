@@ -94,7 +94,7 @@ _start:
 exception_vectors:
     b rubyos_sync_exception
     .balign 128
-    b rubyos_unhandled_exception
+    b rubyos_irq_entry
     .balign 128
     b rubyos_unhandled_exception
     .balign 128
@@ -102,7 +102,7 @@ exception_vectors:
     .balign 128
     b rubyos_sync_exception
     .balign 128
-    b rubyos_unhandled_exception
+    b rubyos_irq_entry
     .balign 128
     b rubyos_unhandled_exception
     .balign 128
@@ -135,3 +135,31 @@ rubyos_unhandled_exception:
     mrs x1, elr_el1
     mrs x2, far_el1
     b rubyos_exception_report
+
+rubyos_irq_entry:
+    sub sp, sp, #176
+    stp x0, x1, [sp, #0]
+    stp x2, x3, [sp, #16]
+    stp x4, x5, [sp, #32]
+    stp x6, x7, [sp, #48]
+    stp x8, x9, [sp, #64]
+    stp x10, x11, [sp, #80]
+    stp x12, x13, [sp, #96]
+    stp x14, x15, [sp, #112]
+    stp x16, x17, [sp, #128]
+    stp x18, x30, [sp, #144]
+    str x29, [sp, #160]
+    bl rubyos_irq_handler
+    ldp x0, x1, [sp, #0]
+    ldp x2, x3, [sp, #16]
+    ldp x4, x5, [sp, #32]
+    ldp x6, x7, [sp, #48]
+    ldp x8, x9, [sp, #64]
+    ldp x10, x11, [sp, #80]
+    ldp x12, x13, [sp, #96]
+    ldp x14, x15, [sp, #112]
+    ldp x16, x17, [sp, #128]
+    ldp x18, x30, [sp, #144]
+    ldr x29, [sp, #160]
+    add sp, sp, #176
+    eret

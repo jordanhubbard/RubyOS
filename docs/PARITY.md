@@ -6,7 +6,7 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 | Area | PythonOS baseline | RubyOS evidence | Status |
 |---|---|---|---|
 | Source-built language runtime | Cross-built CPython | CRuby 4.0.6 with Prism and native Fiber context backends, cross-built as static ARM64 and x86_64 kernels | Complete |
-| Bare-metal boot | x86_64 and ARM64, exceptions, timers | ARM64 EL1/FPU/TLS/exceptions/generic counter plus x86_64 Multiboot2/long-mode/SSE/TLS boot | Partial |
+| Bare-metal boot | x86_64 and ARM64, exceptions, timers | ARM64 EL1/FPU/TLS/exceptions plus 100 Hz GICv2/v3 timer IRQs; x86_64 Multiboot2/long-mode/SSE/TLS boot | Partial |
 | Scheduler | asyncio tasks, timers, AP workers | Cooperative Ruby Fibers, timed sleep/deadline queue, monotonic `Timekeeper` | Partial |
 | Interactive shell | serial and multi-session TCP REPL, commands, editor | bare-metal serial commands and single-session TCP Ruby evaluation | Partial |
 | Device model | buses and typed drivers | `Bus`, `Device`, `Driver` mixin | Partial |
