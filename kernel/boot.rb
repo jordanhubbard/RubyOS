@@ -30,6 +30,14 @@ module RubyOS
       end
       scheduler.run
 
+      timer_trace = []
+      scheduler.spawn("ruby-timer") do
+        timer_trace << :sleep
+        scheduler.sleep_for(2)
+        timer_trace << :wake
+      end
+      scheduler.run
+
       clock = Timekeeper.new
 
       filesystem = FS::TmpFS.new.seed(
@@ -41,8 +49,9 @@ module RubyOS
 
       output.puts "kernel: #{console.name} -> #{console.driver.class}"
       output.puts "kernel: fibers #{trace.inspect}"
+      output.puts "kernel: timer #{timer_trace.inspect}"
       output.puts "kernel: Ruby owns the machine"
-      @state = { bus:, scheduler:, trace:, vfs:, clock: }.freeze
+      @state = { bus:, scheduler:, trace:, timer_trace:, vfs:, clock: }.freeze
     end
   end
 end

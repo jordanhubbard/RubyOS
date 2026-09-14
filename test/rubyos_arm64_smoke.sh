@@ -24,6 +24,7 @@ grep -q 'boot: RubyOS libc initialized' "$output_file"
 grep -q 'RubyOS 0.0.1' "$output_file"
 grep -q 'kernel: COM1 -> RubyOS::SerialDriver' "$output_file"
 grep -q 'kernel: fibers \[\[0, :start\], \[1, :start\], \[0, :finish\], \[1, :finish\]\]' "$output_file"
+grep -q 'kernel: timer \[:sleep, :wake\]' "$output_file"
 grep -q 'Ruby owns the machine' "$output_file"
 ! grep -q 'FATAL\|EXCEPTION\|ASSERT\|\[BUG\]' "$output_file"
 echo 'RubyOS source-built CRuby ARM64 smoke: PASS'

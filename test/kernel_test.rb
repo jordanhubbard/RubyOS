@@ -14,6 +14,17 @@ state = RubyOS::Kernel.boot(output:)
 assert(output.string.include?("Ruby owns the machine"), "boot marker")
 assert(state[:trace] == [[0, :start], [1, :start], [0, :finish], [1, :finish]], "fiber order")
 assert(state[:scheduler].tasks.all? { |task| task.state == :complete }, "task completion")
+assert(state[:timer_trace] == [:sleep, :wake], "bare scheduler deadline")
+
+fake_now = 0.0
+timed = RubyOS::Scheduler.new(monotonic_ms: -> { fake_now },
+                              sleeper: ->(delay) { fake_now += delay })
+timed_trace = []
+timed.spawn("early") { timed.sleep_for(5); timed_trace << :early }
+timed.spawn("late") { timed.sleep_for(12); timed_trace << :late }
+timed.run
+assert(timed_trace == [:early, :late], "sleeping tasks wake in deadline order")
+assert(fake_now == 12.0, "scheduler sleeps until next deadline")
 
 samples = [1_000_000_000, 1_001_500_000, 3_001_500_000, 5_001_500_000]
 clock = RubyOS::Timekeeper.new(monotonic_ns: -> { samples.shift })

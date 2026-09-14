@@ -7,7 +7,7 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 |---|---|---|---|
 | Source-built language runtime | Cross-built CPython | CRuby 4.0.6, Prism, static ARM64 ELF | Complete |
 | Bare-metal boot | x86_64 and ARM64, exceptions, timers | ARM64 EL1/FPU/TLS/exceptions and generic counter | Partial |
-| Scheduler | asyncio tasks, timers, AP workers | Cooperative Ruby Fibers and monotonic `Timekeeper` | Partial |
+| Scheduler | asyncio tasks, timers, AP workers | Cooperative Ruby Fibers, timed sleep/deadline queue, monotonic `Timekeeper` | Partial |
 | Interactive shell | serial and multi-session TCP REPL, commands, editor | bare-metal serial commands and single-session TCP Ruby evaluation | Partial |
 | Device model | buses and typed drivers | `Bus`, `Device`, `Driver` mixin | Partial |
 | Memory | physical allocator, DMA, mmap, heap metrics | buddy heap, mmap shim, DMA HAL | Partial |
@@ -28,7 +28,7 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 
 ## Delivery order
 
-Parity work follows dependency order: timer interrupts and scheduler deadlines;
+Parity work follows dependency order: timer interrupts and preemption;
 ext2 deletion and full block traversal; multi-session TCP and REPL commands; input and compositor; apps;
 audio and image APIs; chipset laboratory; SMP; x86_64 boot; then parity-level
 automation and teaching examples. Each row moves to complete only when a

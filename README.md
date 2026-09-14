@@ -14,7 +14,7 @@ The first slice proves the language-level architecture on a source-built CRuby:
 
 - Ruby 4.0.6 bootstrapped and installed privately in `build/host-ruby`
 - the same CRuby source cross-built as a freestanding ARM64 static runtime
-- a cooperative `Fiber` kernel scheduler
+- a cooperative `Fiber` kernel scheduler with timed sleep/deadline queues
 - ARM generic-counter monotonic time, sleeping, and a Ruby session clock
 - a Ruby VFS/tmpfs with mount routing and file-descriptor semantics
 - Ruby-native Ethernet, ARP, IPv4, ICMP, and UDP packet objects
