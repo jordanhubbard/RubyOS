@@ -13,7 +13,7 @@ not use a system Ruby package, a system `ruby` executable, or a system
 The first slice proves the language-level architecture on a source-built CRuby:
 
 - Ruby 4.0.6 bootstrapped and installed privately in `build/host-ruby`
-- the same CRuby source cross-built as a freestanding ARM64 static runtime
+- the same CRuby source cross-built as freestanding ARM64 and x86_64 static runtimes
 - a cooperative `Fiber` kernel scheduler with timed sleep/deadline queues
 - ARM generic-counter monotonic time, sleeping, and a Ruby session clock
 - a Ruby VFS/tmpfs with mount routing and file-descriptor semantics
@@ -39,6 +39,8 @@ make test-bridge
 make embed-probe
 make baremetal-smoke
 make ruby-arm64
+make ruby-x86_64
+make rubyos-x86_64-smoke
 make rubyos-arm64-smoke
 make rubyos-arm64-gui-smoke
 make rubyos-arm64-repl-smoke
@@ -61,6 +63,13 @@ That builder also cross-compiles the pinned CRuby source into an ARM64 static
 archive and links it only with RubyOS's freestanding platform layer and
 `libgcc`. The resulting ELF has no program interpreter and boots CRuby 4.0.6,
 Prism, Ruby-defined devices, and cooperative Fibers on QEMU's `virt` machine.
+
+`make rubyos-x86_64-smoke` independently cross-builds CRuby with its amd64
+Fiber coroutine backend, packages a Multiboot2 ELF with GRUB, and boots the
+same embedded Ruby kernel under `qemu-system-x86_64`. Its early port currently
+provides COM1, static TLS, SSE, a heap, and provisional TSC-backed time; ARM64
+remains the full device-integration target while x86 timer and interrupt work
+is completed.
 
 The initial platform libc is adapted from PythonOS and retains its BSD license
 in `platform/PYTHONOS-LICENSE`.

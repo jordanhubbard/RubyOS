@@ -139,14 +139,23 @@ __attribute__((noreturn)) void __assert_fail(const char *expression,
 {
     extern void rubyos_serial_puts(const char *text);
     (void)line;
+#ifdef ARCH_ARM64
     rubyos_serial_puts("[RubyOS/arm64] ASSERT: ");
+#else
+    rubyos_serial_puts("[RubyOS/x86_64] ASSERT: ");
+#endif
     rubyos_serial_puts(expression);
     rubyos_serial_puts(" in ");
     rubyos_serial_puts(function);
     rubyos_serial_puts(" (");
     rubyos_serial_puts(file);
     rubyos_serial_puts(")\n");
+#ifdef ARCH_ARM64
     for (;;) __asm__ volatile("wfe");
+#else
+    __asm__ volatile("cli");
+    for (;;) __asm__ volatile("hlt");
+#endif
 }
 
 STUB(chmod) STUB(chown) STUB(crypt) STUB(dup) STUB(endgrent)

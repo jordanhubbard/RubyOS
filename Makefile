@@ -6,6 +6,8 @@ EMBED_PROBE := $(CURDIR)/build/embed-probe
 ARM64_ELF := $(CURDIR)/build/baremetal/arm64/rubyos-arm64.elf
 ARM64_RUBY_LIB := $(CURDIR)/build/baremetal/ruby-freestanding/libruby-static.a
 ARM64_RUBY_STAMP := $(CURDIR)/build/baremetal/ruby-freestanding/.rubyos-built
+X86_64_RUBY_STAMP := $(CURDIR)/build/baremetal/ruby-freestanding-x86_64/.rubyos-built
+X86_64_RUBYOS_ISO := $(CURDIR)/build/baremetal/rubyos-x86_64/rubyos.iso
 ARM64_RUBYOS_ELF := $(CURDIR)/build/baremetal/rubyos-arm64/rubyos.elf
 ARM64_GUI_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-gui/rubyos.elf
 ARM64_REPL_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-repl/rubyos.elf
@@ -15,7 +17,7 @@ DISK_IMAGE := $(CURDIR)/build/disk.img
 RUBY_PC := PKG_CONFIG_PATH=$(CURDIR)/build/host-ruby/lib/pkgconfig pkg-config
 BUILDER_IMAGE := pythonos-builder
 
-.PHONY: all ruby smoke test test-ext2 test-network bridge test-bridge embed-probe baremetal-arm64 baremetal-smoke ruby-arm64 rubyos-arm64 rubyos-arm64-smoke rubyos-arm64-gui rubyos-arm64-gui-smoke rubyos-arm64-repl rubyos-arm64-repl-smoke rubyos-arm64-storage rubyos-arm64-storage-smoke rubyos-arm64-network rubyos-arm64-network-smoke disk \
+.PHONY: all ruby smoke test test-ext2 test-network bridge test-bridge embed-probe baremetal-arm64 baremetal-smoke ruby-arm64 ruby-x86_64 rubyos-x86_64 rubyos-x86_64-smoke rubyos-arm64 rubyos-arm64-smoke rubyos-arm64-gui rubyos-arm64-gui-smoke rubyos-arm64-repl rubyos-arm64-repl-smoke rubyos-arm64-storage rubyos-arm64-storage-smoke rubyos-arm64-network rubyos-arm64-network-smoke disk \
 	clean distclean provenance
 
 all: smoke
@@ -61,6 +63,17 @@ baremetal-smoke: $(ARM64_ELF)
 ruby-arm64: $(ARM64_RUBY_STAMP)
 $(ARM64_RUBY_STAMP): $(HOST_RUBY_STAMP) tools/build-ruby-arm64.sh config/ruby.mk
 	docker run --rm --platform linux/arm64 --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) ./tools/build-ruby-arm64.sh
+
+ruby-x86_64: $(X86_64_RUBY_STAMP)
+$(X86_64_RUBY_STAMP): $(HOST_RUBY_STAMP) tools/build-ruby-x86_64.sh config/ruby.mk
+	docker run --rm --platform linux/arm64 --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) ./tools/build-ruby-x86_64.sh
+
+rubyos-x86_64: $(X86_64_RUBYOS_ISO)
+$(X86_64_RUBYOS_ISO): $(X86_64_RUBY_STAMP) tools/build-rubyos-x86_64.sh $(shell find baremetal/x86_64 platform -type f) tools/embed-kernel.rb $(shell find kernel -type f -name '*.rb')
+	docker run --rm --platform linux/arm64 --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) ./tools/build-rubyos-x86_64.sh
+
+rubyos-x86_64-smoke: $(X86_64_RUBYOS_ISO)
+	./test/rubyos_x86_64_smoke.sh
 
 rubyos-arm64: $(ARM64_RUBYOS_ELF)
 $(ARM64_RUBYOS_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
