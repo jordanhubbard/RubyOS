@@ -130,8 +130,8 @@ discovers it through a Ruby VirtIO-MMIO block driver, parses ext2 without a C
 filesystem library, and mounts its persistent `/home` and `/apps` trees into
 the VFS. Files created or replaced from the Ruby shell are allocated and
 written back to the disk. File unlink and empty-directory removal reclaim their
-ext2 blocks and inodes. Arbitrary shrinking and allocation beyond
-single-indirect blocks remain later storage work.
+ext2 blocks and inodes. Sparse extension, arbitrary shrinking, and writable
+double-indirect block traversal are covered by the filesystem checks.
 
 `make rubyos-arm64-network-smoke` attaches QEMU user networking and proves a
 Ruby-owned VirtIO-MMIO NIC, ARP resolution, IPv4, and ICMP by receiving an echo

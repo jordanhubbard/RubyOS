@@ -14,7 +14,8 @@ module RubyOS
       "cat" => "read a VFS file: cat path",
       "write" => "replace a VFS file: write path text",
       "mkdir" => "create a VFS directory: mkdir path",
-      "rm" => "remove a VFS file or empty directory: rm path"
+      "rm" => "remove a VFS file or empty directory: rm path",
+      "truncate" => "resize a VFS file: truncate path size"
     }.freeze
 
     def initialize(input: nil, output: $stdout, context: TOPLEVEL_BINDING)
@@ -85,6 +86,9 @@ module RubyOS
       when "rm"
         filesystem.unlink(arguments.fetch(0))
         @output.puts "removed #{arguments.fetch(0)}"
+      when "truncate"
+        filesystem.truncate(arguments.fetch(0), Integer(arguments.fetch(1)))
+        @output.puts "truncated #{arguments.fetch(0)} to #{arguments.fetch(1)} bytes"
       end
     rescue FS::Error, ArgumentError, IndexError => error
       @output.puts "#{error.class}: #{error.message}"

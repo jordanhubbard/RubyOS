@@ -210,6 +210,10 @@ module RubyOS
         parent.unlink(name)
       end
 
+      def truncate(path, size = 0)
+        resolve(path).truncate(Integer(size))
+      end
+
       def read_file(path)
         node = resolve(path)
         node.read(0, node.stat.size)

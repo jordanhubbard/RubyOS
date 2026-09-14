@@ -43,6 +43,17 @@ begin
   raise "nonempty ext2 directory was removed"
 rescue RubyOS::FS::Error
 end
+vfs.write_file("/disk/home/truncate.bin", "x" * 8192)
+truncate_node = filesystem.root.lookup("home").lookup("truncate.bin")
+truncate_node.truncate(100)
+assert(truncate_node.read(0, 200) == "x" * 100, "ext2 partial truncate")
+truncate_node.write(200, "Z")
+assert(truncate_node.read(99, 102) == "x" + "\0" * 100 + "Z", "ext2 sparse extension")
+double_offset = (12 + filesystem.block_size / 4) * filesystem.block_size + 17
+truncate_node.write(double_offset, "double")
+assert(truncate_node.read(double_offset, 6) == "double", "double-indirect ext2 write")
+truncate_node.truncate(100)
+assert(truncate_node.stat.size == 100, "double-indirect ext2 truncate size")
 
 device.close
 

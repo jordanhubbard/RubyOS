@@ -10,7 +10,7 @@ cleanup() {
     rm -f "$output_file" "$input_file"
 }
 trap cleanup EXIT
-printf 'ls /home\ncat /home/persistent.txt\nwrite /home/from-ruby.txt durable-ruby\ncat /home/from-ruby.txt\nmkdir /home/remove-me\nrm /home/remove-me\nrm /home/from-ruby.txt\nls /home\nls /apps\ncat /apps/README\n' >"$input_file"
+printf 'ls /home\ncat /home/persistent.txt\nwrite /home/from-ruby.txt durable-ruby\ncat /home/from-ruby.txt\nmkdir /home/remove-me\nrm /home/remove-me\nrm /home/from-ruby.txt\nf=RubyOS::Kernel.state[:vfs];d=f.open("/home/traversal.bin",65);f.seek(d,4243473);f.write(d,"double");f.close(d);f.stat("/home/traversal.bin").size\ntruncate /home/traversal.bin 100\nls /home\nls /apps\ncat /apps/README\n' >"$input_file"
 
 set +e
 timeout 25s qemu-system-aarch64 -M virt -cpu cortex-a72 -m 512M \
@@ -34,9 +34,12 @@ grep -q 'durable-ruby' "$output_file"
 grep -q 'created /home/remove-me' "$output_file"
 grep -q 'removed /home/remove-me' "$output_file"
 grep -q 'removed /home/from-ruby.txt' "$output_file"
+grep -q '=> 4243479' "$output_file"
+grep -q 'truncated /home/traversal.bin to 100 bytes' "$output_file"
 grep -q 'README' "$output_file"
 grep -q 'Ruby objects are the operating system.' "$output_file"
 ! grep -q 'FATAL\|EXCEPTION\|ASSERT\|\[BUG\]' "$output_file"
 debugfs -R 'stat /home/from-ruby.txt' "$disk" 2>&1 | grep -q 'File not found'
+debugfs -R 'stat /home/traversal.bin' "$disk" 2>/dev/null | grep -q 'Size: 100'
 e2fsck -fn "$disk"
 echo 'RubyOS bare-metal VirtIO/ext2 storage smoke: PASS'

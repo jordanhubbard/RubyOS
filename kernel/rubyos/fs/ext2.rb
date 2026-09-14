@@ -161,9 +161,24 @@ module RubyOS
       def truncate_inode(number, new_size = 0)
         raw = inode(number)
         raise IsDirectory, number.to_s unless (mode(raw) & TYPE_MASK) == REGULAR_MODE
-        raise Error, "nonzero ext2 truncate is not implemented" unless new_size.zero?
-        free_inode_blocks(raw)
-        set_u64_size(raw, 0)
+        new_size = Integer(new_size)
+        raise ArgumentError, "negative ext2 size" if new_size.negative?
+        old_size = size(raw)
+        if new_size < old_size
+          first_removed = (new_size + @block_size - 1) / @block_size
+          block_count = (old_size + @block_size - 1) / @block_size
+          first_removed.upto(block_count - 1) { |logical| release_data_block(raw, logical) }
+          if new_size.positive? && (new_size % @block_size).positive?
+            physical = data_block(raw, new_size / @block_size)
+            unless physical.zero?
+              block = read_block(physical).dup
+              tail = new_size % @block_size
+              block[tail, @block_size - tail] = "\0" * (@block_size - tail)
+              write_block(physical, block)
+            end
+          end
+        end
+        set_u64_size(raw, new_size)
         persist_inode(number, raw)
       end
 
@@ -242,26 +257,54 @@ module RubyOS
           return physical
         end
 
-        logical -= DIRECT_BLOCKS
         pointers_per_block = @block_size / 4
-        raise Error, "ext2 writes beyond single-indirect blocks are not implemented" if logical >= pointers_per_block
-        indirect = u32(raw, 40 + DIRECT_BLOCKS * 4)
+        logical -= DIRECT_BLOCKS
+        if logical < pointers_per_block
+          indirect = ensure_pointer_block(raw, DIRECT_BLOCKS)
+          return ensure_pointed_data_block(raw, indirect, logical)
+        end
+
+        logical -= pointers_per_block
+        raise Error, "ext2 writes beyond double-indirect blocks are not implemented" if logical >= pointers_per_block**2
+        double = ensure_pointer_block(raw, DIRECT_BLOCKS + 1)
+        outer = read_block(double).dup
+        first_index = logical / pointers_per_block
+        indirect = u32(outer, first_index * 4)
         if indirect.zero?
           indirect = allocate_block
           write_block(indirect, "\0".b * @block_size)
-          set_u32(raw, 40 + DIRECT_BLOCKS * 4, indirect)
-          set_u32(raw, 28, u32(raw, 28) + @block_size / 512)
+          set_u32(outer, first_index * 4, indirect)
+          write_block(double, outer)
+          add_inode_sectors(raw, 1)
         end
-        pointers = read_block(indirect).dup
-        physical = u32(pointers, logical * 4)
-        if physical.zero?
-          physical = allocate_block
-          write_block(physical, "\0".b * @block_size)
-          set_u32(pointers, logical * 4, physical)
-          write_block(indirect, pointers)
-          set_u32(raw, 28, u32(raw, 28) + @block_size / 512)
-        end
+        ensure_pointed_data_block(raw, indirect, logical % pointers_per_block)
+      end
+
+      def ensure_pointer_block(raw, inode_index)
+        physical = u32(raw, 40 + inode_index * 4)
+        return physical unless physical.zero?
+        physical = allocate_block
+        write_block(physical, "\0".b * @block_size)
+        set_u32(raw, 40 + inode_index * 4, physical)
+        add_inode_sectors(raw, 1)
         physical
+      end
+
+      def ensure_pointed_data_block(raw, pointer_block, index)
+        pointers = read_block(pointer_block).dup
+        physical = u32(pointers, index * 4)
+        return physical unless physical.zero?
+        physical = allocate_block
+        write_block(physical, "\0".b * @block_size)
+        set_u32(pointers, index * 4, physical)
+        write_block(pointer_block, pointers)
+        add_inode_sectors(raw, 1)
+        physical
+      end
+
+      def add_inode_sectors(raw, blocks)
+        sectors = @block_size / 512
+        set_u32(raw, 28, u32(raw, 28) + blocks * sectors)
       end
 
       def allocate_block
@@ -396,7 +439,83 @@ module RubyOS
           free_block(indirect)
           set_u32(raw, 40 + DIRECT_BLOCKS * 4, 0)
         end
+        double = u32(raw, 40 + (DIRECT_BLOCKS + 1) * 4)
+        unless double.zero?
+          outer = read_block(double)
+          (@block_size / 4).times do |first_index|
+            nested = u32(outer, first_index * 4)
+            next if nested.zero?
+            pointers = read_block(nested)
+            (@block_size / 4).times do |second_index|
+              physical = u32(pointers, second_index * 4)
+              free_block(physical) unless physical.zero?
+            end
+            free_block(nested)
+          end
+          free_block(double)
+          set_u32(raw, 40 + (DIRECT_BLOCKS + 1) * 4, 0)
+        end
         set_u32(raw, 28, 0)
+      end
+
+      def release_data_block(raw, logical)
+        pointers_per_block = @block_size / 4
+        if logical < DIRECT_BLOCKS
+          physical = u32(raw, 40 + logical * 4)
+          return if physical.zero?
+          free_block(physical)
+          set_u32(raw, 40 + logical * 4, 0)
+          return add_inode_sectors(raw, -1)
+        end
+
+        logical -= DIRECT_BLOCKS
+        if logical < pointers_per_block
+          indirect = u32(raw, 40 + DIRECT_BLOCKS * 4)
+          return if indirect.zero?
+          pointers = read_block(indirect).dup
+          physical = u32(pointers, logical * 4)
+          return if physical.zero?
+          free_block(physical)
+          set_u32(pointers, logical * 4, 0)
+          add_inode_sectors(raw, -1)
+          if pointers.bytes.all?(&:zero?)
+            free_block(indirect)
+            set_u32(raw, 40 + DIRECT_BLOCKS * 4, 0)
+            add_inode_sectors(raw, -1)
+          else
+            write_block(indirect, pointers)
+          end
+          return
+        end
+
+        logical -= pointers_per_block
+        return if logical >= pointers_per_block**2
+        double = u32(raw, 40 + (DIRECT_BLOCKS + 1) * 4)
+        return if double.zero?
+        outer = read_block(double).dup
+        first_index, second_index = logical.divmod(pointers_per_block)
+        indirect = u32(outer, first_index * 4)
+        return if indirect.zero?
+        pointers = read_block(indirect).dup
+        physical = u32(pointers, second_index * 4)
+        return if physical.zero?
+        free_block(physical)
+        set_u32(pointers, second_index * 4, 0)
+        add_inode_sectors(raw, -1)
+        if pointers.bytes.all?(&:zero?)
+          free_block(indirect)
+          set_u32(outer, first_index * 4, 0)
+          add_inode_sectors(raw, -1)
+        else
+          write_block(indirect, pointers)
+        end
+        if outer.bytes.all?(&:zero?)
+          free_block(double)
+          set_u32(raw, 40 + (DIRECT_BLOCKS + 1) * 4, 0)
+          add_inode_sectors(raw, -1)
+        else
+          write_block(double, outer)
+        end
       end
 
       def free_block(number)
