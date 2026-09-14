@@ -88,5 +88,67 @@ module RubyOS
         true
       end
     end
+
+    class TextInput < View
+      attr_reader :text, :cursor
+
+      def initialize(text: "", color: 0xffffff, multiline: false,
+                     on_change: nil, on_submit: nil, **options)
+        super(**options)
+        @text = String(text).dup
+        @cursor = @text.each_char.count
+        @color = color
+        @multiline = multiline
+        @on_change = on_change
+        @on_submit = on_submit
+      end
+
+      def draw(surface)
+        super
+        lines = text.split("\n", -1).last([height / 20, 1].max)
+        lines.each_with_index { |line, index| surface.draw_text(x + 4, y + 4 + index * 20, line, color: @color) }
+        surface.draw_text(x + 4 + lines.last.to_s.each_char.count * 8,
+                          y + 4 + (lines.length - 1) * 20, "_", color: 0xffd866)
+      end
+
+      def handle(event)
+        return false unless event.fetch("kind", 0) == 1
+        code = event.fetch("code", 0)
+        typed = event.fetch("text", "")
+        if code == 8
+          characters = text.each_char.to_a
+          if cursor.positive?
+            characters.delete_at(cursor - 1)
+            @cursor -= 1
+            replace(characters.join)
+          end
+        elsif code == 13
+          @multiline ? insert("\n") : @on_submit&.call(text)
+        elsif !typed.empty?
+          insert(typed)
+        else
+          return false
+        end
+        invalidate
+        true
+      end
+
+      def replace(value)
+        @text = String(value)
+        @cursor = [cursor, @text.each_char.count].min
+        @on_change&.call(@text)
+        self
+      end
+
+      private
+
+      def insert(value)
+        characters = text.each_char.to_a
+        inserted = String(value).each_char.to_a
+        characters.insert(cursor, *inserted)
+        @cursor += inserted.length
+        replace(characters.join)
+      end
+    end
   end
 end

@@ -83,6 +83,15 @@ compositor.handle("kind" => 4, "button" => 1,
                   "x" => first_window.x + first_window.width - 12, "y" => first_window.y + 10)
 assert(!compositor.windows.include?(first_window), "window close hit target")
 
+submitted = nil
+input = RubyOS::GUI::TextInput.new(text: "r", width: 120, height: 24,
+                                    on_submit: ->(text) { submitted = text })
+input.handle("kind" => 1, "code" => 0, "text" => "uby")
+input.handle("kind" => 1, "code" => 8)
+input.handle("kind" => 1, "code" => 0, "text" => "y")
+input.handle("kind" => 1, "code" => 13)
+assert(submitted == "ruby", "text input insertion, backspace, and submit")
+
 editor = RubyOS::Apps::Editor.new(path: "/home/editor.txt")
 editor.save("Edited by a Ruby object.\n")
 assert(state.fetch(:vfs).read_file("/home/editor.txt") == "Edited by a Ruby object.\n",

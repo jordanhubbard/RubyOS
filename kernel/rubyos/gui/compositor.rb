@@ -50,6 +50,11 @@ module RubyOS
       def close_hit?(point_x, point_y)
         contains?(point_x, point_y) && point_x >= x + width - 24 && point_y < y + TITLE_HEIGHT
       end
+
+      def handle(event)
+        children.reverse_each { |child| return true if child.enabled && child.handle(event) }
+        false
+      end
     end
 
     class Compositor
@@ -103,7 +108,9 @@ module RubyOS
       end
 
       def handle(event)
-        return false unless event.fetch("kind", 0) == 4 && event.fetch("button", 0) == 1
+        kind = event.fetch("kind", 0)
+        return focused_window&.handle(event) || false if kind == 1 || kind == 2
+        return false unless kind == 4 && event.fetch("button", 0) == 1
         point_x = event.fetch("x")
         point_y = event.fetch("y")
         if point_y >= height - DOCK_HEIGHT

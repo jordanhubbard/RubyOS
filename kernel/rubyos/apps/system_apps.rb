@@ -27,12 +27,27 @@ module RubyOS
     end
 
     class Terminal < Application
+      attr_reader :last_result
+
       def build_window
         GUI::Window.new("Ruby Console", x: 54, y: 150, width: 336, height: 106,
                         background: 0x121017).tap do |window|
-          window.add(GUI::Label.new("rubyos> 6.times.map { _1**2 }", x: 0, y: 0, color: 0xe8dff5))
-          window.add(GUI::Label.new("=> [0, 1, 4, 9, 16, 25]", x: 0, y: 24, color: 0xc3e88d))
+          @result_label = window.add(GUI::Label.new("Type Ruby and press Enter", x: 0, y: 28, color: 0xc3e88d))
+          @input = window.add(GUI::TextInput.new(x: 0, y: 0, width: 310, height: 24,
+                                                 background: 0x211a29,
+                                                 on_submit: method(:evaluate)))
         end
+      end
+
+      def evaluate(source)
+        @last_result = begin
+          "=> #{eval(source, TOPLEVEL_BINDING).inspect}"
+        rescue Exception => error
+          "#{error.class}: #{error.message}"
+        end
+        @result_label.text = @last_result
+        @result_label.invalidate
+        @last_result
       end
     end
 
@@ -69,10 +84,9 @@ module RubyOS
       def build_window
         GUI::Window.new("Editor - #{path}", x: 72, y: 54, width: 350, height: 164,
                         background: 0x171a24).tap do |window|
-          content.lines.first(4).each_with_index do |line, index|
-            window.add(GUI::Label.new(line.chomp, x: 0, y: index * 22, color: 0xe7e1ed))
-          end
-          window.add(GUI::Label.new("Ruby String -> VFS#write_file", x: 0, y: 94, color: 0xc3e88d))
+          window.add(GUI::TextInput.new(text: content, x: 0, y: 0, width: 326, height: 112,
+                                        background: 0x11151e, multiline: true,
+                                        on_change: method(:save)))
         end
       end
     end

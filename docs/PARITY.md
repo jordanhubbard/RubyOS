@@ -14,11 +14,11 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 | Storage | VFS, tmpfs, ext2, mounted persistent `/home` | Ruby VFS/tmpfs plus writable ext2 over bare-metal VirtIO block, with sparse files, arbitrary truncate, double-indirect traversal, create, unlink, and rmdir | Complete |
 | Network | VirtIO net, Ethernet, ARP, IPv4, ICMP, UDP, TCP, DHCP, DNS | bare-metal Ruby VirtIO net, DHCP, ARP, IPv4/ICMP, UDP, DNS, TCP client/server | Partial |
 | Remote display | UART/VirtIO/TCP protocol-v1 SDL companion | hosted TCP and bare-metal VirtIO console | Complete |
-| GUI API | SDL-compatible surfaces, events, images, fonts | Ruby `Surface` and basic widget hierarchy | Partial |
+| GUI API | SDL-compatible surfaces, events, images, fonts | Ruby `Surface` and widget hierarchy with focused keyboard/text dispatch | Partial |
 | Desktop | compositor, windows, menu bar, dock, wallpaper, shortcuts | Ruby compositor, focus/z-order, windows, menu bar, dock | Partial |
 | Apps | terminal, editor, files, image viewer, monitor, clock, settings | About, Files, Terminal, VFS Editor, Image Viewer, System Monitor | Partial |
 | Demos and games | graphics/audio demos and arcade games | Ruby Chipset Workbench desktop demo | Partial |
-| Input | PS/2 and VirtIO input, canonical event queue | SDL event queue routed through Ruby window and dock hit testing | Partial |
+| Input | PS/2 and VirtIO input, canonical event queue | SDL mouse, key, and UTF-8 text events routed through Ruby compositor focus and widgets | Partial |
 | Audio | AC97/Intel HDA/bridge mixer and sound API | Ruby PCM/waveform mixer and bare-metal SDL audio bridge | Partial |
 | Images | PNG/JPEG decoding and viewer | Ruby remote surfaces, raw upload, PNG/JPEG decode/blit, Image Viewer | Partial |
 | Chipset laboratory | display lists, copper/blitter/sprites/audio | Ruby playfields, Copper commands, Blitter, Sprite, raster preview | Partial |

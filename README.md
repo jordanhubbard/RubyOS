@@ -109,7 +109,9 @@ subclasses build About, Files, Terminal, and System Monitor windows from live
 kernel state, with VFS-backed Editor and Image Viewer applications alongside
 them. Ruby `Surface` objects create, upload, decode PNG/JPEG through SDL_image,
 blit, and destroy remote image resources. SDL mouse events are normalized by the bridge and routed through
-Ruby hit testing; the bare-metal smoke clicks the dock to launch and focus the
+Ruby hit testing; keyboard and UTF-8 text events follow window focus into Ruby
+widgets, including a live Terminal evaluator and VFS-persisted Editor. The
+bare-metal smoke types into Terminal and clicks the dock to launch and focus the
 System Monitor. Ruby sine generators and a saturating PCM mixer stream stereo
 audio through the same companion. The SDL companion remains a rendering,
 input, and audio device.
