@@ -105,6 +105,10 @@ System Monitor. Ruby sine generators and a saturating PCM mixer stream stereo
 audio through the same companion. The SDL companion remains a rendering,
 input, and audio device.
 
+The Ruby Chipset Workbench is deliberately object-heavy: `Playfield`,
+`Blitter`, `Copper::Wait`/`Move`, `Sprite`, and raster `View` objects recreate
+the small-machine graphics laboratory in Ruby and render as a desktop demo.
+
 ## Bare-metal Ruby console
 
 `make rubyos-arm64-repl-smoke` builds the console kernel and drives its PL011

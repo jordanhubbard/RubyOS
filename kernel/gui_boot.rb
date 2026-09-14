@@ -21,11 +21,13 @@ module RubyOS
         .register("Monitor", Apps::SystemMonitor.new)
         .register("Editor", Apps::Editor.new)
         .register("Image", Apps::ImageViewer.new)
+        .register("Chipset", Apps::ChipsetWorkbench.new)
       applications.each do |name, application|
         compositor.add_dock_item(name) { application.launch(compositor) }
       end
       applications.fetch("About").launch(compositor)
       applications.fetch("Files").launch(compositor)
+      applications.fetch("Chipset").launch(compositor)
       applications.fetch("Terminal").launch(compositor)
       compositor.draw(desktop.surface, uptime: "#{state.fetch(:clock).milliseconds} ms")
       desktop.present
@@ -50,6 +52,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS/arm64] remote SDL desktop: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] SDL input routing: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] SDL audio bridge: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS/arm64] Ruby chipset workbench: PASS\n")
       true
     end
   end

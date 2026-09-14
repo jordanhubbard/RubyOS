@@ -41,6 +41,16 @@ assert(mixed.samples == [32_767, -32_768], "PCM mixer saturates int16")
 tone = RubyOS::Sound::Waveform.sine(440, duration_ms: 10)
 assert(tone.frames == 480 && tone.stereo_bytes.bytesize == 1_920, "sine waveform PCM shape")
 
+playfield = RubyOS::Chipset::Playfield.new(8, 4)
+RubyOS::Chipset::Blitter.fill(playfield, x: 1, y: 1, width: 3, height: 2, color: 0x123456)
+assert(playfield.get(2, 2) == 0x123456, "chipset blitter fill")
+RubyOS::Chipset::Blitter.copy(playfield, playfield, source_x: 1, source_y: 1,
+                              destination_x: 4, destination_y: 1, width: 3, height: 2)
+assert(playfield.get(5, 2) == 0x123456, "overlap-safe chipset blitter copy")
+chipset_view = RubyOS::Apps::ChipsetWorkbench.new.build_view
+assert(chipset_view.raster.length == 512, "chipset raster dimensions")
+assert(chipset_view.pixel_at(23, 7) == 0xffd866, "chipset sprite priority")
+
 frame = RubyOS::Bridge::Protocol.encode_json_frame('{"v":1}')
 assert(RubyOS::Bridge::Protocol.decode_length(frame.byteslice(0, 4)) == 7, "bridge length")
 document = { "v" => 1, "ok" => true, "values" => [nil, -3, "Ruby\nOS"] }

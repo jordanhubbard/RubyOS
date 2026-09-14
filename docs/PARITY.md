@@ -17,11 +17,11 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 | GUI API | SDL-compatible surfaces, events, images, fonts | Ruby `Surface` and basic widget hierarchy | Partial |
 | Desktop | compositor, windows, menu bar, dock, wallpaper, shortcuts | Ruby compositor, focus/z-order, windows, menu bar, dock | Partial |
 | Apps | terminal, editor, files, image viewer, monitor, clock, settings | About, Files, Terminal, VFS Editor, Image Viewer, System Monitor | Partial |
-| Demos and games | graphics/audio demos and arcade games | none | Missing |
+| Demos and games | graphics/audio demos and arcade games | Ruby Chipset Workbench desktop demo | Partial |
 | Input | PS/2 and VirtIO input, canonical event queue | SDL event queue routed through Ruby window and dock hit testing | Partial |
 | Audio | AC97/Intel HDA/bridge mixer and sound API | Ruby PCM/waveform mixer and bare-metal SDL audio bridge | Partial |
 | Images | PNG/JPEG decoding and viewer | Ruby remote surfaces, raw upload, PNG/JPEG decode/blit, Image Viewer | Partial |
-| Chipset laboratory | display lists, copper/blitter/sprites/audio | none | Missing |
+| Chipset laboratory | display lists, copper/blitter/sprites/audio | Ruby playfields, Copper commands, Blitter, Sprite, raster preview | Partial |
 | Concurrency | ARM64/x86 SMP, pthread substrate, no-GIL workers | single-core pthread compatibility | Missing |
 | Debug/automation | QMP/native debug, captures, performance metrics | deterministic QEMU smokes and SDL captures | Partial |
 | Teaching examples | curated storage/network/graphics/audio/internals lessons | one remote desktop example | Missing |

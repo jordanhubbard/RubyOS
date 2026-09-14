@@ -107,7 +107,7 @@ module RubyOS
         point_x = event.fetch("x")
         point_y = event.fetch("y")
         if point_y >= height - DOCK_HEIGHT
-          index = (point_x - 12) / 76
+          index = (point_x - 12) / dock_slot_width
           item = @dock_items[index] if index >= 0
           item&.last&.call
           return !item.nil?
@@ -134,10 +134,15 @@ module RubyOS
         y = height - DOCK_HEIGHT
         surface.fill_rect(0, y, width, DOCK_HEIGHT, 0x241a2d)
         @dock_items.each_with_index do |(label, _), index|
-          x = 12 + index * 76
-          surface.fill_rect(x, y + 6, 66, 28, 0x49325f)
+          x = 12 + index * dock_slot_width
+          surface.fill_rect(x, y + 6, dock_slot_width - 8, 28, 0x49325f)
           surface.draw_text(x + 7, y + 14, label, color: 0xf2eaf7)
         end
+      end
+
+
+      def dock_slot_width
+        [(@width - 24) / [@dock_items.length, 1].max, 40].max
       end
     end
   end

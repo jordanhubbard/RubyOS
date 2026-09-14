@@ -6,6 +6,7 @@ paths = %w[
   kernel/rubyos/scheduler.rb
   kernel/rubyos/timekeeper.rb
   kernel/rubyos/sound.rb
+  kernel/rubyos/chipset.rb
   kernel/rubyos/fs.rb
   kernel/rubyos/fs/ext2.rb
   kernel/rubyos/shell.rb
