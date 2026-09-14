@@ -63,6 +63,11 @@ begin
          "0000000400012734270a0000000049454e44ae426082"].pack("H*")
   decoded = RubyOS::Bridge::Surface.load_image(client, png)
   decoded.blit_to(desktop.surface, x: 444, y: 20)
+  font = RubyOS::Bridge::Font.open_default(client, point_size: 14)
+  measured = font.measure("Ruby")
+  raise "invalid SDL_ttf measurement" unless measured.all?(&:positive?)
+  rendered_text = font.render("Ruby", color: 0xffd866)
+  rendered_text.blit_to(desktop.surface, x: 390, y: 270)
   audio = RubyOS::Sound::BridgeOutput.new(client)
   audio.play(RubyOS::Sound::Waveform.sine(440, duration_ms: 10))
   raise "audio queue status invalid" unless audio.queued_bytes >= 0
@@ -77,6 +82,8 @@ begin
   raise "desktop capture is empty" unless File.size?(capture_path)
   image.destroy
   decoded.destroy
+  rendered_text.destroy
+  font.close
   desktop.close
   client.call("shutdown")
   client.close

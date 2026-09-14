@@ -109,7 +109,8 @@ subclasses build About, Files, interactive Terminal, System Monitor, Clock, and
 Settings windows from live kernel state, with VFS-backed Editor and Image
 Viewer applications alongside them. Ruby `Surface` objects create, upload,
 decode PNG/JPEG through SDL_image,
-blit, and destroy remote image resources. SDL mouse events are normalized by the bridge and routed through
+blit, and destroy remote image resources. Ruby `Font` objects discover, open,
+measure, render, and close host SDL_ttf fonts with explicit ownership. SDL mouse events are normalized by the bridge and routed through
 Ruby hit testing; keyboard and UTF-8 text events follow window focus into Ruby
 widgets, including a live Terminal evaluator and VFS-persisted Editor. The
 bare-metal smoke types into Terminal and clicks the dock to launch and focus the

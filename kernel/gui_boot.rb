@@ -48,12 +48,17 @@ module RubyOS
       compositor.close(settings_window)
       compositor.close(clock_window)
       compositor.draw(desktop.surface, uptime: "#{state.fetch(:clock).milliseconds} ms")
+      font = Bridge::Font.open_default(client, point_size: 14)
+      RubyOS.invariant(font.measure("RubyOS").all?(&:positive?), "SDL_ttf measurement failed")
+      title_surface = font.render("RubyOS 4", color: 0xffd866)
+      title_surface.blit_to(desktop.surface, x: 398, y: 26)
       desktop.present
       client.call("debug.event.inject", { kind: 4, x: 180, y: 280, button: 1 })
       desktop.events.each { |event| compositor.handle(event) }
       RubyOS.invariant(compositor.focused_window.title == "System Monitor",
                        "dock input did not launch System Monitor")
       compositor.draw(desktop.surface, uptime: "#{state.fetch(:clock).milliseconds} ms")
+      title_surface.blit_to(desktop.surface, x: 398, y: 26)
       desktop.present
       audio = Sound::BridgeOutput.new(client)
       chord = Sound::Mixer.new.mix(
@@ -64,6 +69,8 @@ module RubyOS
       RubyOS.invariant(audio.queued_bytes >= 0, "SDL audio queue unavailable")
       audio.close
       desktop.capture("/tmp/rubyos-baremetal-desktop.bmp")
+      title_surface.destroy
+      font.close
       desktop.close
       client.call("shutdown")
       client.close
@@ -71,6 +78,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS/arm64] SDL input routing: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] keyboard Terminal input: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] core desktop apps: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS/arm64] SDL_ttf Ruby Font: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] SDL audio bridge: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] Ruby chipset workbench: PASS\n")
       true

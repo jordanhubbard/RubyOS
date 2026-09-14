@@ -2,6 +2,49 @@
 
 module RubyOS
   module Bridge
+    class Font
+      attr_reader :client, :handle, :point_size
+
+      def self.open_default(client, point_size: 16)
+        path = client.sdl_call("pyo.default_font_path").fetch("path")
+        open(client, path, point_size:)
+      end
+
+      def self.open(client, path, point_size: 16)
+        result = client.sdl_call("TTF_Init")
+        raise Error.new(11, "SDL_ttf initialization failed") unless result.fetch("rc", -1).zero?
+        opened = client.sdl_call("TTF_OpenFont", String(path), Integer(point_size))
+        new(client, opened.fetch("handle"), Integer(point_size))
+      end
+
+      def initialize(client, handle, point_size)
+        @client = client
+        @handle = Integer(handle)
+        @point_size = point_size
+        @closed = false
+      end
+
+      def measure(text)
+        result = client.sdl_call("TTF_SizeUTF8", handle, String(text))
+        raise Error.new(11, "font measurement failed") unless result.fetch("rc", -1).zero?
+        [result.fetch("w"), result.fetch("h")]
+      end
+
+      def render(text, color: 0xffffff)
+        rgba = (Integer(color) << 8) | 0xff
+        result = client.sdl_call("TTF_RenderUTF8_Blended", handle, String(text), rgba)
+        Surface.new(client, handle: result.fetch("handle"), width: result.fetch("w"),
+                    height: result.fetch("h"), owned: true)
+      end
+
+      def close
+        return self if @closed
+        client.sdl_call("TTF_CloseFont", handle)
+        @closed = true
+        self
+      end
+    end
+
     class Surface
       attr_reader :client, :handle, :width, :height
 

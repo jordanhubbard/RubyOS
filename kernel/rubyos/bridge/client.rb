@@ -48,6 +48,10 @@ module RubyOS
         response.fetch("result", {})
       end
 
+      def sdl_call(name, *arguments)
+        call("sdl.call", { name: String(name), args: arguments })
+      end
+
       def close
         @transport.close
       end
