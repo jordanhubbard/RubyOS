@@ -123,14 +123,15 @@ the small-machine graphics laboratory in Ruby and render as a desktop demo.
 `make rubyos-arm64-repl-smoke` builds the console kernel and drives its PL011
 input under QEMU. The prompt evaluates ordinary Ruby and provides `help`,
 `version`, `devices`, `tasks`, `uptime`, `sleep`, `time`, `ls`, `cat`, and
-`write` commands backed by live kernel objects.
+`write`, `mkdir`, and `rm` commands backed by live kernel objects.
 
 `make rubyos-arm64-storage-smoke` adds a generated ext2 disk to QEMU. Ruby
 discovers it through a Ruby VirtIO-MMIO block driver, parses ext2 without a C
 filesystem library, and mounts its persistent `/home` and `/apps` trees into
 the VFS. Files created or replaced from the Ruby shell are allocated and
-written back to the disk. Ext2 deletion, arbitrary shrinking, and allocation
-beyond single-indirect blocks remain later storage work.
+written back to the disk. File unlink and empty-directory removal reclaim their
+ext2 blocks and inodes. Arbitrary shrinking and allocation beyond
+single-indirect blocks remain later storage work.
 
 `make rubyos-arm64-network-smoke` attaches QEMU user networking and proves a
 Ruby-owned VirtIO-MMIO NIC, ARP resolution, IPv4, and ICMP by receiving an echo

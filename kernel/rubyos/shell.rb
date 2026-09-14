@@ -12,7 +12,9 @@ module RubyOS
       "sleep" => "sleep using the kernel timer: sleep milliseconds",
       "ls" => "list a VFS directory: ls [path]",
       "cat" => "read a VFS file: cat path",
-      "write" => "replace a VFS file: write path text"
+      "write" => "replace a VFS file: write path text",
+      "mkdir" => "create a VFS directory: mkdir path",
+      "rm" => "remove a VFS file or empty directory: rm path"
     }.freeze
 
     def initialize(input: nil, output: $stdout, context: TOPLEVEL_BINDING)
@@ -77,6 +79,12 @@ module RubyOS
       when "write"
         filesystem.write_file(arguments.fetch(0), arguments.fetch(1, ""))
         @output.puts "#{arguments.fetch(1, "").bytesize} bytes"
+      when "mkdir"
+        filesystem.mkdir(arguments.fetch(0))
+        @output.puts "created #{arguments.fetch(0)}"
+      when "rm"
+        filesystem.unlink(arguments.fetch(0))
+        @output.puts "removed #{arguments.fetch(0)}"
       end
     rescue FS::Error, ArgumentError, IndexError => error
       @output.puts "#{error.class}: #{error.message}"

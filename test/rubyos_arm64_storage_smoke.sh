@@ -10,7 +10,7 @@ cleanup() {
     rm -f "$output_file" "$input_file"
 }
 trap cleanup EXIT
-printf 'ls /home\ncat /home/persistent.txt\nwrite /home/from-ruby.txt durable-ruby\ncat /home/from-ruby.txt\nls /apps\ncat /apps/README\n' >"$input_file"
+printf 'ls /home\ncat /home/persistent.txt\nwrite /home/from-ruby.txt durable-ruby\ncat /home/from-ruby.txt\nmkdir /home/remove-me\nrm /home/remove-me\nrm /home/from-ruby.txt\nls /home\nls /apps\ncat /apps/README\n' >"$input_file"
 
 set +e
 timeout 25s qemu-system-aarch64 -M virt -cpu cortex-a72 -m 512M \
@@ -31,9 +31,12 @@ grep -q 'persistent.txt' "$output_file"
 grep -q 'This file lives on the RubyOS ext2 disk.' "$output_file"
 grep -q '12 bytes' "$output_file"
 grep -q 'durable-ruby' "$output_file"
+grep -q 'created /home/remove-me' "$output_file"
+grep -q 'removed /home/remove-me' "$output_file"
+grep -q 'removed /home/from-ruby.txt' "$output_file"
 grep -q 'README' "$output_file"
 grep -q 'Ruby objects are the operating system.' "$output_file"
 ! grep -q 'FATAL\|EXCEPTION\|ASSERT\|\[BUG\]' "$output_file"
-debugfs -R 'cat /home/from-ruby.txt' "$disk" 2>/dev/null | grep -q 'durable-ruby'
+debugfs -R 'stat /home/from-ruby.txt' "$disk" 2>&1 | grep -q 'File not found'
 e2fsck -fn "$disk"
 echo 'RubyOS bare-metal VirtIO/ext2 storage smoke: PASS'

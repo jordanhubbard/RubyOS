@@ -11,7 +11,7 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 | Interactive shell | serial and multi-session TCP REPL, commands, editor | bare-metal serial commands and single-session TCP Ruby evaluation | Partial |
 | Device model | buses and typed drivers | `Bus`, `Device`, `Driver` mixin | Partial |
 | Memory | physical allocator, DMA, mmap, heap metrics | buddy heap, mmap shim, DMA HAL | Partial |
-| Storage | VFS, tmpfs, ext2, mounted persistent `/home` | Ruby VFS/tmpfs plus writable ext2 over bare-metal VirtIO block at `/home` and `/apps` | Partial |
+| Storage | VFS, tmpfs, ext2, mounted persistent `/home` | Ruby VFS/tmpfs plus writable ext2 over bare-metal VirtIO block, including persistent create, unlink, and empty-directory removal | Partial |
 | Network | VirtIO net, Ethernet, ARP, IPv4, ICMP, UDP, TCP, DHCP, DNS | bare-metal Ruby VirtIO net, DHCP, ARP, IPv4/ICMP, UDP, DNS, TCP client/server | Partial |
 | Remote display | UART/VirtIO/TCP protocol-v1 SDL companion | hosted TCP and bare-metal VirtIO console | Complete |
 | GUI API | SDL-compatible surfaces, events, images, fonts | Ruby `Surface` and basic widget hierarchy | Partial |
@@ -28,8 +28,8 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 
 ## Delivery order
 
-Parity work follows dependency order: timer interrupts and preemption;
-ext2 deletion and full block traversal; multi-session TCP and REPL commands; input and compositor; apps;
+Parity work follows dependency order: scheduler preemption;
+ext2 arbitrary truncate and full writable block traversal; multi-session TCP and REPL commands; input and compositor; apps;
 audio and image APIs; chipset laboratory; x86_64 interrupts and timers; SMP; then parity-level
 automation and teaching examples. Each row moves to complete only when a
 bare-metal integration test covers the corresponding behavior.

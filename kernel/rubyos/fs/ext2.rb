@@ -195,6 +195,39 @@ module RubyOS
         Node.new(self, number)
       end
 
+      def unlink_child(parent_number, name)
+        name = String(name).b
+        raise PermissionDenied, "cannot unlink dot entries" if name == "." || name == ".."
+        pair = entries(parent_number).find { |entry_name, _| entry_name == name }
+        raise NotFound, name unless pair
+        number = pair.last
+        raw = inode(number)
+        directory = (mode(raw) & TYPE_MASK) == DIRECTORY_MODE
+        if directory
+          children = entries(number).reject { |entry_name, _| entry_name == "." || entry_name == ".." }
+          raise Error, "directory not empty" unless children.empty?
+        end
+
+        remove_directory_entry(parent_number, name)
+        parent = inode(parent_number)
+        if directory
+          set_u16(parent, 26, u16(parent, 26) - 1)
+          persist_inode(parent_number, parent)
+          set_u16(raw, 26, 0)
+        else
+          set_u16(raw, 26, [u16(raw, 26) - 1, 0].max)
+        end
+
+        if u16(raw, 26).zero?
+          free_inode_blocks(raw)
+          persist_inode(number, "\0".b * @inode_size)
+          free_inode(number, directory:)
+        else
+          persist_inode(number, raw)
+        end
+        nil
+      end
+
       private
 
       def allocate_data_block(raw, logical)
@@ -316,6 +349,37 @@ module RubyOS
         persist_inode(parent_number, raw)
       end
 
+      def remove_directory_entry(parent_number, name)
+        raw = inode(parent_number)
+        blocks = (size(raw) + @block_size - 1) / @block_size
+        blocks.times do |logical|
+          physical = data_block(raw, logical)
+          next if physical.zero?
+          block = read_block(physical).dup
+          offset = 0
+          previous = nil
+          while offset + 8 <= @block_size
+            number = u32(block, offset)
+            record_length = u16(block, offset + 4)
+            break if record_length < 8 || offset + record_length > @block_size
+            length = block.getbyte(offset + 6)
+            entry_name = block.byteslice(offset + 8, length)
+            if number != 0 && entry_name == name
+              if previous
+                set_u16(block, previous + 4, u16(block, previous + 4) + record_length)
+              else
+                set_u32(block, offset, 0)
+              end
+              write_block(physical, block)
+              return
+            end
+            previous = offset if number != 0
+            offset += record_length
+          end
+        end
+        raise NotFound, name
+      end
+
       def free_inode_blocks(raw)
         DIRECT_BLOCKS.times do |index|
           physical = u32(raw, 40 + index * 4)
@@ -349,6 +413,28 @@ module RubyOS
         set_u16(@group_descriptors, descriptor + 12,
                 u16(@group_descriptors, descriptor + 12) + 1)
         set_u32(@superblock, 12, u32(@superblock, 12) + 1)
+        flush_metadata
+      end
+
+      def free_inode(number, directory:)
+        zero_based = number - 1
+        group = zero_based / @inodes_per_group
+        index = zero_based % @inodes_per_group
+        descriptor = group * 32
+        bitmap_number = u32(@group_descriptors, descriptor + 4)
+        bitmap = read_block(bitmap_number).dup
+        byte_index = index / 8
+        mask = 1 << (index % 8)
+        raise Error, "ext2 inode #{number} already free" if (bitmap.getbyte(byte_index) & mask).zero?
+        bitmap.setbyte(byte_index, bitmap.getbyte(byte_index) & ~mask)
+        write_block(bitmap_number, bitmap)
+        set_u16(@group_descriptors, descriptor + 14,
+                u16(@group_descriptors, descriptor + 14) + 1)
+        set_u32(@superblock, 16, u32(@superblock, 16) + 1)
+        if directory
+          set_u16(@group_descriptors, descriptor + 16,
+                  u16(@group_descriptors, descriptor + 16) - 1)
+        end
         flush_metadata
       end
 
@@ -461,8 +547,8 @@ module RubyOS
           @filesystem.create_child(@inode_number, name, type)
         end
 
-        def unlink(*)
-          raise PermissionDenied, "ext2 milestone is read-only"
+        def unlink(name)
+          @filesystem.unlink_child(@inode_number, name)
         end
       end
     end

@@ -29,13 +29,30 @@ assert(vfs.read_file("/disk/home/created.txt") == "replacement", "ext2 truncate 
 vfs.mkdir("/disk/home/projects")
 vfs.write_file("/disk/home/projects/readme", "nested write")
 assert(vfs.read_file("/disk/home/projects/readme") == "nested write", "ext2 directory creation")
+vfs.unlink("/disk/home/created.txt")
+begin
+  vfs.stat("/disk/home/created.txt")
+  raise "unlinked ext2 file remained visible"
+rescue RubyOS::FS::NotFound
+end
+vfs.mkdir("/disk/home/temporary")
+vfs.unlink("/disk/home/temporary")
+assert(!vfs.readdir("/disk/home").include?("temporary"), "empty ext2 directory removal")
+begin
+  vfs.unlink("/disk/home/projects")
+  raise "nonempty ext2 directory was removed"
+rescue RubyOS::FS::Error
+end
 
 device.close
 
 device = RubyOS::FS::Ext2::FileBlockDevice.new(path)
 filesystem = RubyOS::FS::Ext2.new(device)
-assert(filesystem.root.lookup("home").lookup("created.txt").read(0, 32) == "replacement",
-       "ext2 changes survive remount")
+begin
+  filesystem.root.lookup("home").lookup("created.txt")
+  raise "ext2 deletion did not survive remount"
+rescue RubyOS::FS::NotFound
+end
 assert(filesystem.root.lookup("home").lookup("projects").lookup("readme").read(0, 32) == "nested write",
        "ext2 directory survives remount")
 device.close
