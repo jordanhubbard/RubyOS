@@ -32,6 +32,8 @@ module RubyOS
       applications.each do |name, application|
         compositor.add_dock_item(dock_labels.fetch(name, name)) { application.launch(compositor) }
       end
+      compositor.add_shortcut("Clock", x: 8, y: 42) { applications.fetch("Clock").launch(compositor) }
+      compositor.add_shortcut("Files", x: 8, y: 104) { applications.fetch("Files").launch(compositor) }
       applications.fetch("About").launch(compositor)
       applications.fetch("Files").launch(compositor)
       applications.fetch("Chipset").launch(compositor)
@@ -40,6 +42,12 @@ module RubyOS
       client.call("debug.event.inject", { kind: 1, code: 13 })
       desktop.events.each { |event| compositor.handle(event) }
       RubyOS.invariant(terminal.last_result == "=> 6", "keyboard input did not reach Terminal")
+      client.call("debug.event.inject", { kind: 4, x: 80, y: 160, button: 1 })
+      client.call("debug.event.inject", { kind: 3, x: 100, y: 140 })
+      client.call("debug.event.inject", { kind: 5, x: 100, y: 140, button: 1 })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(compositor.focused_window.x == 74 && compositor.focused_window.y == 130,
+                       "window title drag did not move Terminal")
       clock_window = applications.fetch("Clock").launch(compositor)
       settings_window = settings.launch(compositor)
       client.call("debug.event.inject", { kind: 4, x: 145, y: 137, button: 1 })
@@ -78,6 +86,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS/arm64] SDL input routing: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] keyboard Terminal input: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] core desktop apps: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS/arm64] compositor desktop mechanics: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] SDL_ttf Ruby Font: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] SDL audio bridge: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] Ruby chipset workbench: PASS\n")

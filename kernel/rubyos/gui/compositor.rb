@@ -51,6 +51,15 @@ module RubyOS
         contains?(point_x, point_y) && point_x >= x + width - 24 && point_y < y + TITLE_HEIGHT
       end
 
+      def minimize_hit?(point_x, point_y)
+        contains?(point_x, point_y) && point_x >= x + width - 44 &&
+          point_x < x + width - 24 && point_y < y + TITLE_HEIGHT
+      end
+
+      def title_hit?(point_x, point_y)
+        contains?(point_x, point_y) && point_y < y + TITLE_HEIGHT
+      end
+
       def handle(event)
         if event.fetch("kind", 0) == 4 && event.fetch("button", 0) == 1
           local_x = event.fetch("x") - x - 10
@@ -75,6 +84,8 @@ module RubyOS
         @title = title
         @windows = []
         @dock_items = []
+        @shortcuts = []
+        @dragging = nil
       end
 
       def add_window(window)
@@ -113,9 +124,25 @@ module RubyOS
         self
       end
 
+      def add_shortcut(label, x:, y:, &action)
+        @shortcuts << [String(label), Integer(x), Integer(y), action]
+        self
+      end
+
       def handle(event)
         kind = event.fetch("kind", 0)
         return focused_window&.handle(event) || false if kind == 1 || kind == 2
+        if kind == 3 && @dragging
+          window, offset_x, offset_y = @dragging
+          window.x = [[event.fetch("x") - offset_x, 0].max, width - window.width].min
+          window.y = [[event.fetch("y") - offset_y, MENU_HEIGHT].max,
+                      height - DOCK_HEIGHT - Window::TITLE_HEIGHT].min
+          return true
+        end
+        if kind == 5 && @dragging
+          @dragging = nil
+          return true
+        end
         return false unless kind == 4 && event.fetch("button", 0) == 1
         point_x = event.fetch("x")
         point_y = event.fetch("y")
@@ -126,11 +153,21 @@ module RubyOS
           return !item.nil?
         end
         window = window_at(point_x, point_y)
-        return false unless window
+        unless window
+          shortcut = @shortcuts.find do |_label, x, y, _action|
+            x <= point_x && point_x < x + 48 && y <= point_y && point_y < y + 48
+          end
+          shortcut&.last&.call
+          return !shortcut.nil?
+        end
         if window.close_hit?(point_x, point_y)
           close(window)
+        elsif window.minimize_hit?(point_x, point_y)
+          window.minimized = true
+          focus(windows.reverse.find { |candidate| !candidate.minimized })
         else
           focus(window)
+          @dragging = [window, point_x - window.x, point_y - window.y] if window.title_hit?(point_x, point_y)
           window.handle(event)
         end
         true
@@ -138,6 +175,7 @@ module RubyOS
 
       def draw(surface, uptime: nil)
         surface.fill_rect(0, 0, width, height, 0x171321)
+        draw_wallpaper(surface)
         surface.fill_rect(0, 0, width, MENU_HEIGHT, 0x2a1f35)
         surface.draw_text(10, 6, @title, color: 0xffd866)
         surface.draw_text(width - 104, 6, uptime || "Ruby 4", color: 0xd8cae5)
@@ -147,6 +185,19 @@ module RubyOS
       end
 
       private
+
+      def draw_wallpaper(surface)
+        0.step(height - 1, 32) do |row|
+          0.step(width - 1, 32) do |column|
+            color = ((row / 32 + column / 32).even? ? 0x1b1627 : 0x21192f)
+            surface.fill_rect(column, row, 32, 32, color)
+          end
+        end
+        @shortcuts.each do |label, x, y, _action|
+          surface.fill_rect(x + 8, y, 28, 28, 0x553184)
+          surface.draw_text(x, y + 34, label, color: 0xe8dff5)
+        end
+      end
 
       def draw_dock(surface)
         y = height - DOCK_HEIGHT

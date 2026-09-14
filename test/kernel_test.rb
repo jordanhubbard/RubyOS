@@ -99,6 +99,20 @@ compositor.handle("kind" => 4, "button" => 1,
                   "y" => settings_window.y + RubyOS::GUI::Window::TITLE_HEIGHT + 50)
 assert(!settings.animations, "window click dispatch reaches Settings button")
 
+shortcut_launched = false
+desktop = RubyOS::GUI::Compositor.new(width: 320, height: 240)
+desktop.add_shortcut("Ruby", x: 8, y: 40) { shortcut_launched = true }
+desktop.handle("kind" => 4, "button" => 1, "x" => 20, "y" => 50)
+assert(shortcut_launched, "desktop shortcut launches action")
+movable = desktop.add_window(RubyOS::GUI::Window.new("Move", x: 80, y: 60, width: 120, height: 90))
+desktop.handle("kind" => 4, "button" => 1, "x" => 90, "y" => 70)
+desktop.handle("kind" => 3, "x" => 110, "y" => 90)
+desktop.handle("kind" => 5, "button" => 1, "x" => 110, "y" => 90)
+assert([movable.x, movable.y] == [100, 80], "title drag moves window")
+desktop.handle("kind" => 4, "button" => 1,
+               "x" => movable.x + movable.width - 34, "y" => movable.y + 8)
+assert(movable.minimized, "window minimize control")
+
 editor = RubyOS::Apps::Editor.new(path: "/home/editor.txt")
 editor.save("Edited by a Ruby object.\n")
 assert(state.fetch(:vfs).read_file("/home/editor.txt") == "Edited by a Ruby object.\n",
