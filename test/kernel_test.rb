@@ -35,6 +35,18 @@ assert(ps2.feed(0x13).text == "R", "PS/2 shifted make-code translation")
 assert(ps2.feed(0x93).kind == RubyOS::Input::KEY_UP, "PS/2 break-code translation")
 ps2.feed(0xaa)
 assert(ps2.mods.zero?, "PS/2 modifier release")
+virtio_keys = RubyOS::Input::VirtioKeyboardTranslator.new
+virtio_keys.translate(1, 42, 1)
+assert(virtio_keys.translate(1, 19, 1).text == "R", "VirtIO shifted EV_KEY translation")
+assert(virtio_keys.translate(1, 19, 0).kind == RubyOS::Input::KEY_UP,
+       "VirtIO key release translation")
+virtio_keys.translate(1, 42, 0)
+virtio_keys.translate(2, 0, 12)
+virtio_keys.translate(2, 1, 0xffff_fffb)
+pointer_event = virtio_keys.translate(0, 0, 0)
+assert([pointer_event.kind, pointer_event.dx, pointer_event.dy] ==
+       [RubyOS::Input::POINTER_MOVE, 12, -5], "VirtIO relative pointer translation")
+assert(virtio_keys.translate(1, 0x110, 1).button == 1, "VirtIO pointer button translation")
 
 generic_driver = Class.new do
   include RubyOS::Driver

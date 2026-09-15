@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import json
-import os
 import pathlib
 import socket
 import subprocess
@@ -9,15 +8,17 @@ import time
 
 
 root = pathlib.Path(__file__).resolve().parent.parent
-image = root / "build/baremetal/rubyos-x86_64-input/rubyos.iso"
+kernel = root / "build/baremetal/rubyos-arm64-input/rubyos.elf"
 
-with tempfile.TemporaryDirectory(prefix="rubyos-input-") as temporary:
+with tempfile.TemporaryDirectory(prefix="rubyos-arm-input-") as temporary:
     qmp_path = pathlib.Path(temporary) / "qmp.sock"
     serial_path = pathlib.Path(temporary) / "serial.log"
     process = subprocess.Popen([
-        "qemu-system-x86_64", "-m", "768M", "-cdrom", str(image),
-        "-display", "none", "-serial", f"file:{serial_path}",
-        "-qmp", f"unix:{qmp_path},server=on,wait=off", "-no-reboot", "-no-shutdown",
+        "qemu-system-aarch64", "-M", "virt", "-cpu", "cortex-a72", "-m", "512M",
+        "-display", "none", "-monitor", "none", "-serial", f"file:{serial_path}",
+        "-no-reboot", "-kernel", str(kernel), "-device", "virtio-keyboard-device",
+        "-device", "virtio-mouse-device",
+        "-qmp", f"unix:{qmp_path},server=on,wait=off",
     ])
     try:
         deadline = time.monotonic() + 15
@@ -26,7 +27,7 @@ with tempfile.TemporaryDirectory(prefix="rubyos-input-") as temporary:
                 break
             time.sleep(0.05)
         else:
-            raise RuntimeError("RubyOS did not reach the native input probe")
+            raise RuntimeError("RubyOS did not reach the VirtIO input probe")
 
         qmp = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         qmp.connect(str(qmp_path))
@@ -38,18 +39,22 @@ with tempfile.TemporaryDirectory(prefix="rubyos-input-") as temporary:
             "keys": [{"type": "qcode", "data": "r"}], "hold-time": 50
         }}).encode() + b"\n")
         stream.readline()
+        stream.write(json.dumps({"execute": "human-monitor-command", "arguments": {
+            "command-line": "mouse_move 20 10"
+        }}).encode() + b"\n")
+        stream.readline()
 
         deadline = time.monotonic() + 8
-        marker = "[RubyOS] native PS/2 input: PASS"
+        marker = "[RubyOS] native VirtIO input: PASS"
         while time.monotonic() < deadline:
             log = serial_path.read_text(errors="replace")
             if marker in log:
                 print(log, end="")
-                print("RubyOS native x86_64 PS/2 input smoke: PASS")
+                print("RubyOS native ARM64 VirtIO input smoke: PASS")
                 break
             time.sleep(0.05)
         else:
-            raise RuntimeError("injected PS/2 key did not reach Ruby input")
+            raise RuntimeError("injected VirtIO key did not reach Ruby input")
     finally:
         process.terminate()
         try:
