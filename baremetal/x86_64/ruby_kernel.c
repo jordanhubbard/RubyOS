@@ -26,6 +26,22 @@ static VALUE dma_free(VALUE self, VALUE address) { (void)self; free((void *)(uin
 static VALUE heap_total_bytes(VALUE self) { (void)self; return ULL2NUM(malloc_total_bytes()); }
 static VALUE heap_free_bytes(VALUE self) { (void)self; return ULL2NUM(malloc_free_bytes()); }
 static VALUE ps2_scancode(VALUE self) { uint8_t status; (void)self; status = inb(0x64); if (!(status & 1) || (status & 0x20)) return Qnil; return UINT2NUM(inb(0x60)); }
+static int ps2_wait_writable(void) { for (unsigned i = 0; i < 100000; ++i) if (!(inb(0x64) & 2)) return 1; return 0; }
+static int ps2_wait_readable(void) { for (unsigned i = 0; i < 100000; ++i) if (inb(0x64) & 1) return 1; return 0; }
+static int ps2_command(uint8_t command) { if (!ps2_wait_writable()) return 0; outb(0x64, command); return 1; }
+static int ps2_data(uint8_t value) { if (!ps2_wait_writable()) return 0; outb(0x60, value); return 1; }
+static int ps2_mouse_command(uint8_t command) { if (!ps2_command(0xd4) || !ps2_data(command) || !ps2_wait_readable()) return 0; return inb(0x60) == 0xfa; }
+static VALUE ps2_mouse_init(VALUE self) {
+    uint8_t config;
+    (void)self;
+    while (inb(0x64) & 1) (void)inb(0x60);
+    if (!ps2_command(0xa8) || !ps2_command(0x20) || !ps2_wait_readable()) return Qfalse;
+    config = inb(0x60); config |= 2; config &= (uint8_t)~0x20;
+    if (!ps2_command(0x60) || !ps2_data(config)) return Qfalse;
+    if (!ps2_mouse_command(0xf6) || !ps2_mouse_command(0xf4)) return Qfalse;
+    return Qtrue;
+}
+static VALUE ps2_mouse_byte(VALUE self) { uint8_t status; (void)self; status = inb(0x64); if (!(status & 1) || !(status & 0x20)) return Qnil; return UINT2NUM(inb(0x60)); }
 static VALUE full_message(VALUE e) { return rb_funcall(e, rb_intern("full_message"), 0); }
 
 void rubyos_x86_64_start(uint64_t magic, uint64_t info) {
@@ -51,6 +67,8 @@ void rubyos_x86_64_start(uint64_t magic, uint64_t info) {
     rb_define_module_function(hal,"heap_total_bytes",heap_total_bytes,0);
     rb_define_module_function(hal,"heap_free_bytes",heap_free_bytes,0);
     rb_define_module_function(hal,"ps2_scancode",ps2_scancode,0);
+    rb_define_module_function(hal,"ps2_mouse_init",ps2_mouse_init,0);
+    rb_define_module_function(hal,"ps2_mouse_byte",ps2_mouse_byte,0);
     rb_eval_string_protect(rubyos_kernel_source,&state);
     if (state) { puts1("[RubyOS/x86_64] FATAL: embedded Ruby raised\n"); message=rb_protect(full_message,rb_errinfo(),&msg_state); if (!msg_state) puts1(StringValueCStr(message)); }
     halt();

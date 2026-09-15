@@ -138,6 +138,43 @@ module RubyOS
       end
     end
 
+    class PS2Mouse
+      def initialize(x: 320, y: 200)
+        @x = Integer(x)
+        @y = Integer(y)
+        @packet = []
+        @buttons = 0
+      end
+
+      def feed(byte)
+        byte = Integer(byte) & 0xff
+        @packet.clear if @packet.empty? && (byte & 0x08).zero?
+        @packet << byte
+        return [] until @packet.length == 3
+
+        flags, raw_x, raw_y = @packet
+        @packet = []
+        return [] if (flags & 0x08).zero?
+
+        dx = (flags & 0x10).zero? ? raw_x : raw_x - 256
+        dy = -((flags & 0x20).zero? ? raw_y : raw_y - 256)
+        @x = [@x + dx, 0].max
+        @y = [@y + dy, 0].max
+        events = []
+        events << Event.build(kind: POINTER_MOVE, x: @x, y: @y, dx:, dy:) unless dx.zero? && dy.zero?
+        changed = @buttons ^ (flags & 7)
+        { 1 => 1, 4 => 2, 2 => 3 }.each do |mask, button|
+          next if (changed & mask).zero?
+
+          pressed = (flags & mask) != 0
+          events << Event.build(kind: pressed ? POINTER_DOWN : POINTER_UP,
+                                button:, x: @x, y: @y)
+        end
+        @buttons = flags & 7
+        events
+      end
+    end
+
     class VirtioKeyboardTranslator
       CHARACTERS = {
         2 => ["1", "!"], 3 => ["2", "@"], 4 => ["3", "#"], 5 => ["4", "$"],

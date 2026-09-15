@@ -18,7 +18,7 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 | Desktop | compositor, windows, menu bar, dock, wallpaper, shortcuts | Ruby compositor with focus/z-order, close/minimize/drag, patterned wallpaper, shortcuts, menu bar, and dock | Complete |
 | Apps | terminal, editor, files, image viewer, monitor, clock, settings | About, interactive Terminal, VFS Editor, Files, Image Viewer, System Monitor, Clock, Settings | Complete |
 | Demos and games | graphics/audio demos and arcade games | Ruby Chipset Workbench desktop demo | Partial |
-| Input | PS/2 and VirtIO input, canonical event queue | bounded Ruby `Input::EventQueue` normalizes SDL events; native x86 PS/2 and ARM64 VirtIO keyboards feed the same objects at VM-safe polling points; native pointer producers pending | Partial |
+| Input | PS/2 and VirtIO input, canonical event queue | bounded canonical Ruby event queue fed by SDL, native x86 PS/2 keyboard/mouse, and ARM64 VirtIO keyboard/mouse, all polled at CRuby-safe points | Complete |
 | Audio | AC97/Intel HDA/bridge mixer and sound API | Ruby PCM/waveform mixer and bare-metal SDL audio bridge | Partial |
 | Images | PNG/JPEG decoding and viewer | Ruby remote surfaces, raw upload, bare-metal PNG/JPEG decode/blit, and Image Viewer | Complete |
 | Chipset laboratory | display lists, copper/blitter/sprites/audio | Ruby playfields, Copper commands, Blitter, Sprite, raster preview | Partial |

@@ -35,6 +35,11 @@ assert(ps2.feed(0x13).text == "R", "PS/2 shifted make-code translation")
 assert(ps2.feed(0x93).kind == RubyOS::Input::KEY_UP, "PS/2 break-code translation")
 ps2.feed(0xaa)
 assert(ps2.mods.zero?, "PS/2 modifier release")
+ps2_mouse = RubyOS::Input::PS2Mouse.new(x: 10, y: 10)
+mouse_events = [0x29, 5, 0xfd].flat_map { |byte| ps2_mouse.feed(byte) }
+assert([mouse_events.first.dx, mouse_events.first.dy] == [5, 3], "PS/2 signed pointer motion")
+assert(mouse_events.last.kind == RubyOS::Input::POINTER_DOWN && mouse_events.last.button == 1,
+       "PS/2 pointer button transition")
 virtio_keys = RubyOS::Input::VirtioKeyboardTranslator.new
 virtio_keys.translate(1, 42, 1)
 assert(virtio_keys.translate(1, 19, 1).text == "R", "VirtIO shifted EV_KEY translation")

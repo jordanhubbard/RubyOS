@@ -38,6 +38,10 @@ with tempfile.TemporaryDirectory(prefix="rubyos-input-") as temporary:
             "keys": [{"type": "qcode", "data": "r"}], "hold-time": 50
         }}).encode() + b"\n")
         stream.readline()
+        stream.write(json.dumps({"execute": "human-monitor-command", "arguments": {
+            "command-line": "mouse_move 20 10"
+        }}).encode() + b"\n")
+        stream.readline()
 
         deadline = time.monotonic() + 8
         marker = "[RubyOS] native PS/2 input: PASS"
