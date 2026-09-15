@@ -25,6 +25,7 @@ static VALUE dma_alloc(VALUE self, VALUE n) { size_t size = (NUM2ULL(n) + 4095) 
 static VALUE dma_free(VALUE self, VALUE address) { (void)self; free((void *)(uintptr_t)NUM2ULL(address)); return Qnil; }
 static VALUE heap_total_bytes(VALUE self) { (void)self; return ULL2NUM(malloc_total_bytes()); }
 static VALUE heap_free_bytes(VALUE self) { (void)self; return ULL2NUM(malloc_free_bytes()); }
+static VALUE ps2_scancode(VALUE self) { uint8_t status; (void)self; status = inb(0x64); if (!(status & 1) || (status & 0x20)) return Qnil; return UINT2NUM(inb(0x60)); }
 static VALUE full_message(VALUE e) { return rb_funcall(e, rb_intern("full_message"), 0); }
 
 void rubyos_x86_64_start(uint64_t magic, uint64_t info) {
@@ -49,6 +50,7 @@ void rubyos_x86_64_start(uint64_t magic, uint64_t info) {
     rb_define_module_function(hal,"dma_free",dma_free,1);
     rb_define_module_function(hal,"heap_total_bytes",heap_total_bytes,0);
     rb_define_module_function(hal,"heap_free_bytes",heap_free_bytes,0);
+    rb_define_module_function(hal,"ps2_scancode",ps2_scancode,0);
     rb_eval_string_protect(rubyos_kernel_source,&state);
     if (state) { puts1("[RubyOS/x86_64] FATAL: embedded Ruby raised\n"); message=rb_protect(full_message,rb_errinfo(),&msg_state); if (!msg_state) puts1(StringValueCStr(message)); }
     halt();

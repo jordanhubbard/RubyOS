@@ -36,6 +36,7 @@ paths = %w[
   kernel/storage_boot.rb
   kernel/network_boot.rb
   kernel/gui_boot.rb
+  kernel/input_boot.rb
 ]
 
 source = paths.map do |path|
@@ -55,6 +56,9 @@ if ENV["RUBYOS_EMBED_DESKTOP"] == "1"
 end
 if ENV["RUBYOS_EMBED_REPL"] == "1"
   source << "RubyOS::Shell.new.run\n"
+end
+if ENV["RUBYOS_EMBED_INPUT"] == "1"
+  source << "RubyOS::Kernel.boot_native_input\n"
 end
 
 puts "/* Generated from RubyOS kernel sources. */"

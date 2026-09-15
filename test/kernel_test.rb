@@ -29,6 +29,12 @@ assert(!input_queue.post(RubyOS::Input::Event.build(kind: RubyOS::Input::QUIT)),
        "bounded event queue rejects overflow")
 assert(input_queue.dropped == 1 && observed_input == [1, 2], "input subscribers and drop metric")
 assert(input_queue.poll.map(&:kind) == [1, 2] && input_queue.empty?, "ordered input polling")
+ps2 = RubyOS::Input::PS2Keyboard.new
+assert(ps2.feed(0x2a).nil?, "PS/2 shift modifier is state, not text")
+assert(ps2.feed(0x13).text == "R", "PS/2 shifted make-code translation")
+assert(ps2.feed(0x93).kind == RubyOS::Input::KEY_UP, "PS/2 break-code translation")
+ps2.feed(0xaa)
+assert(ps2.mods.zero?, "PS/2 modifier release")
 
 generic_driver = Class.new do
   include RubyOS::Driver
