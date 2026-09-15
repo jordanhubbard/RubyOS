@@ -10,10 +10,11 @@ import time
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
 RUBY = str(ROOT / "build/host-ruby/bin/ruby")
+ARCH = os.environ.get("RUBYOS_TARGET_ARCH", "arm64")
 
 
 def make(*targets):
-    return subprocess.check_output(["make", *targets], text=True, stderr=subprocess.STDOUT)
+    return subprocess.check_output(["make", f"TARGET_ARCH={ARCH}", *targets], text=True, stderr=subprocess.STDOUT)
 
 
 def wait_for(process, path, marker):
@@ -32,12 +33,13 @@ assert not (ROOT / "build/run/control.sock").exists(), "stop the existing sessio
 help_text = make("help")
 for target in ("build", "build-gui", "run", "run-gui", "stop", "restart", "test", "package", "cleanall"):
     assert target in help_text, target
-assert f"build: {ROOT}/build/baremetal/rubyos-arm64-repl/rubyos.elf" in make("-np", "build")
+extension = "elf" if ARCH == "arm64" else "iso"
+assert f"build: {ROOT}/build/baremetal/rubyos-{ARCH}-repl/rubyos.{extension}" in make("-np", "build")
 assert "docker " not in make("-n", "build-macos"), "hosted macOS gate gained a Docker dependency"
 assert "rm -rf build/ruby-build" not in make("-n", "clean")
 assert "rm -rf build/ruby-build" in make("-n", "cleanall")
 
-environment = dict(os.environ, REMOTEOS_SDL_MODE="headless", SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy")
+environment = dict(os.environ, RUBYOS_TARGET_ARCH=ARCH, REMOTEOS_SDL_MODE="headless", SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy")
 unrelated = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
 try:
     with tempfile.TemporaryDirectory(prefix="rubyos-user-commands-") as temporary:
@@ -74,4 +76,4 @@ try:
 finally:
     unrelated.terminate()
     unrelated.wait(timeout=5)
-print("RubyOS public commands and lifecycle: PASS")
+print(f"RubyOS public commands and lifecycle ({ARCH}): PASS")

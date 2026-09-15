@@ -8,6 +8,23 @@ embedding boundary. After the supported `ruby_setup` plus `ruby_options`
 initialization sequence, Ruby is the kernel runtime rather than a userspace
 program.
 
+## Guest architecture boundary
+
+ARM64 uses QEMU `virt` and memory-mapped VirtIO; x86_64 uses QEMU `pc`,
+Multiboot2/GRUB and modern VirtIO PCI. `Drivers::VirtioTransport` owns discovery,
+feature negotiation, queue addresses and notifications. `VirtioNet` and
+`VirtioBlock` share their ring and device logic above that boundary, so ext2,
+DHCP/DNS/TCP, the HTTP server and RemoteOS-SDL desktop execute the same Ruby
+implementation on both CPUs. PCI devices require VERSION_1 and validated
+capabilities; legacy PCI and arbitrary physical PC hardware are not claimed.
+
+Everyday make commands default to the host CPU and accept `TARGET_ARCH`.
+The Docker toolchain runs on the host CPU and cross-builds both guest CPUs.
+Linux ARM64 and x86_64 CI each exercise both guests and package both sets of
+boot media; macOS CI validates and packages the hosted runtime and service.
+The serial VirtIO-console/debug harness remains ARM-specific; native TCP is
+the common interactive desktop path.
+
 ```text
 firmware/bootloader -> assembly/C -> static CRuby -> RubyOS::Kernel.boot
                                       |

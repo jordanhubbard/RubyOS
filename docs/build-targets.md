@@ -6,10 +6,10 @@ and `cleanall`. Bare `make` means `build`, not a hosted demonstration.
 `restart` always starts the console; use `make stop run-gui` sequentially
 (not `make -j`) to switch to the desktop.
 
-The friendly targets currently use the ARM64 reference guest regardless of
-host CPU. This is a deliberate capability boundary: x86_64 boot/runtime,
-input/audio and SMP probes exist, but no x86_64 native-TCP desktop is claimed.
-Docker's Linux ARM64 builder needs ARM64 execution/emulation on the host.
+The friendly targets select the host CPU by default. Set `TARGET_ARCH=arm64`
+or `TARGET_ARCH=x86_64` to override it. Both support the console and persistent
+native-TCP desktop. Docker builds a native-host Linux toolchain containing
+both cross-compilers; no cross-architecture Docker emulation is required.
 QEMU and the native SDL service run on the host. macOS's `build-macos` stays
 a hosted-only gate and does not silently acquire a Docker requirement.
 
@@ -18,9 +18,9 @@ a hosted-only gate and does not silently acquire a Docker requirement.
 | Hosted Ruby/kernel | `ruby`, `smoke`, `test-host`, `provenance`, `embed-probe` |
 | Language and services | `test-iseq`, `teaching-examples`, `test-ext2`, `test-network`, `test-bridge` |
 | Freestanding runtime | `ruby-arm64`, `ruby-x86_64`, `baremetal-smoke` |
-| Guest boot | `rubyos-arm64-smoke`, `rubyos-x86_64-smoke`, `rubyos-arm64-repl-smoke` |
-| Desktop transports | `rubyos-arm64-gui-smoke`, `rubyos-arm64-tcp-gui-smoke` |
-| Persistence/network/web | `rubyos-arm64-storage-smoke`, `rubyos-arm64-network-smoke`, `rubyos-arm64-web-smoke` |
+| Guest boot/console | `rubyos-{arm64,x86_64}-smoke`, `rubyos-{arm64,x86_64}-repl-smoke` |
+| Desktop transports | `rubyos-arm64-gui-smoke` (serial), `rubyos-{arm64,x86_64}-tcp-gui-smoke` |
+| Persistence/network/web | `rubyos-{arm64,x86_64}-{storage,network,web}-smoke` |
 | Native devices | `rubyos-{arm64,x86_64}-{input,audio,smp}-smoke` (expand braces in your shell) |
 | Debugger | `debug-smoke`, `debug-session` |
 | Public command lifecycle | `test-user-commands` (console evaluation, persistent GUI, duplicate launch and scoped stop) |
@@ -31,7 +31,7 @@ a hosted-only gate and does not silently acquire a Docker requirement.
 The full parity gate is intentionally separate from a quick everyday test.
 Publishing remains an explicitly authorized `scripts/release.sh` operation.
 
-The regular desktop uses its own `rubyos-arm64-desktop` image, without injected
+The regular desktop uses its own `rubyos-<architecture>-desktop` image, without injected
 test events, synthetic gameplay or automatic shutdown. Smoke-test images keep
 their existing deterministic assertions. The runtime launcher is written in
 Ruby and uses only this repository's private, source-built Ruby interpreter.

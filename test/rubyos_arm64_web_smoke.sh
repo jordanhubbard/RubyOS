@@ -2,7 +2,8 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-elf="$root/build/baremetal/rubyos-arm64-web/rubyos.elf"
+variant=web
+source "$root/test/guest-command.sh"
 port="${RUBYOS_WEB_HOST_PORT:-18080}"
 output="$(mktemp /tmp/rubyos-web-output.XXXXXX)"
 body="$(mktemp /tmp/rubyos-web-body.XXXXXX)"
@@ -13,10 +14,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
-qemu-system-aarch64 -M virt -cpu cortex-a72 -m 512M \
-    -nographic -monitor none -serial stdio -no-reboot -kernel "$elf" \
+"${guest[@]}" \
     -netdev user,id=rubyos-net,hostfwd=tcp:127.0.0.1:"$port"-:8080 \
-    -device virtio-net-device,netdev=rubyos-net,mac=52:54:00:12:34:58 \
+    -device "${net_device},netdev=rubyos-net,mac=52:54:00:12:34:58" \
     </dev/null >"$output" 2>&1 &
 qemu_pid=$!
 

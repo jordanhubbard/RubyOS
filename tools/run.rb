@@ -8,6 +8,8 @@ Dir.chdir(root)
 directory = File.join(root, "build", "run")
 control = File.join(directory, "control.sock")
 mode = ARGV.fetch(0, "console")
+arch = ENV.fetch("RUBYOS_TARGET_ARCH") { RUBY_PLATFORM.match?(/aarch64|arm64/) ? "arm64" : "x86_64" }
+abort "RUBYOS_TARGET_ARCH must be arm64 or x86_64" unless %w[arm64 x86_64].include?(arch)
 abort "usage: run.rb console|gui|stop" unless %w[console gui stop].include?(mode)
 
 if mode == "stop"
@@ -31,10 +33,17 @@ stop_client = nil
 status = 0
 %w[INT TERM].each { |signal| Signal.trap(signal) { stopping = true } }
 begin
-  command = ["qemu-system-aarch64", "-M", "virt", "-cpu", "cortex-a72", "-m", "512M",
-             "-display", "none", "-monitor", "none", "-no-reboot"]
+  command = if arch == "arm64"
+    ["qemu-system-aarch64", "-M", "virt", "-cpu", "cortex-a72"]
+  else
+    ["qemu-system-x86_64", "-M", "pc"]
+  end
+  command += ["-m", "512M", "-display", "none", "-monitor", "none", "-no-reboot"]
+  variant = mode == "console" ? "repl" : "desktop"
+  image = "build/baremetal/rubyos-#{arch}-#{variant}/rubyos"
+  command += arch == "arm64" ? ["-kernel", "#{image}.elf"] : ["-cdrom", "#{image}.iso"]
   if mode == "console"
-    command += ["-serial", "stdio", "-kernel", "build/baremetal/rubyos-arm64-repl/rubyos.elf"]
+    command += ["-serial", "stdio"]
     children << Process.spawn(*command)
   else
     port = Integer(ENV.fetch("RUBYOS_REMOTEOS_PORT", "17012"))
@@ -42,10 +51,10 @@ begin
     # Refuse an occupied endpoint before starting a service that could attach
     # to somebody else's guest. QEMU will also reject a later bind race.
     TCPServer.open("127.0.0.1", port) { |probe| probe.close }
-    command += ["-serial", "file:#{directory}/serial.log", "-kernel",
-                "build/baremetal/rubyos-arm64-desktop/rubyos.elf",
+    network_device = arch == "arm64" ? "virtio-net-device" : "virtio-net-pci,disable-legacy=on"
+    command += ["-serial", "file:#{directory}/serial.log",
                 "-netdev", "user,id=net,hostfwd=tcp:127.0.0.1:#{port}-:5001",
-                "-device", "virtio-net-device,netdev=net,mac=52:54:00:12:34:57"]
+                "-device", "#{network_device},netdev=net,mac=52:54:00:12:34:57"]
     children << Process.spawn(*command, in: File::NULL)
     service = ENV.fetch("REMOTEOS_SDL_BIN", "#{root}/services/remoteos-sdl/remoteos-sdl")
     environment = { "REMOTEOS_SDL_MODE" => ENV.fetch("REMOTEOS_SDL_MODE", "interactive") }

@@ -24,20 +24,26 @@ disk. `make cleanall` removes build caches when you actually mean it.
 
 ## Platforms and validation
 
-The everyday guest commands currently target ARM64 on every host. Native
-x86_64 boot, runtime, input, audio, and SMP probes remain available, but
-x86_64 does not yet have the equivalent native-TCP interactive desktop.
-The ARM64 Docker builder requires ARM execution or emulation on x86 hosts.
-This is a current implementation boundary, not a Ruby language restriction.
+The everyday commands now select the host CPU, with `TARGET_ARCH=arm64` or
+`TARGET_ARCH=x86_64` overrides. x86_64 gains the real console, writable ext2,
+DHCP/DNS/TCP, HTTP and persistent native-TCP desktop through modern VirtIO
+PCI. The same Ruby network and filesystem code serves both architectures.
+The Docker builder runs natively on either host CPU. Owning an Intel machine
+no longer enrolls you in an unsolicited ARM emulation appreciation course.
 
-Linux ARM64 bundles include the new persistent desktop ELF alongside the
-existing ARM64 images and x86_64 ISO variants. macOS ARM64 bundles remain
+The broader desktop gate also caught an x86 libc rounding routine that
+compiled into an infinite self-jump. It now rounds numbers instead of
+contemplating them forever, with guest rounding and audio-synthesis tests.
+
+Linux ARM64 and x86_64 bundles include persistent desktop media alongside
+the full ARM64 ELF and x86_64 ISO variants. macOS ARM64 bundles remain
 hosted-runtime packages, not proof of macOS bare-metal guest parity.
 CRuby 4.0.6 is still built privately from source; RemoteOS-SDL remains 0.1.1.
 
 Lifecycle regression tests exercise the real console, a persistent headless
 desktop, duplicate rejection, and scoped shutdown. The release workflow
-requires local Linux validation and green Linux/macOS CI, then checks and
+requires local Linux validation and green ARM64 Linux, x86_64 Linux and macOS
+CI, then checks and
 publishes the CI-produced bundles. Host SDL dependencies remain required;
 WSL2/WSLg is not claimed as verified.
 

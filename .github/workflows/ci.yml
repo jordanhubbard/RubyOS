@@ -17,8 +17,16 @@ env:
 
 jobs:
   linux:
-    name: Linux build and release
-    runs-on: ubuntu-24.04-arm
+    name: Linux ${{ matrix.arch }} build and release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+          - arch: x86_64
+            runner: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
     steps:
       - name: Checkout
@@ -45,7 +53,7 @@ jobs:
       - name: Upload Linux release bundle
         uses: actions/upload-artifact@v4
         with:
-          name: rubyos-linux
+          name: rubyos-linux-${{ matrix.arch }}
           path: dist/*
           if-no-files-found: error
           compression-level: 0

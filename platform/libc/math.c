@@ -14,7 +14,22 @@ double fabs(double x)  { return __builtin_fabs(x); }
 double sqrt(double x)  { return __builtin_sqrt(x); }
 double floor(double x) { return __builtin_floor(x); }
 double ceil(double x)  { return __builtin_ceil(x); }
-double round(double x) { return __builtin_round(x); }
+/* A builtin may lower to a call to round itself on baseline x86-64.
+ * Round the binary64 significand directly, ties away from zero. */
+double round(double x) {
+    union { double d; uint64_t u; } value = { x };
+    int exponent = (int)((value.u >> 52) & 0x7ff) - 1023;
+    if (exponent >= 52) return x; /* integral, infinity or NaN */
+    uint64_t sign = value.u & (1ULL << 63);
+    if (exponent < 0) {
+        value.u = sign | (exponent == -1 ? 0x3ff0000000000000ULL : 0);
+    } else {
+        uint64_t fraction = (1ULL << (52 - exponent)) - 1;
+        value.u += 1ULL << (51 - exponent);
+        value.u &= ~fraction;
+    }
+    return value.d;
+}
 double trunc(double x) { return __builtin_trunc(x); }
 double fma(double x, double y, double z) { return __builtin_fma(x, y, z); }
 

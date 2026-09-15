@@ -3,11 +3,6 @@
 module RubyOS
   module Drivers
     class VirtioBlock
-      MMIO_BASE = 0x0a000000
-      MMIO_STRIDE = 0x200
-      MMIO_DEVICES = 32
-      MAGIC = 0x74726976
-      DEVICE_BLOCK = 2
       PAGE_SIZE = 4096
       QUEUE_SIZE = 16
       SECTOR_SIZE = 512
@@ -19,44 +14,25 @@ module RubyOS
       attr_reader :size, :sector_count
 
       def self.find
-        MMIO_DEVICES.times do |index|
-          candidate = new(MMIO_BASE + index * MMIO_STRIDE)
-          return candidate if candidate.probe
-        end
-        raise Error, "VirtIO block device not found"
+        device = new(VirtioTransport.find(2))
+        device.probe
+        device
       end
 
-      def initialize(base)
-        @base = base
+      def initialize(transport)
+        @transport = transport
         @available_index = 0
         @last_used = 0
       end
 
       def probe
-        return false unless register(0x000) == MAGIC
-        version = register(0x004)
-        return false unless [1, 2].include?(version)
-        return false unless register(0x008) == DEVICE_BLOCK
+        @transport.negotiate(0)
 
-        write_register(0x070, 0)
-        write_register(0x070, 1)
-        write_register(0x070, 3)
-        if version == 1
-          write_register(0x028, PAGE_SIZE)
-          write_register(0x020, 0)
-        else
-          write_register(0x024, 0)
-          write_register(0x020, 0)
-          write_register(0x024, 1)
-          write_register(0x020, 0)
-        end
-        write_register(0x070, 11)
-
-        @sector_count = register(0x100) | (register(0x104) << 32)
+        @sector_count = @transport.config32(0) | (@transport.config32(4) << 32)
         @size = @sector_count * SECTOR_SIZE
-        setup_queue(version)
+        setup_queue
         allocate_request
-        write_register(0x070, 15)
+        @transport.ready
         true
       end
 
@@ -105,7 +81,7 @@ module RubyOS
 
       private
 
-      def setup_queue(version)
+      def setup_queue
         descriptor_size = QUEUE_SIZE * 16
         available_size = 4 + QUEUE_SIZE * 2 + 2
         used_offset = align(descriptor_size + available_size)
@@ -114,18 +90,7 @@ module RubyOS
         @available = @descriptors + descriptor_size
         @used = @descriptors + used_offset
 
-        write_register(0x030, 0)
-        RubyOS.invariant(register(0x034) >= QUEUE_SIZE, "virtio-block queue too small")
-        write_register(0x038, QUEUE_SIZE)
-        if version == 1
-          write_register(0x03c, PAGE_SIZE)
-          write_register(0x040, @descriptors >> 12)
-        else
-          write_address(0x080, @descriptors)
-          write_address(0x090, @available)
-          write_address(0x0a0, @used)
-          write_register(0x044, 1)
-        end
+        @transport.setup_queue(0, QUEUE_SIZE, @descriptors, @available, @used)
       end
 
       def allocate_request
@@ -145,7 +110,7 @@ module RubyOS
         descriptor(1, @data, SECTOR_SIZE, data_flags, 2)
         descriptor(2, @status, 1, DESCRIPTOR_WRITE, 0)
         push(0)
-        write_register(0x050, 0)
+        @transport.notify(0)
 
         deadline = RubyOS::HAL.monotonic_ns + 5_000_000_000
         until used_index != @last_used
@@ -186,19 +151,6 @@ module RubyOS
 
       def align(value)
         (value + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1)
-      end
-
-      def register(offset)
-        RubyOS::HAL.mmio_read32(@base + offset)
-      end
-
-      def write_register(offset, value)
-        RubyOS::HAL.mmio_write32(@base + offset, value)
-      end
-
-      def write_address(offset, value)
-        write_register(offset, value & 0xffffffff)
-        write_register(offset + 4, value >> 32)
       end
 
       def write16(address, value)

@@ -25,6 +25,18 @@ static void puts1(const char *s) { while (*s) { if (*s == '\n') putc1('\r'); put
 void rubyos_serial_puts(const char *s) { puts1(s); }
 static void halt(void) { __asm__ volatile("cli"); for (;;) __asm__ volatile("hlt"); }
 static VALUE serial_write(VALUE self, VALUE s) { (void)self; puts1(StringValueCStr(s)); return Qnil; }
+static VALUE serial_readline(VALUE self) {
+    char buffer[1024]; size_t length = 0; (void)self;
+    for (;;) {
+        while (!(inb(0x3fd) & 1)) __asm__ volatile("pause");
+        unsigned char byte = inb(0x3f8);
+        if (byte == 4 && length == 0) return Qnil;
+        if (byte == '\r' || byte == '\n') { puts1("\n"); break; }
+        if ((byte == 8 || byte == 127) && length > 0) { --length; puts1("\b \b"); continue; }
+        if (byte >= 32 && length + 1 < sizeof(buffer)) { buffer[length++] = (char)byte; putc1((char)byte); }
+    }
+    return rb_utf8_str_new(buffer, (long)length);
+}
 static VALUE monotonic_ns(VALUE self) { (void)self; return ULL2NUM(rubyos_x86_timer_ticks() * 10000000ULL); }
 static VALUE sleep_us(VALUE self, VALUE us) { uint64_t delay = (NUM2ULL(us) + 9999) / 10000; uint64_t end = rubyos_x86_timer_ticks() + delay; (void)self; while ((int64_t)(end - rubyos_x86_timer_ticks()) > 0) __asm__ volatile("hlt"); return Qnil; }
 static VALUE dma_alloc(VALUE self, VALUE n) { size_t size = (NUM2ULL(n) + 4095) & ~(size_t)4095; (void)self; void *p = aligned_alloc(4096, size); if (!p) rb_raise(rb_eNoMemError, "DMA allocation failed"); memset(p, 0, size); return ULL2NUM((uintptr_t)p); }
@@ -83,6 +95,7 @@ void rubyos_x86_64_start(uint64_t magic, uint64_t info) {
     (void)ruby_options(ac, argv);
     os=rb_define_module("RubyOS"); hal=rb_define_module_under(os,"HAL");
     rb_define_module_function(hal,"serial_write",serial_write,1);
+    rb_define_module_function(hal,"serial_readline",serial_readline,0);
     rb_define_module_function(hal,"monotonic_ns",monotonic_ns,0);
     rb_define_module_function(hal,"sleep_us",sleep_us,1);
     rb_define_module_function(hal,"dma_alloc",dma_alloc,1);

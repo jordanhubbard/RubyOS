@@ -3,6 +3,13 @@
 This ledger compares behavior, not implementation language. RubyOS should feel
 native to Ruby while offering the same useful system surfaces as PythonOS.
 
+The console, writable ext2, DHCP/DNS/TCP, HTTP and native-TCP desktop gates
+run on both ARM64 and x86_64 guests. Their shared Ruby drivers use MMIO and
+modern PCI transports respectively. Public `make` commands select either
+architecture; Linux CI builds and packages on both host CPUs. The optional
+serial desktop/debug harness remains ARM-specific. These are QEMU platform
+claims, not certification for arbitrary physical hardware.
+
 | Area | PythonOS baseline | RubyOS evidence | Status |
 |---|---|---|---|
 | Source-built language runtime | Cross-built CPython | CRuby 4.0.6 with Prism and native Fiber context backends, cross-built as static ARM64 and x86_64 kernels | Complete |

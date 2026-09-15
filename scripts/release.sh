@@ -71,11 +71,12 @@ run_id="$(wait_for_ci "$sha" | tail -1)"
 assets="$(mktemp -d "${TMPDIR:-/tmp}/rubyos-assets.XXXXXX")"
 notes="$(mktemp "${TMPDIR:-/tmp}/rubyos-notes.XXXXXX")"
 trap 'rm -rf "$assets"; rm -f "$notes"' EXIT
-gh run download "$run_id" --name rubyos-linux --dir "$assets/linux"
+gh run download "$run_id" --name rubyos-linux-arm64 --dir "$assets/linux-arm64"
+gh run download "$run_id" --name rubyos-linux-x86_64 --dir "$assets/linux-x86_64"
 gh run download "$run_id" --name rubyos-macos --dir "$assets/macos"
 mapfile -t archives < <(find "$assets" -name '*.tar.gz' -type f | sort)
 mapfile -t checksums < <(find "$assets" -name '*.sha256' -type f | sort)
-[[ ${#archives[@]} -eq 2 && ${#checksums[@]} -eq 2 ]] || fail "CI did not produce both platform bundles"
+[[ ${#archives[@]} -eq 3 && ${#checksums[@]} -eq 3 ]] || fail "CI did not produce all three platform bundles"
 for checksum in "${checksums[@]}"; do
     (cd "$(dirname "$checksum")" && sha256sum -c "$(basename "$checksum")")
 done

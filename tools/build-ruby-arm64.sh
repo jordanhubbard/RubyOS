@@ -17,7 +17,7 @@ fi
 mkdir -p "$target_build"; cd "$target_build"
 if [[ ! -f Makefile ]]; then
     CFLAGS="-O2 -ffreestanding -fno-stack-protector -fno-pie -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0" \
-    "$source_dir/configure" --build=aarch64-unknown-linux-gnu --host=aarch64-unknown-none \
+    "$source_dir/configure" --build="$(gcc -dumpmachine)" --host=aarch64-unknown-none \
         --with-baseruby="$host_prefix/bin/ruby" --disable-shared \
         --disable-install-doc --disable-rubygems --disable-yjit --disable-zjit \
         --without-gmp --with-coroutine=arm64 --with-out-ext=all \

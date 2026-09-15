@@ -2,7 +2,8 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-elf="$root/build/baremetal/rubyos-arm64-tcp-gui/rubyos.elf"
+variant=tcp-gui
+source "$root/test/guest-command.sh"
 port="${RUBYOS_REMOTEOS_PORT:-17012}"
 output="$(mktemp /tmp/rubyos-tcp-gui.XXXXXX)"
 service_output="$(mktemp /tmp/rubyos-tcp-gui-service.XXXXXX)"
@@ -14,10 +15,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
-qemu-system-aarch64 -M virt -cpu cortex-a72 -m 512M \
-    -nographic -monitor none -serial stdio -no-reboot -kernel "$elf" \
+"${guest[@]}" \
     -netdev user,id=rubyos-net,hostfwd=tcp:127.0.0.1:"$port"-:5001 \
-    -device virtio-net-device,netdev=rubyos-net,mac=52:54:00:12:34:57 \
+    -device "${net_device},netdev=rubyos-net,mac=52:54:00:12:34:57" \
     </dev/null >"$output" 2>&1 &
 qemu_pid=$!
 
@@ -27,7 +27,7 @@ REMOTEOS_SDL_MODE=headless SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
     >"$service_output" 2>&1 &
 service_pid=$!
 
-for _ in $(seq 1 600); do
+for _ in $(seq 1 2400); do
     if grep -q 'RemoteOS over native TCP: PASS' "$output"; then
         break
     fi

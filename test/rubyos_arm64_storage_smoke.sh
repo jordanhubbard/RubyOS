@@ -2,7 +2,8 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-elf="$root/build/baremetal/rubyos-arm64-storage/rubyos.elf"
+variant=storage
+source "$root/test/guest-command.sh"
 disk="$root/build/disk.img"
 output_file="$(mktemp /tmp/rubyos-storage-output.XXXXXX)"
 input_file="$(mktemp /tmp/rubyos-storage-input.XXXXXX)"
@@ -13,10 +14,9 @@ trap cleanup EXIT
 printf 'ls /home\ncat /home/persistent.txt\nwrite /home/from-ruby.txt durable-ruby\ncat /home/from-ruby.txt\nmkdir /home/remove-me\nrm /home/remove-me\nrm /home/from-ruby.txt\nf=RubyOS::Kernel.state[:vfs];d=f.open("/home/traversal.bin",65);f.seek(d,4243473);f.write(d,"double");f.close(d);f.stat("/home/traversal.bin").size\ntruncate /home/traversal.bin 100\nls /home\nls /apps\ncat /apps/README\n' >"$input_file"
 
 set +e
-timeout 25s qemu-system-aarch64 -M virt -cpu cortex-a72 -m 512M \
-    -nographic -monitor none -serial stdio -no-reboot -kernel "$elf" \
+python3 "$root/test/console-session.py" "${guest[@]}" \
     -drive if=none,file="$disk",format=raw,id=rubyos-disk \
-    -device virtio-blk-device,drive=rubyos-disk \
+    -device "${block_device},drive=rubyos-disk" \
     <"$input_file" >"$output_file" 2>&1
 status=$?
 set -e

@@ -47,6 +47,7 @@ module RubyOS
       applications.fetch("Files").launch(compositor)
       applications.fetch("Chipset").launch(compositor)
       applications.fetch("Terminal").launch(compositor)
+      HAL.serial_write("[RubyOS] desktop smoke: applications launched\n")
       invaders = applications.fetch("Invaders")
       game_window = invaders.launch(compositor)
       invaders.game.enemies.replace([[15, 16]])
@@ -61,6 +62,7 @@ module RubyOS
       RubyOS.invariant(snake.game.score == 10 && snake.game.body.length == 4,
                        "Snake growth and scoring failed")
       compositor.close(snake_window)
+      HAL.serial_write("[RubyOS] desktop smoke: games checked\n")
       client.call("debug.event.inject", { kind: 1, code: 0, text: "6" })
       client.call("debug.event.inject", { kind: 1, code: 13 })
       desktop.events.each { |event| compositor.handle(event) }
@@ -79,6 +81,7 @@ module RubyOS
       compositor.close(settings_window)
       compositor.close(clock_window)
       compositor.draw(desktop.surface, uptime: "#{state.fetch(:clock).milliseconds} ms")
+      HAL.serial_write("[RubyOS] desktop smoke: compositor drawn\n")
       font = Bridge::Font.open_default(client, point_size: 14)
       RubyOS.invariant(font.measure("RubyOS").all?(&:positive?), "SDL_ttf measurement failed")
       title_surface = font.render("RubyOS 4", color: 0xffd866)
@@ -100,6 +103,7 @@ module RubyOS
       png_surface.blit_to(desktop.surface, x: 460, y: 26)
       jpeg_surface.blit_to(desktop.surface, x: 464, y: 26)
       desktop.present
+      HAL.serial_write("[RubyOS] desktop smoke: first frame presented\n")
       client.call("debug.event.inject", { kind: 4, x: 155, y: 280, button: 1 })
       desktop.events.each { |event| compositor.handle(event) }
       RubyOS.invariant(compositor.focused_window.title == "System Monitor",
@@ -110,6 +114,7 @@ module RubyOS
       jpeg_surface.blit_to(desktop.surface, x: 464, y: 26)
       desktop.present
       audio = Sound::BridgeOutput.new(client)
+      HAL.serial_write("[RubyOS] desktop smoke: second frame presented\n")
       chord = Sound::Mixer.new.mix(
         Sound::Waveform.sine(220, duration_ms: 40, amplitude: 0.10),
         Sound::Waveform.sine(330, duration_ms: 40, amplitude: 0.10)
@@ -117,8 +122,10 @@ module RubyOS
       audio.play(chord)
       RubyOS.invariant(audio.queued_bytes >= 0, "SDL audio queue unavailable")
       audio.close
+      HAL.serial_write("[RubyOS] desktop smoke: audio checked\n")
       desktop.capture("/tmp/rubyos-baremetal-desktop.bmp")
       performance = client.performance_snapshot
+      HAL.serial_write("[RubyOS] desktop smoke: metrics received\n")
       guest_ops = performance.fetch(:guest_round_trip)
       host_ops = performance.fetch(:host_service).fetch("ops")
       RubyOS.invariant(guest_ops.fetch("frame.commit").fetch(:count).positive?,
@@ -132,18 +139,18 @@ module RubyOS
       desktop.close
       client.call("shutdown")
       client.close
-      RubyOS::HAL.serial_write("[RubyOS/arm64] remote SDL desktop: PASS\n")
-      RubyOS::HAL.serial_write("[RubyOS/arm64] SDL input routing: PASS\n")
-      RubyOS::HAL.serial_write("[RubyOS/arm64] keyboard Terminal input: PASS\n")
-      RubyOS::HAL.serial_write("[RubyOS/arm64] core desktop apps: PASS\n")
-      RubyOS::HAL.serial_write("[RubyOS/arm64] compositor desktop mechanics: PASS\n")
-      RubyOS::HAL.serial_write("[RubyOS/arm64] SDL_ttf Ruby Font: PASS\n")
-      RubyOS::HAL.serial_write("[RubyOS/arm64] PNG/JPEG image surfaces: PASS\n")
-      RubyOS::HAL.serial_write("[RubyOS/arm64] SDL audio bridge: PASS\n")
-      RubyOS::HAL.serial_write("[RubyOS/arm64] Ruby chipset workbench: PASS\n")
-      RubyOS::HAL.serial_write("[RubyOS/arm64] dual-playfield chipset clock: PASS\n")
-      RubyOS::HAL.serial_write("[RubyOS/arm64] Ruby arcade games: PASS\n")
-      RubyOS::HAL.serial_write("[RubyOS/arm64] guest/host performance metrics: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] remote SDL desktop: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] SDL input routing: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] keyboard Terminal input: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] core desktop apps: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] compositor desktop mechanics: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] SDL_ttf Ruby Font: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] PNG/JPEG image surfaces: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] SDL audio bridge: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] Ruby chipset workbench: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] dual-playfield chipset clock: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] Ruby arcade games: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] guest/host performance metrics: PASS\n")
       true
     end
 
@@ -192,14 +199,14 @@ module RubyOS
       lease = Net::DHCPClient.new(device).acquire
       stack = Net::Stack.new(device, address: lease.address, gateway: lease.gateway)
       RubyOS::HAL.serial_write(
-        "[RubyOS/arm64] RemoteOS TCP ready on #{lease.address}:#{port}\n"
+        "[RubyOS] RemoteOS TCP ready on #{lease.address}:#{port}\n"
       )
       connection = stack.listen(port).accept(timeout_ms: 120_000)
       transport = Bridge::Transport::NativeTCP.new(connection)
       return run_interactive_desktop(transport) if interactive
 
       boot_remote_desktop(transport:)
-      RubyOS::HAL.serial_write("[RubyOS/arm64] RemoteOS over native TCP: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] RemoteOS over native TCP: PASS\n")
       true
     end
   end

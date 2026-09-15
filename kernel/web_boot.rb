@@ -15,10 +15,10 @@ module RubyOS
           [200, { "content-type" => "text/plain" },
            leaders.map { |name, count| "#{name}: #{count}\n" }]
         end
-      RubyOS::HAL.serial_write("[RubyOS/arm64] HTTP ready on #{lease.address}:#{port}\n")
+      RubyOS::HAL.serial_write("[RubyOS] HTTP ready on #{lease.address}:#{port}\n")
       result = HTTP::Server.new(router).serve_once(stack.listen(port), timeout_ms: 120_000)
       RubyOS.invariant(result.fetch(:status) == 200, "HTTP response status")
-      RubyOS::HAL.serial_write("[RubyOS/arm64] Rack-shaped HTTP server: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] Rack-shaped HTTP server: PASS\n")
       true
     end
   end

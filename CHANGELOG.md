@@ -7,11 +7,19 @@ All notable RubyOS changes are documented here.
 ## [0.2.2] - 2026-09-15
 
 - Add PythonOS-style everyday make commands, with `help` and a separate
-  advanced-targets guide. Bare `make` builds the ARM64 console.
+  advanced-targets guide. Bare `make` builds the host-architecture console.
 - Add a persistent native-TCP desktop and a Ruby launcher with checkout-local
   start/stop supervision, plus real-console/desktop lifecycle regression tests.
 - Keep hosted tests explicit as `test-host`; preserve Ruby caches on `clean`.
 - Include the persistent desktop ELF in Linux release bundles.
+- Add modern VirtIO PCI transport for x86_64 networking and writable ext2,
+  serial REPL input, HTTP and native-TCP desktops using shared Ruby drivers.
+- Select either guest with `TARGET_ARCH`; run Docker builders natively on
+  ARM64 or x86_64 and require both Linux host architectures in release CI.
+- Package x86_64 console, storage, network, web and desktop ISOs; validate
+  public command lifecycle and shared feature tests against both guest CPUs.
+- Fix recursive x86 libc rounding that hung audio synthesis; add bare-metal
+  rounding and waveform regressions and readiness-driven serial tests.
 
 ## [0.2.1] - 2026-09-15
 

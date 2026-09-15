@@ -31,7 +31,9 @@ if [[ "$platform" == linux ]]; then
     cp -f build/baremetal/rubyos-arm64-tcp-gui/rubyos.elf "$stage/images/arm64/rubyos-arm64-tcp-gui.elf"
     cp -f build/baremetal/rubyos-arm64-web/rubyos.elf "$stage/images/arm64/rubyos-arm64-web.elf"
     for variant in rubyos-x86_64 rubyos-x86_64-input rubyos-x86_64-audio \
-                   rubyos-x86_64-smp; do
+                   rubyos-x86_64-smp rubyos-x86_64-repl rubyos-x86_64-desktop \
+                   rubyos-x86_64-storage rubyos-x86_64-network rubyos-x86_64-web \
+                   rubyos-x86_64-tcp-gui; do
         cp -f "build/baremetal/$variant/rubyos.iso" "$stage/images/x86_64/$variant.iso"
     done
     cp -f build/disk.img "$stage/images/rubyos-ext2.img"

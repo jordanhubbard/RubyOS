@@ -39,6 +39,9 @@ if [[ "$platform" == linux ]]; then
     grep -q '/images/arm64/rubyos-arm64-tcp-gui.elf$' "$manifest"
     grep -q '/images/arm64/rubyos-arm64-web.elf$' "$manifest"
     grep -q '/images/x86_64/rubyos-x86_64.iso$' "$manifest"
+    for variant in repl desktop storage network web tcp-gui; do
+        grep -q "/images/x86_64/rubyos-x86_64-$variant.iso\$" "$manifest"
+    done
 fi
 tar -xzf "$archive" -C "$extracted"
 bundled_ruby="$(find "$extracted" -path '*/runtime/bin/ruby' -type f -print -quit)"

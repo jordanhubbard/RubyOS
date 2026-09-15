@@ -70,11 +70,12 @@ make stop         # stop this checkout's running session
 make help         # show the small public command set
 ```
 
-These commands use the ARM64 reference guest on every host; the interactive
-native-TCP desktop is not yet an x86_64 guest feature. Docker must be running;
-the builder image is created automatically if missing. The builder itself is
-Linux ARM64, so x86_64 Linux hosts also need Docker ARM64 emulation configured.
-The specialized x86_64 targets remain available for development.
+These commands select the host CPU by default: ARM64 on ARM hosts, x86_64 on
+Intel/AMD hosts. Use `make run-gui TARGET_ARCH=x86_64` or `TARGET_ARCH=arm64`
+to select either guest explicitly. Docker must be running; a native-host
+builder image is created automatically if missing. Both cross-compilers run
+inside it, so x86 hosts do not need ARM Docker emulation. QEMU emulates the
+selected guest when it differs from the host CPU.
 
 `make build-gui` prepares the GUI without starting it. `make package` builds,
 tests and packages locally without publishing. `make clean` preserves the
@@ -111,6 +112,13 @@ Fiber coroutine backend, packages a Multiboot2 ELF with GRUB, and boots the
 same embedded Ruby kernel under `qemu-system-x86_64`. It provides COM1, static
 TLS, SSE, a reclaimable heap, a 100 Hz PIT clock, IDT exception probes, PS/2
 input, Intel HDA audio, and APIC multi-core workers.
+
+Both architectures also provide the console, writable ext2 storage,
+DHCP/DNS/TCP, HTTP and persistent RemoteOS-SDL desktop. The shared Ruby
+network/block drivers use VirtIO MMIO on ARM64 and modern VirtIO PCI on
+x86_64; no host networking or filesystem calls replace guest drivers.
+Replace `arm64` with `x86_64` in the REPL, storage, network, web and TCP GUI
+smoke targets below to exercise the same assertions against the other CPU.
 
 The initial platform libc is adapted from PythonOS and retains its BSD license
 in `platform/PYTHONOS-LICENSE`.
@@ -243,7 +251,7 @@ SMP, and debug smokes on both native architectures where applicable.
 
 ## CI, release builds, and Windows
 
-GitHub Actions runs `release-linux` on an ARM64 Ubuntu runner and
+GitHub Actions runs `release-linux` on ARM64 and x86_64 Ubuntu runners and
 `release-macos` on an Apple Silicon runner. The Linux gate executes the full
 QEMU parity matrix and packages ARM64 ELFs, x86_64 ISOs, the ext2 image,
 RemoteOS-SDL, and source-built Ruby runtime. The macOS gate runs the hosted kernel,
@@ -259,6 +267,6 @@ make release-macos
 make validate-release
 ```
 
-Tagged releases are published by `scripts/release.sh` only after both platform
+Tagged releases are published by `scripts/release.sh` only after all three host
 jobs pass, and use the bundles produced by CI. Windows uses the Linux targets
 inside WSL2; RubyOS does not claim a separate native Win32 build.

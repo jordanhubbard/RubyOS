@@ -2,7 +2,8 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-elf="$root/build/baremetal/rubyos-arm64-network/rubyos.elf"
+variant=network
+source "$root/test/guest-command.sh"
 output_file="$(mktemp /tmp/rubyos-network-output.XXXXXX)"
 server_output="$(mktemp /tmp/rubyos-network-server.XXXXXX)"
 client_output="$(mktemp /tmp/rubyos-network-client.XXXXXX)"
@@ -26,10 +27,9 @@ for _ in $(seq 1 100); do
 done
 
 set +e
-timeout 20s qemu-system-aarch64 -M virt -cpu cortex-a72 -m 512M \
-    -nographic -monitor none -serial stdio -no-reboot -kernel "$elf" \
+timeout 20s "${guest[@]}" \
     -netdev user,id=rubyos-net,hostfwd=tcp:127.0.0.1:17011-:17011 \
-    -device virtio-net-device,netdev=rubyos-net,mac=52:54:00:12:34:56 \
+    -device "${net_device},netdev=rubyos-net,mac=52:54:00:12:34:56" \
     </dev/null >"$output_file" 2>&1
 status=$?
 set -e
