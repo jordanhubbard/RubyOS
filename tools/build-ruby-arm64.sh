@@ -48,6 +48,12 @@ if [[ ! -f .rubyos-configured ]]; then
     sed -i -e 's@ ${LIBOBJDIR}addr2line.o@@' -e 's@ ${LIBOBJDIR}memcmp.o@@' Makefile
     touch .rubyos-configured
 fi
+config=.ext/include/aarch64-none/ruby/config.h
+for macro in HAVE_COPY_FILE_RANGE HAVE_CRYPT_R HAVE_EVENTFD HAVE_EXECL HAVE_EXECLE \
+    HAVE_EXECV HAVE_EXECVE HAVE_MREMAP HAVE_SENDFILE HAVE_SETGROUPS HAVE_SYSTEM \
+    HAVE_WAITPID; do
+    sed -i "s/^#define $macro 1$/#undef $macro/" "$config"
+done
 make -j"$jobs" hardenflags= optflags=-O2 \
     XCFLAGS='-fno-strict-overflow -fvisibility=hidden -fexcess-precision=standard -DRUBY_EXPORT -fno-pie $(INCFLAGS)' \
     libruby-static.a

@@ -55,8 +55,9 @@ if [[ ! -f .rubyos-configured ]]; then
     touch .rubyos-configured
 fi
 config=.ext/include/x86_64-none/ruby/config.h
-for macro in HAVE_COPY_FILE_RANGE HAVE_EVENTFD HAVE_EXECL HAVE_EXECLE HAVE_EXECV \
-    HAVE_EXECVE HAVE_MREMAP HAVE_SENDFILE HAVE_SETGROUPS HAVE_SYSTEM HAVE_WAITPID; do
+for macro in HAVE_COPY_FILE_RANGE HAVE_CRYPT_R HAVE_EVENTFD HAVE_EXECL HAVE_EXECLE \
+    HAVE_EXECV HAVE_EXECVE HAVE_MREMAP HAVE_SENDFILE HAVE_SETGROUPS HAVE_SYSTEM \
+    HAVE_WAITPID; do
     sed -i "s/^#define $macro 1$/#undef $macro/" "$config"
 done
 if ! grep -q '^#define RUBY_FUNCTION_NAME_STRING ' "$config"; then
