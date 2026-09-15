@@ -14,6 +14,7 @@ end
 require "rubyos/scheduler"
 require "rubyos/timekeeper"
 require "rubyos/memory"
+require "rubyos/input"
 require "rubyos/sound"
 require "rubyos/chipset"
 require "rubyos/fs"

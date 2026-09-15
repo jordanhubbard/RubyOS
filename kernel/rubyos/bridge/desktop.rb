@@ -123,7 +123,7 @@ module RubyOS
       end
 
       def events
-        client.call("event.poll").fetch("events", [])
+        client.call("event.poll").fetch("events", []).map { |event| Input::Event.from_bridge(event) }
       end
 
       def capture(path)

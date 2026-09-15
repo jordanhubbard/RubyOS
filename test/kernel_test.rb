@@ -16,6 +16,20 @@ assert(state[:trace] == [[0, :start], [1, :start], [0, :finish], [1, :finish]], 
 assert(state[:scheduler].tasks.all? { |task| task.state == :complete }, "task completion")
 assert(state[:timer_trace] == [:sleep, :wake], "bare scheduler deadline")
 
+input_queue = RubyOS::Input::EventQueue.new(capacity: 2)
+observed_input = []
+input_queue.subscribe { |event| observed_input << event.kind }
+key_event = RubyOS::Input::Event.from_bridge("kind" => 1, "code" => 114, "text" => "r")
+assert(key_event.is_a?(RubyOS::Input::Event) && key_event.fetch("text") == "r",
+       "bridge input normalization")
+assert(input_queue.post(key_event), "canonical event queue accepts input")
+assert(input_queue.post(RubyOS::Input::Event.build(kind: RubyOS::Input::KEY_UP, code: 114)),
+       "canonical event queue preserves releases")
+assert(!input_queue.post(RubyOS::Input::Event.build(kind: RubyOS::Input::QUIT)),
+       "bounded event queue rejects overflow")
+assert(input_queue.dropped == 1 && observed_input == [1, 2], "input subscribers and drop metric")
+assert(input_queue.poll.map(&:kind) == [1, 2] && input_queue.empty?, "ordered input polling")
+
 generic_driver = Class.new do
   include RubyOS::Driver
   matches kind: :network
