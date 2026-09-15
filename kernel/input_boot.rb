@@ -11,6 +11,8 @@ module RubyOS
       RubyOS.invariant((keyboard && mouse) || !virtio.empty?, "native input device was not discovered")
       got_key = false
       got_pointer = false
+      backend = keyboard ? "PS/2" : "VirtIO"
+      HAL.serial_write("[RubyOS] native #{backend} input: READY\n")
       deadline = HAL.monotonic_ns + 5_000_000_000
       while HAL.monotonic_ns < deadline
         events = if keyboard

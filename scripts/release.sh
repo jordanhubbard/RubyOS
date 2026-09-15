@@ -36,7 +36,7 @@ wait_for_ci() {
             --json databaseId,headSha \
             --jq ".[] | select(.headSha == \"$sha\") | .databaseId" | head -1)"
         if [[ -n "$run_id" ]]; then
-            gh run watch "$run_id" --exit-status
+            gh run watch "$run_id" --exit-status || return $?
             printf '%s\n' "$run_id"
             return
         fi

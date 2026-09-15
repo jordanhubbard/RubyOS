@@ -7,6 +7,12 @@ and tells an incomplete checkout how to initialize its shared service.
 Headless desktop tests now set the service's actual `REMOTEOS_SDL_MODE`
 variable. A lovingly named variable that nobody reads is not configuration.
 
+Native input probes now announce readiness after device initialization; host
+tests wait for that signal before injecting keyboard and mouse events. This
+removes a race where a fast test could send input before VirtIO was listening.
+The release script explicitly propagates failed CI checks before downloading
+artifacts.
+
 RubyOS pins RemoteOS-SDL 0.1.1, aligned with PythonOS 0.4.1. Protocol v2 and
 Ruby's class hierarchy, Fibers, live editing, introspection and bare-metal TCP
 desktop remain unchanged. No new Ruby VM or runtime is quietly substituted:

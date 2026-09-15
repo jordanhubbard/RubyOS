@@ -6,6 +6,8 @@ All notable RubyOS changes are documented here.
 
 ## [0.2.1] - 2026-09-15
 
+- Synchronize native input injection with driver readiness, not generic boot.
+- Propagate failed CI watches explicitly from the release script.
 - Clarify recursive cloning, submodule recovery and SDL prerequisites.
 - Set the shared service's actual headless-mode variable in desktop tests.
 - Pin RemoteOS-SDL 0.1.1, including corrected package checksums and standalone

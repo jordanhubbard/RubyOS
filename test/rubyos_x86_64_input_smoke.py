@@ -22,13 +22,14 @@ with tempfile.TemporaryDirectory(prefix="rubyos-input-") as temporary:
     try:
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
-            if serial_path.exists() and "kernel: Ruby owns the machine" in serial_path.read_text(errors="replace"):
+            if serial_path.exists() and "[RubyOS] native PS/2 input: READY" in serial_path.read_text(errors="replace"):
                 break
             time.sleep(0.05)
         else:
             raise RuntimeError("RubyOS did not reach the native input probe")
 
         qmp = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        qmp.settimeout(5)
         qmp.connect(str(qmp_path))
         stream = qmp.makefile("rwb", buffering=0)
         stream.readline()
@@ -53,6 +54,7 @@ with tempfile.TemporaryDirectory(prefix="rubyos-input-") as temporary:
                 break
             time.sleep(0.05)
         else:
+            print(log, end="")
             raise RuntimeError("injected PS/2 key did not reach Ruby input")
     finally:
         process.terminate()
