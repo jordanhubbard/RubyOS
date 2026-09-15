@@ -20,6 +20,8 @@ All notable RubyOS changes are documented here.
   public command lifecycle and shared feature tests against both guest CPUs.
 - Fix recursive x86 libc rounding that hung audio synthesis; add bare-metal
   rounding and waveform regressions and readiness-driven serial tests.
+- Check exact native page reclamation without interleaved Ruby VM allocations
+  perturbing the boot self-test; retain Ruby frame lifecycle assertions.
 
 ## [0.2.1] - 2026-09-15
 

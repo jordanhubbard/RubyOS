@@ -7,6 +7,7 @@ extern void free(void *memory);
 extern void *memset(void *destination, int byte, size_t length);
 extern size_t malloc_free_bytes(void);
 extern size_t malloc_total_bytes(void);
+extern int rubyos_heap_page_probe(void);
 extern void rubyos_timer_init(void);
 extern uint64_t rubyos_timer_ticks(void);
 extern void rubyos_smp_init(void);
@@ -165,6 +166,12 @@ static VALUE hal_heap_free_bytes(VALUE self)
     return ULL2NUM(malloc_free_bytes());
 }
 
+static VALUE hal_heap_page_probe(VALUE self)
+{
+    (void)self;
+    return rubyos_heap_page_probe() ? Qtrue : Qfalse;
+}
+
 static uint64_t monotonic_ticks(void)
 {
     uint64_t value;
@@ -282,6 +289,7 @@ void rubyos_kernel_main(uint64_t dtb_address)
     rb_define_module_function(hal, "dma_free", hal_dma_free, 1);
     rb_define_module_function(hal, "heap_total_bytes", hal_heap_total_bytes, 0);
     rb_define_module_function(hal, "heap_free_bytes", hal_heap_free_bytes, 0);
+    rb_define_module_function(hal, "heap_page_probe", hal_heap_page_probe, 0);
     rb_define_module_function(hal, "monotonic_ns", hal_monotonic_ns, 0);
     rb_define_module_function(hal, "sleep_us", hal_sleep_us, 1);
     rb_define_module_function(hal, "interrupt_ticks", hal_interrupt_ticks, 0);

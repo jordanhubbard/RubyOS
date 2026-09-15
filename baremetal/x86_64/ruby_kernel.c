@@ -18,6 +18,7 @@ extern void *memset(void *, int, size_t);
 extern void *memcpy(void *, const void *, size_t);
 extern size_t malloc_free_bytes(void);
 extern size_t malloc_total_bytes(void);
+extern int rubyos_heap_page_probe(void);
 extern uintptr_t rela_dyn_start[], rela_dyn_end[], init_array_start[], init_array_end[];
 
 static void putc1(char c) { while (!(inb(0x3fd) & 0x20)) {} outb(0x3f8, (uint8_t)c); }
@@ -44,6 +45,7 @@ static VALUE dma_free(VALUE self, VALUE address) { (void)self; free((void *)(uin
 static VALUE dma_write(VALUE self, VALUE address, VALUE bytes) { (void)self; StringValue(bytes); memcpy((void *)(uintptr_t)NUM2ULL(address), RSTRING_PTR(bytes), (size_t)RSTRING_LEN(bytes)); return LONG2NUM(RSTRING_LEN(bytes)); }
 static VALUE heap_total_bytes(VALUE self) { (void)self; return ULL2NUM(malloc_total_bytes()); }
 static VALUE heap_free_bytes(VALUE self) { (void)self; return ULL2NUM(malloc_free_bytes()); }
+static VALUE heap_page_probe(VALUE self) { (void)self; return rubyos_heap_page_probe() ? Qtrue : Qfalse; }
 static VALUE ps2_scancode(VALUE self) { uint8_t status; (void)self; status = inb(0x64); if (!(status & 1) || (status & 0x20)) return Qnil; return UINT2NUM(inb(0x60)); }
 static int ps2_wait_writable(void) { for (unsigned i = 0; i < 100000; ++i) if (!(inb(0x64) & 2)) return 1; return 0; }
 static int ps2_wait_readable(void) { for (unsigned i = 0; i < 100000; ++i) if (inb(0x64) & 1) return 1; return 0; }
@@ -103,6 +105,7 @@ void rubyos_x86_64_start(uint64_t magic, uint64_t info) {
     rb_define_module_function(hal,"dma_write",dma_write,2);
     rb_define_module_function(hal,"heap_total_bytes",heap_total_bytes,0);
     rb_define_module_function(hal,"heap_free_bytes",heap_free_bytes,0);
+    rb_define_module_function(hal,"heap_page_probe",heap_page_probe,0);
     rb_define_module_function(hal,"ps2_scancode",ps2_scancode,0);
     rb_define_module_function(hal,"ps2_mouse_init",ps2_mouse_init,0);
     rb_define_module_function(hal,"ps2_mouse_byte",ps2_mouse_byte,0);

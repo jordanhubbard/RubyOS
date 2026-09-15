@@ -48,13 +48,14 @@ module RubyOS
 
       clock = Timekeeper.new
       memory = Memory::Manager.system
-      free_before = memory.snapshot.free_bytes
+      if defined?(HAL) && HAL.respond_to?(:heap_page_probe)
+        RubyOS.invariant(HAL.heap_page_probe, "native page allocation/release failed")
+      end
       probe_frame = memory.allocate
-      free_during = memory.snapshot.free_bytes
       memory.release(probe_frame)
-      free_after = memory.snapshot.free_bytes
-      RubyOS.invariant(free_during < free_before, "page allocation did not consume heap")
-      RubyOS.invariant(free_after > free_during, "page release did not return heap")
+      # Global heap snapshots include allocations by the Ruby VM itself.
+      # The native probe above checks exact reclamation without VM noise.
+      RubyOS.invariant(probe_frame.released?, "page frame release not recorded")
 
       filesystem = FS::TmpFS.new.seed(
         "tmp" => {},

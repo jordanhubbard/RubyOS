@@ -27,6 +27,18 @@
 #define MAGIC_USED  0xC0FFEEEE
 #define MAGIC_ALIGNED UINT64_C(0x52554259414c4947)
 
+size_t malloc_free_bytes(void);
+
+/* Keep Ruby's own object allocations/GC outside the allocator probe. */
+int rubyos_heap_page_probe(void) {
+    size_t before = malloc_free_bytes();
+    void *page = aligned_alloc(4096, 4096);
+    if (!page) return 0;
+    size_t during = malloc_free_bytes();
+    free(page);
+    return during < before && malloc_free_bytes() == before;
+}
+
 // The heap region — in BSS so it doesn't bloat the ELF
 static __attribute__((aligned(MIN_BLOCK)))
        char _heap[HEAP_SIZE];
