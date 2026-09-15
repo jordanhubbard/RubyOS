@@ -27,7 +27,7 @@ if [[ ! -f Makefile ]]; then
         ac_cv_func_dlopen=no ac_cv_func_dladdr=no ac_cv_func_sigaltstack=no \
         ac_cv_func_getgrnam_r=no ac_cv_func_getpwnam_r=no \
         ac_cv_func_getpwuid_r=no ac_cv_func_initgroups=no \
-        ac_cv_func_getgroups=no ac_cv_func_getlogin_r=no
+        ac_cv_func_getgroups=no ac_cv_func_setgroups=no ac_cv_func_getlogin_r=no
 fi
 if [[ ! -f .rubyos-configured ]]; then
     config=.ext/include/aarch64-none/ruby/config.h
@@ -41,6 +41,7 @@ if [[ ! -f .rubyos-configured ]]; then
         HAVE_CHMOD HAVE_SYMLINK HAVE_LINK HAVE_EACCESS HAVE_READLINK
         HAVE_FSTATAT HAVE_OPENAT HAVE_DIRFD HAVE_SEEKDIR HAVE_TELLDIR
         HAVE_FCHDIR HAVE_CHROOT HAVE_DUP3 HAVE_SHUTDOWN HAVE_FREOPEN HAVE_SETVBUF)
+    disabled+=(HAVE_SETGROUPS)
     for macro in "${disabled[@]}"; do
         sed -i "s/^#define $macro 1$/#undef $macro/" "$config"
     done
