@@ -11,6 +11,26 @@ not use a system Ruby package, a system `ruby` executable, or a system
 See [the current release notes](RELEASE-NOTES.md), [changelog](CHANGELOG.md),
 and [the three-repository alignment guide](docs/remoteos-alignment.md).
 
+## Getting started
+
+```sh
+git clone --recurse-submodules https://github.com/jordanhubbard/RubyOS.git
+cd RubyOS
+# For an existing clone:
+git submodule update --init --recursive
+```
+
+On Debian/Ubuntu, install `build-essential curl xz-utils pkg-config file
+e2fsprogs qemu-system-arm qemu-system-x86 qemu-utils libsdl2-dev
+libsdl2-image-dev libsdl2-ttf-dev`. Freestanding builds also need Docker.
+On macOS, install Xcode command-line tools and run
+`brew install pkg-config sdl2 sdl2_image sdl2_ttf libyaml qemu`.
+Use `make build-macos` for the hosted suite, or `make docker-build` followed
+by the freestanding targets with Docker running.
+
+For Windows, use these Linux instructions inside WSL2 with Docker integration
+enabled. Visible SDL windows require WSLg or another working display server.
+
 ## What runs today
 
 RubyOS carries the PythonOS behavior surface in Ruby on source-built CRuby:

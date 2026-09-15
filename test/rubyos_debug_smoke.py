@@ -48,7 +48,7 @@ def main() -> int:
         except FileNotFoundError:
             pass
 
-    environment = dict(os.environ, RUBYOS_DESKTOP_MODE="headless",
+    environment = dict(os.environ, REMOTEOS_SDL_MODE="headless",
                        SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy")
     with BRIDGE_LOG.open("wb") as bridge_output:
         bridge = subprocess.Popen(

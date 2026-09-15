@@ -54,6 +54,7 @@ test-network: $(HOST_RUBY_STAMP)
 	$(HOST_RUBY) -I kernel test/network_test.rb
 
 bridge:
+	@test -f services/remoteos-sdl/Makefile || { echo "Initialize the display service: git submodule update --init --recursive" >&2; exit 1; }
 	$(MAKE) -C services/remoteos-sdl
 
 test-bridge: $(HOST_RUBY_STAMP) bridge

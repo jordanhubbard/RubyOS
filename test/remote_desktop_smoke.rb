@@ -12,7 +12,7 @@ log_path = File.join(root, "build", "rubyos-bridge-smoke.log")
 capture_path = File.join(root, "build", "rubyos-remote-desktop.bmp")
 
 environment = {
-  "RUBYOS_DESKTOP_MODE" => "headless",
+  "REMOTEOS_SDL_MODE" => "headless",
   "SDL_VIDEODRIVER" => "dummy",
   "SDL_AUDIODRIVER" => "dummy"
 }

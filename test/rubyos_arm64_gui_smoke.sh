@@ -9,7 +9,7 @@ capture="/tmp/rubyos-baremetal-desktop.bmp"
 port="$($root/build/host-ruby/bin/ruby -rsocket -e 'server = TCPServer.new("127.0.0.1", 0); puts server.local_address.ip_port; server.close')"
 
 rm -f "$serial_log" "$bridge_log" "$capture"
-RUBYOS_DESKTOP_MODE=headless SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+REMOTEOS_SDL_MODE=headless SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
     "$root/services/remoteos-sdl/remoteos-sdl" --listen-tcp "127.0.0.1:$port" \
     >"$bridge_log" 2>&1 &
 bridge_pid=$!
