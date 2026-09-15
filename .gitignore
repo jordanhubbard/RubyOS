@@ -1,7 +1,10 @@
 /build/
 /deps/
+/dist/
 /.tickets/
 *.log
+__pycache__/
+*.pyc
 /bridge/**/*.d
 /bridge/**/*.o
 /bridge/rubyos_bridge

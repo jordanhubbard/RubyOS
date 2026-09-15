@@ -23,7 +23,7 @@ DISK_IMAGE := $(CURDIR)/build/disk.img
 RUBY_PC := PKG_CONFIG_PATH=$(CURDIR)/build/host-ruby/lib/pkgconfig pkg-config
 BUILDER_IMAGE := pythonos-builder
 
-.PHONY: all ruby smoke test teaching-examples test-ext2 test-network bridge test-bridge debug-smoke debug-session parity embed-probe baremetal-arm64 baremetal-smoke ruby-arm64 ruby-x86_64 rubyos-x86_64 rubyos-x86_64-smoke rubyos-x86_64-input-smoke rubyos-x86_64-audio-smoke rubyos-x86_64-smp-smoke rubyos-arm64 rubyos-arm64-smoke rubyos-arm64-gui rubyos-arm64-gui-smoke rubyos-arm64-input-smoke rubyos-arm64-audio-smoke rubyos-arm64-smp-smoke rubyos-arm64-repl rubyos-arm64-repl-smoke rubyos-arm64-storage rubyos-arm64-storage-smoke rubyos-arm64-network rubyos-arm64-network-smoke disk \
+.PHONY: all ruby smoke test teaching-examples test-ext2 test-network bridge test-bridge debug-smoke debug-session parity build-linux build-macos release release-linux release-macos docker-build validate-release embed-probe baremetal-arm64 baremetal-smoke ruby-arm64 ruby-x86_64 rubyos-x86_64 rubyos-x86_64-smoke rubyos-x86_64-input-smoke rubyos-x86_64-audio-smoke rubyos-x86_64-smp-smoke rubyos-arm64 rubyos-arm64-smoke rubyos-arm64-gui rubyos-arm64-gui-smoke rubyos-arm64-input-smoke rubyos-arm64-audio-smoke rubyos-arm64-smp-smoke rubyos-arm64-repl rubyos-arm64-repl-smoke rubyos-arm64-storage rubyos-arm64-storage-smoke rubyos-arm64-network rubyos-arm64-network-smoke disk \
 	clean distclean provenance
 
 all: smoke
@@ -70,6 +70,30 @@ parity:
 	$(MAKE) rubyos-arm64-input-smoke rubyos-x86_64-input-smoke
 	$(MAKE) rubyos-arm64-audio-smoke rubyos-x86_64-audio-smoke
 	$(MAKE) rubyos-arm64-smp-smoke rubyos-x86_64-smp-smoke debug-smoke
+
+docker-build:
+	docker build --platform linux/arm64 -t $(BUILDER_IMAGE) -f tools/Dockerfile .
+
+build-linux: parity
+
+build-macos:
+	$(MAKE) provenance smoke test teaching-examples test-network test-bridge
+
+release-linux: build-linux
+	./scripts/package-release.sh linux
+
+release-macos: build-macos
+	./scripts/package-release.sh macos
+
+release:
+	@case "$$(uname -s)" in \
+		Darwin) $(MAKE) release-macos ;; \
+		Linux) $(MAKE) release-linux ;; \
+		*) echo "unsupported release host: $$(uname -s)" >&2; exit 2 ;; \
+	esac
+
+validate-release:
+	./scripts/validate-release.sh
 
 embed-probe: $(EMBED_PROBE)
 	$(EMBED_PROBE)

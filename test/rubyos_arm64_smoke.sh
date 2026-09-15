@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
+version="$(sed -n 's/^  VERSION = "\([^"]*\)"/\1/p' "$root/kernel/rubyos.rb")"
 elf="$root/build/baremetal/rubyos-arm64/rubyos.elf"
 output_file="$(mktemp /tmp/rubyos-cruby-arm64-smoke.XXXXXX)"
 cleanup() {
@@ -22,7 +23,7 @@ fi
 cat "$output_file"
 grep -q 'boot: RubyOS libc initialized' "$output_file"
 grep -q 'boot: timer IRQs active' "$output_file"
-grep -q 'RubyOS 0.0.1' "$output_file"
+grep -q "RubyOS $version" "$output_file"
 grep -q 'kernel: COM1 -> RubyOS::SerialDriver' "$output_file"
 grep -q 'kernel: devices COM1 driver=RubyOS::SerialDriver' "$output_file"
 grep -q 'kernel: fibers \[\[0, :start\], \[1, :start\], \[0, :finish\], \[1, :finish\]\]' "$output_file"

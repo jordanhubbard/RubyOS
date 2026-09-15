@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  RUBYOS_BUILD_JOBS: "3"
+  SDL_VIDEODRIVER: dummy
+  SDL_AUDIODRIVER: dummy
+
+jobs:
+  linux:
+    name: Linux build and release
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential pkg-config file e2fsprogs \
+            qemu-system-arm qemu-system-x86 qemu-utils \
+            libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev
+
+      - name: Build freestanding toolchain container
+        run: make docker-build
+
+      - name: Validate Linux build and release targets
+        env:
+          RUBYOS_VALIDATE_PLATFORM: linux
+        run: ./scripts/validate-release.sh
+
+      - name: Upload Linux release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: rubyos-linux
+          path: dist/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  macos:
+    name: macOS build and release
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install host dependencies
+        run: brew install pkg-config sdl2 sdl2_image sdl2_ttf libyaml
+
+      - name: Validate macOS build and release targets
+        env:
+          RUBYOS_VALIDATE_PLATFORM: macos
+        run: ./scripts/validate-release.sh
+
+      - name: Upload macOS release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: rubyos-macos
+          path: dist/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  ci-ok:
+    name: all-platforms
+    needs: [linux, macos]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require Linux and macOS
+        env:
+          LINUX_RESULT: ${{ needs.linux.result }}
+          MACOS_RESULT: ${{ needs.macos.result }}
+        run: |
+          test "$LINUX_RESULT" = success
+          test "$MACOS_RESULT" = success

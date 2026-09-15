@@ -8,6 +8,8 @@ This project builds Ruby from the official upstream source archive. It does
 not use a system Ruby package, a system `ruby` executable, or a system
 `libruby`. The pinned version and checksum live in `config/ruby.mk`.
 
+See [the current release notes](RELEASE-NOTES.md) and [changelog](CHANGELOG.md).
+
 ## What runs today
 
 RubyOS carries the PythonOS behavior surface in Ruby on source-built CRuby:
@@ -197,3 +199,25 @@ tools/rubyos_debug.py capture
 `make parity` is the release-style gate. It runs hosted object-model tests and
 teaching examples, then the storage, network, desktop, console, input, audio,
 SMP, and debug smokes on both native architectures where applicable.
+
+## CI, release builds, and Windows
+
+GitHub Actions runs `release-linux` on an ARM64 Ubuntu runner and
+`release-macos` on an Apple Silicon runner. The Linux gate executes the full
+QEMU parity matrix and packages ARM64 ELFs, x86_64 ISOs, the ext2 image, SDL
+bridge, and source-built Ruby runtime. The macOS gate runs the hosted kernel,
+object, lesson, network, and SDL suites before packaging its source-built Ruby
+and native bridge.
+
+```sh
+make docker-build      # Linux freestanding builder
+make build-linux
+make release-linux
+make build-macos
+make release-macos
+make validate-release
+```
+
+Tagged releases are published by `scripts/release.sh` only after both platform
+jobs pass, and use the bundles produced by CI. Windows uses the Linux targets
+inside WSL2; RubyOS does not claim a separate native Win32 build.

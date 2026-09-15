@@ -24,9 +24,14 @@ if [[ ! -f "$archive_path" ]]; then
     curl --fail --location --retry 3 "$ruby_url" --output "$archive_path"
 fi
 
-echo "${ruby_sha256}  ${archive_path}" | sha256sum --check --status || {
-    echo "Ruby source checksum mismatch: $archive_path" >&2
-    exit 1
+if command -v sha256sum >/dev/null 2>&1; then
+    echo "${ruby_sha256}  ${archive_path}" | sha256sum --check --status
+else
+    actual_sha256="$(shasum -a 256 "$archive_path" | awk '{print $1}')"
+    [[ "$actual_sha256" == "$ruby_sha256" ]]
+fi || {
+  echo "Ruby source checksum mismatch: $archive_path" >&2
+  exit 1
 }
 
 if [[ ! -f "$source_dir/configure" ]]; then
@@ -42,6 +47,7 @@ if [[ ! -f Makefile ]]; then
         --prefix="$prefix" \
         --disable-install-doc \
         --disable-shared \
+        --enable-load-relative \
         --disable-yjit \
         --disable-zjit \
         --without-gmp
