@@ -10,6 +10,7 @@ fi
 case "$platform" in macos|linux) ;; *) echo "invalid platform: $platform" >&2; exit 2 ;; esac
 
 printf '[validate] checking Ruby and Python syntax\n'
+make ruby
 build/host-ruby/bin/ruby -c kernel/rubyos.rb
 python3 -m py_compile tools/rubyos_debug.py test/rubyos_debug_smoke.py
 git diff --check
