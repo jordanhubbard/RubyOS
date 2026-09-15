@@ -5,12 +5,20 @@ module RubyOS
     module_function
 
     def boot_native_audio
-      output = Drivers::VirtioSound.find
-      RubyOS.invariant(output, "VirtIO sound device was not discovered")
-      tone = Sound::Waveform.sine(440, duration_ms: 40, amplitude: 0.1)
+      HAL.serial_write("[RubyOS] native audio probe\n")
+      output = if HAL.respond_to?(:pci_read32)
+                 Drivers::HDA.find
+               else
+                 Drivers::VirtioSound.find
+               end
+      RubyOS.invariant(output, "native sound device was not discovered")
+      HAL.serial_write("[RubyOS] native audio device ready\n")
+      samples = Array.new(480) { |index| (index / 24).even? ? 3_000 : -3_000 }
+      tone = Sound::PCM.new(samples)
       written = output.play(tone)
       RubyOS.invariant(written == tone.stereo_bytes.bytesize, "native PCM write was incomplete")
-      HAL.serial_write("[RubyOS/arm64] native VirtIO sound DMA: PASS\n")
+      backend = output.is_a?(Drivers::HDA) ? "HDA" : "VirtIO"
+      HAL.serial_write("[RubyOS] native #{backend} sound DMA: PASS\n")
       true
     end
   end
