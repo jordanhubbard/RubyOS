@@ -17,7 +17,7 @@ environment = {
   "SDL_AUDIODRIVER" => "dummy"
 }
 bridge_pid = Process.spawn(environment,
-                           File.join(root, "bridge", "rubyos_bridge"),
+                           File.join(root, "services", "remoteos-sdl", "remoteos-sdl"),
                            "--listen-tcp", "127.0.0.1:#{port}",
                            out: log_path, err: [:child, :out])
 client = nil
@@ -38,7 +38,7 @@ begin
 
   client = RubyOS::Bridge::Client.new(transport)
   hello = client.hello
-  raise "wrong bridge agent" unless hello.fetch("agent") == "rubyos_bridge"
+  raise "wrong remote service" unless hello.fetch("service") == "remoteos-sdl"
   raise "audio feature missing" unless client.features.include?("audio.pcm")
 
   desktop = RubyOS::Bridge::RemoteDesktop.new(client, width: 480, height: 300,
@@ -85,8 +85,8 @@ begin
   desktop.capture(capture_path)
   raise "desktop capture is empty" unless File.size?(capture_path)
   performance = client.performance_snapshot
-  guest_present = performance.fetch(:guest_round_trip).fetch("display.present")
-  host_present = performance.fetch(:host_service).fetch("ops").fetch("display.present")
+  guest_present = performance.fetch(:guest_round_trip).fetch("frame.commit")
+  host_present = performance.fetch(:host_service).fetch("ops").fetch("frame.commit")
   raise "guest bridge timing missing" unless guest_present.fetch(:count).positive?
   raise "host bridge timing missing" unless host_present.fetch("count").positive?
   image.destroy

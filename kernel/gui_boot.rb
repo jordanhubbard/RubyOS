@@ -4,12 +4,12 @@ module RubyOS
   module Kernel
     module_function
 
-    def boot_remote_desktop
-      transport = Bridge::Transport::VirtioConsole.find
+    def boot_remote_desktop(transport: nil)
+      transport ||= Bridge::Transport::VirtioConsole.find
       client = Bridge::Client.new(transport)
       hello = client.hello
-      RubyOS.invariant(hello.fetch("agent") == "rubyos_bridge",
-                       "unexpected remote desktop agent")
+      RubyOS.invariant(hello.fetch("service") == "remoteos-sdl",
+                       "unexpected remote desktop service")
 
       desktop = Bridge::RemoteDesktop.new(client, width: 480, height: 300,
                                            title: "RubyOS Bare-Metal Desktop")
@@ -21,13 +21,19 @@ module RubyOS
         .register("Files", Apps::Files.new)
         .register("Terminal", terminal)
         .register("Monitor", Apps::SystemMonitor.new)
-        .register("Editor", Apps::Editor.new)
         .register("Image", Apps::ImageViewer.new)
         .register("Chipset", Apps::ChipsetWorkbench.new)
         .register("Clock", Apps::Clock.new)
         .register("Settings", settings)
+        .register("Inspector", Apps::RubyInspector.new)
         .register("Invaders", Apps::Invaders.new)
         .register("Snake", Apps::Snake.new)
+      runtime = Live::Runtime.new(vfs: state.fetch(:vfs), registry: applications)
+      runtime.install("Live Hello", source: Apps::LIVE_HELLO_SOURCE,
+                      path: "/apps/live_hello.rb")
+      applications.register("Editor", Apps::Editor.new(
+        path: "/apps/live_hello.rb", runtime:, application_name: "Live Hello"
+      ))
       dock_labels = { "About" => "Abt", "Files" => "File", "Terminal" => "Term",
                       "Monitor" => "Mon", "Editor" => "Edit", "Image" => "Img",
                       "Chipset" => "Chip", "Clock" => "Clk", "Settings" => "Set" }
@@ -94,7 +100,7 @@ module RubyOS
       png_surface.blit_to(desktop.surface, x: 460, y: 26)
       jpeg_surface.blit_to(desktop.surface, x: 464, y: 26)
       desktop.present
-      client.call("debug.event.inject", { kind: 4, x: 180, y: 280, button: 1 })
+      client.call("debug.event.inject", { kind: 4, x: 155, y: 280, button: 1 })
       desktop.events.each { |event| compositor.handle(event) }
       RubyOS.invariant(compositor.focused_window.title == "System Monitor",
                        "dock input did not launch System Monitor")
@@ -115,10 +121,10 @@ module RubyOS
       performance = client.performance_snapshot
       guest_ops = performance.fetch(:guest_round_trip)
       host_ops = performance.fetch(:host_service).fetch("ops")
-      RubyOS.invariant(guest_ops.fetch("display.present").fetch(:count).positive?,
-                       "guest bridge timing did not record display.present")
-      RubyOS.invariant(host_ops.fetch("display.present").fetch("count").positive?,
-                       "host bridge timing did not record display.present")
+      RubyOS.invariant(guest_ops.fetch("frame.commit").fetch(:count).positive?,
+                       "guest bridge timing did not record frame.commit")
+      RubyOS.invariant(host_ops.fetch("frame.commit").fetch("count").positive?,
+                       "host bridge timing did not record frame.commit")
       title_surface.destroy
       png_surface.destroy
       jpeg_surface.destroy
@@ -138,6 +144,19 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS/arm64] dual-playfield chipset clock: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] Ruby arcade games: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] guest/host performance metrics: PASS\n")
+      true
+    end
+
+    def boot_remote_desktop_tcp(port: 5_001)
+      device = Drivers::VirtioNet.find
+      lease = Net::DHCPClient.new(device).acquire
+      stack = Net::Stack.new(device, address: lease.address, gateway: lease.gateway)
+      RubyOS::HAL.serial_write(
+        "[RubyOS/arm64] RemoteOS TCP ready on #{lease.address}:#{port}\n"
+      )
+      connection = stack.listen(port).accept(timeout_ms: 120_000)
+      boot_remote_desktop(transport: Bridge::Transport::NativeTCP.new(connection))
+      RubyOS::HAL.serial_write("[RubyOS/arm64] RemoteOS over native TCP: PASS\n")
       true
     end
   end

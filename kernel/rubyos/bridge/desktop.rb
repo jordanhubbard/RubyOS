@@ -6,7 +6,7 @@ module RubyOS
       attr_reader :client, :handle, :point_size
 
       def self.open_default(client, point_size: 16)
-        path = client.sdl_call("pyo.default_font_path").fetch("path")
+        path = client.sdl_call("host.default_font_path").fetch("path")
         open(client, path, point_size:)
       end
 
@@ -69,7 +69,7 @@ module RubyOS
       end
 
       def fill_rect(x, y, width, height, color)
-        client.call("surface.fill_rect", { handle:, rgb: Integer(color),
+        client.cast("surface.fill_rect", { handle:, rgb: Integer(color),
                     rect: { x:, y:, w: width, h: height } })
         self
       end
@@ -77,7 +77,7 @@ module RubyOS
       def draw_text(x, y, text, color: 0xffffff, background: nil)
         parameters = { handle:, x:, y:, text: String(text), fg: Integer(color) }
         parameters[:bg] = Integer(background) unless background.nil?
-        client.call("text.draw", parameters)
+        client.cast("text.draw", parameters)
         self
       end
 
@@ -93,13 +93,13 @@ module RubyOS
         parameters = { src: handle, dst: destination.handle,
                        dst_rect: { x:, y:, w: width, h: height } }
         parameters[:src_rect] = source_rect if source_rect
-        client.call("surface.blit", parameters)
+        client.cast("surface.blit", parameters)
         destination
       end
 
       def destroy
         return self unless @owned
-        client.call("surface.destroy", { handle: })
+        client.cast("surface.destroy", { handle: })
         @owned = false
         self
       end
@@ -115,15 +115,22 @@ module RubyOS
         opened = client.call("display.open", { w: @width, h: @height, title: })
         @surface = Surface.new(client, handle: opened.fetch("fb_handle"),
                                width: @width, height: @height)
+        @pending_events = []
       end
 
       def present
-        client.call("display.present")
+        result = client.call("frame.commit")
+        @pending_events.concat(result.fetch("events", []))
         self
       end
 
       def events
-        client.call("event.poll").fetch("events", []).map { |event| Input::Event.from_bridge(event) }
+        raw = if @pending_events.empty?
+                client.call("event.poll").fetch("events", [])
+              else
+                @pending_events.shift(@pending_events.length)
+              end
+        raw.map { |event| Input::Event.from_bridge(event) }
       end
 
       def capture(path)

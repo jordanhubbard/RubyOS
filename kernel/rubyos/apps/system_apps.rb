@@ -105,11 +105,14 @@ module RubyOS
     end
 
     class Editor < Application
-      attr_reader :path, :content
+      attr_reader :path, :content, :reload_error
 
-      def initialize(path: "/home/welcome.txt", **)
+      def initialize(path: "/home/welcome.txt", runtime: nil,
+                     application_name: nil, **)
         super(**)
         @path = path
+        @runtime = runtime
+        @application_name = application_name
         @content = kernel.state.fetch(:vfs).read_file(path)
       rescue FS::NotFound
         @content = +""
@@ -121,12 +124,79 @@ module RubyOS
         self
       end
 
+      def reload(*)
+        raise RubyOS::Error, "editor is not attached to a live application" unless @runtime
+        @runtime.reload(@application_name, path:)
+        @reload_error = nil
+        @status.text = "Reloaded #{@application_name}"
+        @status.color = 0xc3e88d
+        @status.invalidate
+        true
+      rescue Exception => error
+        @reload_error = error
+        @status.text = "#{error.class}: #{error.message}"[0, 48]
+        @status.color = 0xff668a
+        @status.invalidate
+        false
+      end
+
       def build_window
         GUI::Window.new("Editor - #{path}", x: 72, y: 54, width: 350, height: 164,
                         background: 0x171a24).tap do |window|
-          window.add(GUI::TextInput.new(text: content, x: 0, y: 0, width: 326, height: 112,
+          window.add(GUI::TextInput.new(text: content, x: 0, y: 0, width: 326, height: 88,
                                         background: 0x11151e, multiline: true,
                                         on_change: method(:save)))
+          if @runtime
+            window.add(GUI::Button.new("Reload Ruby", x: 0, y: 92, width: 104,
+                                       height: 24, background: 0x553184,
+                                       action: method(:reload)))
+            @status = window.add(GUI::Label.new("Transactional reload ready",
+                                                x: 112, y: 96,
+                                                color: 0xa8d8ff))
+          end
+        end
+      end
+    end
+
+    LIVE_HELLO_SOURCE = <<~'RUBY'
+      class App < RubyOS::Apps::Application
+        def build_window
+          RubyOS::GUI::Window.new("Live Ruby", x: 92, y: 72,
+                                   width: 260, height: 112,
+                                   background: 0x241631).tap do |window|
+            window.add(RubyOS::GUI::Label.new(
+              "Edit /apps/live_hello.rb",
+              x: 4, y: 4, color: 0xffd866
+            ))
+            window.add(RubyOS::GUI::Label.new(
+              "A fresh class is swapped in on reload",
+              x: 4, y: 32, color: 0xc3e88d
+            ))
+          end
+        end
+      end
+    RUBY
+
+    class RubyInspector < Application
+      def build_window
+        state = kernel.state
+        fibers = Introspection.fibers(state.fetch(:scheduler))
+        drivers = Introspection.drivers(state.fetch(:bus))
+        shape = Introspection.class_shape(GUI::View)
+        heap = Introspection.heap_summary(limit: 3)
+        GUI::Window.new("Ruby Inspector", x: 110, y: 46, width: 326, height: 168,
+                        background: 0x181425).tap do |window|
+          window.add(GUI::Label.new("Fibers: #{fibers.length} #{fibers.map { |f| f[:state] }.uniq.join('/')}",
+                                    x: 0, y: 0, color: 0x78dce8))
+          window.add(GUI::Label.new("Drivers: #{drivers.count { |d| d[:bound] }}/#{drivers.length} bound",
+                                    x: 0, y: 26, color: 0xa9dc76))
+          window.add(GUI::Label.new("View ancestors: #{shape[:ancestors].first(3).join(' < ')}",
+                                    x: 0, y: 52, color: 0xffd866))
+          window.add(GUI::Label.new("Heap leaders:", x: 0, y: 78, color: 0xe8b4ff))
+          heap.each_with_index do |(name, count), index|
+            window.add(GUI::Label.new("#{name}: #{count}", x: 12,
+                                      y: 102 + index * 20, color: 0xe8dff5))
+          end
         end
       end
     end

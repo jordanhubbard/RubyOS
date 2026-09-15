@@ -7,7 +7,7 @@ port = Integer(ENV.fetch("RUBYOS_DISPLAY_PORT", "17010"))
 transport = RubyOS::Bridge::Transport::TCP.new(host:, port:)
 client = RubyOS::Bridge::Client.new(transport)
 hello = client.hello
-puts "connected to #{hello.fetch("agent")} with SDL #{hello.fetch("sdl_ver")}"
+puts "connected to #{hello.fetch("service")} with SDL #{hello.fetch("sdl_ver")}"
 
 desktop = nil
 begin

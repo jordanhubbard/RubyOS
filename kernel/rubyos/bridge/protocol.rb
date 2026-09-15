@@ -2,7 +2,7 @@
 
 module RubyOS
   module Bridge
-    PROTOCOL_VERSION = 1
+    PROTOCOL_VERSION = 2
     MAX_FRAME = 16 * 1024 * 1024
 
     Request = Data.define(:id, :operation, :parameters, :payload)
@@ -26,4 +26,3 @@ module RubyOS
     end
   end
 end
-

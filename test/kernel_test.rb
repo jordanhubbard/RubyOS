@@ -198,9 +198,9 @@ assert(snake.score == 10 && snake.body.length == 4, "Snake movement, food, and g
 snake.handle(RubyOS::Input::Event.build(kind: RubyOS::Input::KEY_DOWN, code: 115))
 assert(snake.direction == [0, 1], "Snake canonical input steering")
 
-frame = RubyOS::Bridge::Protocol.encode_json_frame('{"v":1}')
+frame = RubyOS::Bridge::Protocol.encode_json_frame('{"v":2}')
 assert(RubyOS::Bridge::Protocol.decode_length(frame.byteslice(0, 4)) == 7, "bridge length")
-document = { "v" => 1, "ok" => true, "values" => [nil, -3, "Ruby\nOS"] }
+document = { "v" => 2, "ok" => true, "values" => [nil, -3, "Ruby\nOS"] }
 assert(RubyOS::Bridge::Codec.load(RubyOS::Bridge::Codec.dump(document)) == document,
        "pure Ruby bridge JSON round trip")
 
@@ -264,6 +264,80 @@ editor = RubyOS::Apps::Editor.new(path: "/home/editor.txt")
 editor.save("Edited by a Ruby object.\n")
 assert(state.fetch(:vfs).read_file("/home/editor.txt") == "Edited by a Ruby object.\n",
        "Editor persists through VFS")
+
+live_registry = RubyOS::Apps::Registry.new
+live_runtime = RubyOS::Live::Runtime.new(vfs: state.fetch(:vfs), registry: live_registry)
+first_reload = live_runtime.install("Greeter", path: "/apps/greeter.rb", source: <<~RUBY)
+  class App < RubyOS::Apps::Application
+    def build_window = RubyOS::GUI::Window.new("First", width: 80, height: 60)
+  end
+RUBY
+assert(first_reload.generation == 1 && live_registry.fetch("Greeter").build_window.title == "First",
+       "live runtime installs a sandboxed application class")
+state.fetch(:vfs).write_file("/apps/greeter.rb", <<~RUBY)
+  class App < RubyOS::Apps::Application
+    def build_window = RubyOS::GUI::Window.new("Reloaded", width: 80, height: 60)
+  end
+RUBY
+live_runtime.reload("Greeter", path: "/apps/greeter.rb")
+assert(live_registry.fetch("Greeter").build_window.title == "Reloaded",
+       "live runtime swaps in a freshly evaluated application")
+begin
+  live_runtime.install("Greeter", path: "/apps/greeter.rb", source: "class App <")
+  raise "invalid live source was accepted"
+rescue SyntaxError
+  nil
+end
+assert(live_registry.fetch("Greeter").build_window.title == "Reloaded",
+       "failed live compilation preserves the running application")
+
+patch_target = Class.new { def greeting = "before" }
+patches = RubyOS::Live::ClassEditor.new
+patches.apply(patch_target, "def greeting = 'after'")
+assert(patch_target.new.greeting == "after" && patches.history.length == 1,
+       "runtime class modification applies Ruby methods")
+begin
+  patches.apply(patch_target, "def greeting = 'broken'; raise 'rollback'")
+  raise "failing class patch was accepted"
+rescue RuntimeError => error
+  raise unless error.message == "rollback"
+end
+assert(patch_target.new.greeting == "after",
+       "failing class modification restores prior methods")
+
+graph_root = []; graph_root << { owner: graph_root }
+graph = RubyOS::Introspection.object_graph(graph_root, depth: 3)
+assert(graph.fetch(:nodes).length >= 2 && graph.fetch(:edges).any?,
+       "bounded live object graph follows Ruby containers")
+assert(RubyOS::Introspection.fibers(state.fetch(:scheduler)).all? { |row| row.key?(:fiber_id) },
+       "Fiber inspection exposes scheduler identity and state")
+assert(RubyOS::Introspection.drivers(state.fetch(:bus)).first.fetch(:driver).include?("SerialDriver"),
+       "driver reflection exposes live device bindings")
+assert(RubyOS::Introspection.class_shape(RubyOS::GUI::Button).fetch(:ancestors).include?("RubyOS::GUI::View"),
+       "class reflection exposes the live view hierarchy")
+
+http_request = RubyOS::HTTP::Parser.parse(
+  "GET /ruby?mode=bare HTTP/1.1\r\nHost: rubyos\r\n\r\n"
+)
+assert(http_request.method == "GET" && http_request.target == "/ruby?mode=bare",
+       "HTTP parser preserves method and target")
+router = RubyOS::HTTP::Router.new.get("/ruby") do |environment|
+  "#{environment.fetch('PATH_INFO')} #{environment.fetch('QUERY_STRING')}"
+end
+fake_connection = Class.new do
+  attr_reader :written
+  def initialize(bytes) = (@chunks = [bytes]; @written = +"")
+  def read(timeout_ms:) = @chunks.shift || raise("unexpected HTTP read")
+  def write(bytes) = (@written << bytes; bytes.bytesize)
+  def close = self
+end.new("GET /ruby?mode=bare HTTP/1.1\r\nHost: rubyos\r\n\r\n")
+fake_listener = Class.new do
+  def initialize(connection) = (@connection = connection)
+  def accept(timeout_ms:) = @connection
+end.new(fake_connection)
+served = RubyOS::HTTP::Server.new(router).serve_once(fake_listener)
+assert(served.fetch(:status) == 200 && fake_connection.written.include?("/ruby mode=bare"),
+       "Rack-shaped HTTP server routes and responds")
 viewer = RubyOS::Apps::ImageViewer.new
 assert(viewer.launch(compositor).title == "Image Viewer", "Image Viewer launches a window")
 

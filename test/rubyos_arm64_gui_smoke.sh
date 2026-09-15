@@ -10,7 +10,7 @@ port="$($root/build/host-ruby/bin/ruby -rsocket -e 'server = TCPServer.new("127.
 
 rm -f "$serial_log" "$bridge_log" "$capture"
 RUBYOS_DESKTOP_MODE=headless SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-    "$root/bridge/rubyos_bridge" --listen-tcp "127.0.0.1:$port" \
+    "$root/services/remoteos-sdl/remoteos-sdl" --listen-tcp "127.0.0.1:$port" \
     >"$bridge_log" 2>&1 &
 bridge_pid=$!
 cleanup() {
@@ -31,8 +31,8 @@ set +e
 timeout 30s qemu-system-aarch64 -M virt -cpu cortex-a72 -m 512M \
     -nographic -monitor none -serial stdio -no-reboot \
     -device virtio-serial-device \
-    -chardev socket,id=rubyos_bridge,host=127.0.0.1,port="$port" \
-    -device virtconsole,chardev=rubyos_bridge \
+    -chardev socket,id=remoteos_sdl,host=127.0.0.1,port="$port" \
+    -device virtconsole,chardev=remoteos_sdl \
     -kernel "$elf" </dev/null >"$serial_log" 2>&1
 status=$?
 set -e

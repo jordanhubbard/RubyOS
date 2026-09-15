@@ -52,7 +52,7 @@ def main() -> int:
                        SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy")
     with BRIDGE_LOG.open("wb") as bridge_output:
         bridge = subprocess.Popen(
-            [str(ROOT / "bridge/rubyos_bridge"), "--listen-tcp",
+            [str(ROOT / "services/remoteos-sdl/remoteos-sdl"), "--listen-tcp",
              f"127.0.0.1:{bridge_port}"], env=environment,
             stdout=bridge_output, stderr=subprocess.STDOUT)
     qemu = None
@@ -65,8 +65,8 @@ def main() -> int:
             "-qmp", f"unix:{QMP},server=on,wait=off",
             "-gdb", f"tcp:127.0.0.1:{gdb_port}",
             "-device", "virtio-serial-device",
-            "-chardev", f"socket,id=rubyos_bridge,host=127.0.0.1,port={bridge_port}",
-            "-device", "virtconsole,chardev=rubyos_bridge",
+            "-chardev", f"socket,id=remoteos_sdl,host=127.0.0.1,port={bridge_port}",
+            "-device", "virtconsole,chardev=remoteos_sdl",
             "-kernel", str(BUILD / "baremetal/rubyos-arm64-gui/rubyos.elf")
         ], stdin=subprocess.DEVNULL)
         manifest = {

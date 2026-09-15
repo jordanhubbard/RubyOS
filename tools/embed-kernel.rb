@@ -11,6 +11,7 @@ paths = %w[
   kernel/rubyos/debug.rb
   kernel/rubyos/sound.rb
   kernel/rubyos/chipset.rb
+  kernel/rubyos/live.rb
   kernel/rubyos/fs.rb
   kernel/rubyos/fs/ext2.rb
   kernel/rubyos/shell.rb
@@ -27,6 +28,7 @@ paths = %w[
   kernel/rubyos/net/tcp.rb
   kernel/rubyos/net/stack.rb
   kernel/rubyos/net/repl.rb
+  kernel/rubyos/http.rb
   kernel/rubyos/gui/ui.rb
   kernel/rubyos/gui/compositor.rb
   kernel/rubyos/apps/application.rb
@@ -37,9 +39,11 @@ paths = %w[
   kernel/rubyos/bridge/client.rb
   kernel/rubyos/bridge/desktop.rb
   kernel/rubyos/bridge/virtio_console.rb
+  kernel/rubyos/bridge/native_tcp.rb
   kernel/boot.rb
   kernel/storage_boot.rb
   kernel/network_boot.rb
+  kernel/web_boot.rb
   kernel/gui_boot.rb
   kernel/input_boot.rb
   kernel/audio_boot.rb
@@ -58,8 +62,14 @@ end
 if ENV["RUBYOS_EMBED_NETWORK"] == "1"
   source << "RubyOS::Kernel.boot_network\n"
 end
+if ENV["RUBYOS_EMBED_WEB"] == "1"
+  source << "RubyOS::Kernel.boot_web\n"
+end
 if ENV["RUBYOS_EMBED_DESKTOP"] == "1"
   source << "RubyOS::Kernel.boot_remote_desktop\n"
+end
+if ENV["RUBYOS_EMBED_DESKTOP_TCP"] == "1"
+  source << "RubyOS::Kernel.boot_remote_desktop_tcp\n"
 end
 if ENV["RUBYOS_EMBED_REPL"] == "1"
   source << "RubyOS::Shell.new.run\n"

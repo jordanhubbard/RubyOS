@@ -18,7 +18,7 @@ trap 'rm -rf "$temporary"' EXIT
 mkdir -p "$stage/bin" "$stage/runtime" "$stage/share/rubyos" dist
 cp -f README.md LICENSE RELEASE-NOTES.md "$stage/"
 cp -rf build/host-ruby/. "$stage/runtime/"
-cp -f bridge/rubyos_bridge "$stage/bin/"
+cp -f services/remoteos-sdl/remoteos-sdl "$stage/bin/"
 cp -rf config docs examples kernel "$stage/share/rubyos/"
 
 if [[ "$platform" == linux ]]; then
@@ -28,6 +28,8 @@ if [[ "$platform" == linux ]]; then
                    rubyos-arm64-audio rubyos-arm64-smp; do
         cp -f "build/baremetal/$variant/rubyos.elf" "$stage/images/arm64/$variant.elf"
     done
+    cp -f build/baremetal/rubyos-arm64-tcp-gui/rubyos.elf "$stage/images/arm64/rubyos-arm64-tcp-gui.elf"
+    cp -f build/baremetal/rubyos-arm64-web/rubyos.elf "$stage/images/arm64/rubyos-arm64-web.elf"
     for variant in rubyos-x86_64 rubyos-x86_64-input rubyos-x86_64-audio \
                    rubyos-x86_64-smp; do
         cp -f "build/baremetal/$variant/rubyos.iso" "$stage/images/x86_64/$variant.iso"

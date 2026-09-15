@@ -33,6 +33,7 @@ module RubyOS
     end
 
     class TCPConnection
+      MAX_PAYLOAD = 1_400
       attr_reader :remote_ip, :remote_port, :local_port
 
       def initialize(stack, remote_ip:, remote_mac:, remote_port:, local_port:,
@@ -60,9 +61,20 @@ module RubyOS
 
       def write(payload)
         payload = String(payload).b
-        transmit(TCPSegment::PSH | TCPSegment::ACK, payload)
-        @sequence = (@sequence + payload.bytesize) & 0xffffffff
+        offset = 0
+        while offset < payload.bytesize
+          chunk = payload.byteslice(offset, MAX_PAYLOAD)
+          transmit(TCPSegment::PSH | TCPSegment::ACK, chunk)
+          @sequence = (@sequence + chunk.bytesize) & 0xffffffff
+          offset += chunk.bytesize
+        end
         payload.bytesize
+      end
+
+      def close
+        transmit(TCPSegment::FIN | TCPSegment::ACK, +"".b)
+        @sequence = (@sequence + 1) & 0xffffffff
+        self
       end
 
       private

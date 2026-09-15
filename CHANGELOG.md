@@ -4,6 +4,28 @@ All notable RubyOS changes are documented here.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-14
+
+### Added
+
+- RemoteOS-SDL v2 over RubyOS's bare-metal VirtIO TCP stack, including an
+  end-to-end desktop gate.
+- Transactional live application reloads and rollback-safe runtime method
+  patches using real Ruby Modules and classes.
+- Bounded object graphs plus live class, heap, Fiber, device, and driver
+  introspection, with Ruby Inspector and Live Ruby desktop apps.
+- A Rack-shaped HTTP router/server with a real bare-metal request gate.
+- Exact-build ISeq cache tooling, validation, and a documented portability
+  boundary.
+- Live Ruby, object graph, and web teaching lessons.
+
+### Changed
+
+- Removed the forked RubyOS SDL bridge and pinned the shared RemoteOS-SDL
+  service as a submodule.
+- Upgraded the guest to strict protocol v2, bounded rendering batches,
+  `frame.commit`, and unified service telemetry.
+
 ## [0.1.0] - 2026-09-14
 
 ### Added

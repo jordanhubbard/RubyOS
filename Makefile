@@ -13,9 +13,11 @@ X86_64_AUDIO_ISO := $(CURDIR)/build/baremetal/rubyos-x86_64-audio/rubyos.iso
 X86_64_SMP_ISO := $(CURDIR)/build/baremetal/rubyos-x86_64-smp/rubyos.iso
 ARM64_RUBYOS_ELF := $(CURDIR)/build/baremetal/rubyos-arm64/rubyos.elf
 ARM64_GUI_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-gui/rubyos.elf
+ARM64_TCP_GUI_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-tcp-gui/rubyos.elf
 ARM64_REPL_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-repl/rubyos.elf
 ARM64_STORAGE_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-storage/rubyos.elf
 ARM64_NETWORK_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-network/rubyos.elf
+ARM64_WEB_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-web/rubyos.elf
 ARM64_INPUT_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-input/rubyos.elf
 ARM64_AUDIO_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-audio/rubyos.elf
 ARM64_SMP_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-smp/rubyos.elf
@@ -23,7 +25,7 @@ DISK_IMAGE := $(CURDIR)/build/disk.img
 RUBY_PC := PKG_CONFIG_PATH=$(CURDIR)/build/host-ruby/lib/pkgconfig pkg-config
 BUILDER_IMAGE := pythonos-builder
 
-.PHONY: all ruby smoke test teaching-examples test-ext2 test-network bridge test-bridge debug-smoke debug-session parity build-linux build-macos release release-linux release-macos docker-build validate-release embed-probe baremetal-arm64 baremetal-smoke ruby-arm64 ruby-x86_64 rubyos-x86_64 rubyos-x86_64-smoke rubyos-x86_64-input-smoke rubyos-x86_64-audio-smoke rubyos-x86_64-smp-smoke rubyos-arm64 rubyos-arm64-smoke rubyos-arm64-gui rubyos-arm64-gui-smoke rubyos-arm64-input-smoke rubyos-arm64-audio-smoke rubyos-arm64-smp-smoke rubyos-arm64-repl rubyos-arm64-repl-smoke rubyos-arm64-storage rubyos-arm64-storage-smoke rubyos-arm64-network rubyos-arm64-network-smoke disk \
+.PHONY: all ruby smoke test test-iseq teaching-examples test-ext2 test-network bridge test-bridge debug-smoke debug-session parity build-linux build-macos release release-linux release-macos docker-build validate-release embed-probe baremetal-arm64 baremetal-smoke ruby-arm64 ruby-x86_64 rubyos-x86_64 rubyos-x86_64-smoke rubyos-x86_64-input-smoke rubyos-x86_64-audio-smoke rubyos-x86_64-smp-smoke rubyos-arm64 rubyos-arm64-smoke rubyos-arm64-gui rubyos-arm64-gui-smoke rubyos-arm64-tcp-gui rubyos-arm64-tcp-gui-smoke rubyos-arm64-input-smoke rubyos-arm64-audio-smoke rubyos-arm64-smp-smoke rubyos-arm64-repl rubyos-arm64-repl-smoke rubyos-arm64-storage rubyos-arm64-storage-smoke rubyos-arm64-network rubyos-arm64-network-smoke rubyos-arm64-web rubyos-arm64-web-smoke disk \
 	clean distclean provenance
 
 all: smoke
@@ -39,6 +41,9 @@ smoke: $(HOST_RUBY_STAMP)
 test: $(HOST_RUBY_STAMP)
 	$(HOST_RUBY) -I kernel test/kernel_test.rb
 
+test-iseq: $(HOST_RUBY_STAMP)
+	$(HOST_RUBY) test/iseq_cache_test.rb
+
 teaching-examples: $(HOST_RUBY_STAMP)
 	./test/examples_smoke.sh
 
@@ -49,7 +54,7 @@ test-network: $(HOST_RUBY_STAMP)
 	$(HOST_RUBY) -I kernel test/network_test.rb
 
 bridge:
-	$(MAKE) -C bridge
+	$(MAKE) -C services/remoteos-sdl
 
 test-bridge: $(HOST_RUBY_STAMP) bridge
 	mkdir -p build
@@ -62,11 +67,13 @@ debug-session: $(ARM64_GUI_ELF) bridge
 	./test/rubyos_debug_smoke.py --hold
 
 parity:
-	$(MAKE) provenance smoke test teaching-examples test-ext2 test-network test-bridge
+	$(MAKE) provenance smoke test test-iseq teaching-examples test-ext2 test-network test-bridge
 	$(MAKE) embed-probe baremetal-smoke
 	$(MAKE) rubyos-arm64-smoke rubyos-x86_64-smoke
 	$(MAKE) rubyos-arm64-gui-smoke rubyos-arm64-repl-smoke
+	$(MAKE) rubyos-arm64-tcp-gui-smoke
 	$(MAKE) rubyos-arm64-storage-smoke rubyos-arm64-network-smoke
+	$(MAKE) rubyos-arm64-web-smoke
 	$(MAKE) rubyos-arm64-input-smoke rubyos-x86_64-input-smoke
 	$(MAKE) rubyos-arm64-audio-smoke rubyos-x86_64-audio-smoke
 	$(MAKE) rubyos-arm64-smp-smoke rubyos-x86_64-smp-smoke debug-smoke
@@ -77,7 +84,7 @@ docker-build:
 build-linux: parity
 
 build-macos:
-	$(MAKE) provenance smoke test teaching-examples test-network test-bridge
+	$(MAKE) provenance smoke test test-iseq teaching-examples test-network test-bridge
 
 release-linux: build-linux
 	./scripts/package-release.sh linux
@@ -170,6 +177,19 @@ $(ARM64_GUI_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
 rubyos-arm64-gui-smoke: $(ARM64_GUI_ELF) bridge
 	./test/rubyos_arm64_gui_smoke.sh
 
+rubyos-arm64-tcp-gui: $(ARM64_TCP_GUI_ELF)
+$(ARM64_TCP_GUI_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
+		baremetal/arm64/boot.S baremetal/arm64/ruby_kernel.c \
+		baremetal/arm64/platform_stubs.c baremetal/arm64/setjmp.S \
+		baremetal/arm64/gic_timer.c baremetal/arm64/smp.c \
+		baremetal/arm64/linker.ld tools/embed-kernel.rb $(shell find kernel -type f -name '*.rb') \
+		$(wildcard platform/libc/*.c platform/libc/include/*.h platform/libc/include/sys/*.h platform/boot/*.h)
+	docker run --rm --platform linux/arm64 --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
+		env RUBYOS_EMBED_DESKTOP_TCP=1 RUBYOS_ARM64_VARIANT=rubyos-arm64-tcp-gui ./tools/build-rubyos-arm64.sh
+
+rubyos-arm64-tcp-gui-smoke: $(ARM64_TCP_GUI_ELF) bridge
+	./test/rubyos_arm64_tcp_gui_smoke.sh
+
 $(ARM64_INPUT_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
 		baremetal/arm64/boot.S baremetal/arm64/ruby_kernel.c \
 		baremetal/arm64/platform_stubs.c baremetal/arm64/setjmp.S \
@@ -249,6 +269,19 @@ $(ARM64_NETWORK_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
 rubyos-arm64-network-smoke: $(ARM64_NETWORK_ELF)
 	./test/rubyos_arm64_network_smoke.sh
 
+rubyos-arm64-web: $(ARM64_WEB_ELF)
+$(ARM64_WEB_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
+		baremetal/arm64/boot.S baremetal/arm64/ruby_kernel.c \
+		baremetal/arm64/platform_stubs.c baremetal/arm64/setjmp.S \
+		baremetal/arm64/gic_timer.c baremetal/arm64/smp.c \
+		baremetal/arm64/linker.ld tools/embed-kernel.rb $(shell find kernel -type f -name '*.rb') \
+		$(wildcard platform/libc/*.c platform/libc/include/*.h platform/libc/include/sys/*.h platform/boot/*.h)
+	docker run --rm --platform linux/arm64 --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
+		env RUBYOS_EMBED_WEB=1 RUBYOS_ARM64_VARIANT=rubyos-arm64-web ./tools/build-rubyos-arm64.sh
+
+rubyos-arm64-web-smoke: $(ARM64_WEB_ELF)
+	./test/rubyos_arm64_web_smoke.sh
+
 $(EMBED_PROBE): tools/embed_probe.c Makefile $(HOST_RUBY_STAMP)
 	cc -o $@ tools/embed_probe.c $$($(RUBY_PC) --cflags ruby-4.0) \
 		-L$(CURDIR)/build/host-ruby/lib \
@@ -260,7 +293,7 @@ provenance: $(HOST_RUBY_STAMP)
 	@$(HOST_RUBY) -e 'abort "unexpected executable" unless File.expand_path(RbConfig.ruby).start_with?(File.expand_path("build/host-ruby")); puts RbConfig.ruby'
 
 clean:
-	$(MAKE) -C bridge clean
+	$(MAKE) -C services/remoteos-sdl clean
 	rm -rf build/ruby-build build/host-ruby build/embed-probe build/baremetal
 
 distclean: clean

@@ -13,18 +13,19 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 | Memory | physical allocator, DMA, mmap, heap metrics | reclaimable Ruby page-frame manager over the freestanding buddy heap, aligned DMA, mmap shim, and live heap metrics on ARM64/x86_64 | Complete |
 | Storage | VFS, tmpfs, ext2, mounted persistent `/home` | Ruby VFS/tmpfs plus writable ext2 over bare-metal VirtIO block, with sparse files, arbitrary truncate, double-indirect traversal, create, unlink, and rmdir | Complete |
 | Network | VirtIO net, Ethernet, ARP, IPv4, ICMP, UDP, TCP, DHCP, DNS | bare-metal Ruby VirtIO net, DHCP, ARP, IPv4/ICMP, UDP, DNS, TCP client/server, concurrent REPL sessions | Complete |
-| Remote display | UART/VirtIO/TCP protocol-v1 SDL companion | hosted TCP and bare-metal VirtIO console | Complete |
+| Remote display | RemoteOS-SDL v2 over bare-metal TCP/UART | shared service over hosted TCP, VirtIO console, and RubyOS-native bare-metal TCP | Complete |
 | GUI API | SDL-compatible surfaces, events, images, fonts | Ruby `Surface`, owned SDL_ttf `Font`, and widget hierarchy with focused keyboard/text dispatch | Complete |
 | Desktop | compositor, windows, menu bar, dock, wallpaper, shortcuts | Ruby compositor with focus/z-order, close/minimize/drag, patterned wallpaper, shortcuts, menu bar, and dock | Complete |
-| Apps | terminal, editor, files, image viewer, monitor, clock, settings | About, interactive Terminal, VFS Editor, Files, Image Viewer, System Monitor, Clock, Settings | Complete |
+| Apps | terminal, live editor, files, image viewer, monitor, clock, settings | About, Terminal, transactional Live Editor, Files, Image Viewer, Monitor, Clock, Settings, Ruby Inspector, Live Ruby | Complete |
 | Demos and games | graphics/audio demos and arcade games | graphics/audio/chipset lessons plus interactive Ruby Invaders and Snake desktop games with input, animation, collision, scoring, sound cues, and chipset rendering | Complete |
 | Input | PS/2 and VirtIO input, canonical event queue | bounded canonical Ruby event queue fed by SDL, native x86 PS/2 keyboard/mouse, and ARM64 VirtIO keyboard/mouse, all polled at CRuby-safe points | Complete |
 | Audio | Intel HDA/VirtIO/bridge mixer and sound API | Ruby PCM/waveform mixer, bare-metal SDL bridge, native ARM64 VirtIO Sound, and native x86_64 Intel HDA DMA | Complete |
 | Images | PNG/JPEG decoding and viewer | Ruby remote surfaces, raw upload, bare-metal PNG/JPEG decode/blit, and Image Viewer | Complete |
 | Chipset laboratory | dual playfields, display windows/lists, Copper, blitter, sprites, Paula audio, clock | Ruby indexed/direct dual playfields with keying, display-window wipes, extended Copper registers, fill/copy/cookie Blitter, sprites, four-channel Paula, and clocked View engine | Complete |
 | Concurrency | ARM64/x86 SMP, pthread substrate, no-GIL workers | ARM64 PSCI and x86 INIT/SIPI AP bring-up with C-safe native worker mailboxes exposed through Ruby while CRuby remains GVL-safe on the BSP | Complete |
-| Debug/automation | QMP/native debug, captures, performance metrics | unified serial/QMP/GDB-remote session manifest, SDL captures, Ruby round-trip and host-service timing, plus deterministic cross-architecture parity gates | Complete |
-| Teaching examples | curated storage/network/graphics/audio/internals lessons | executable Ruby lessons for storage, networking, graphics, audio, internals, plus remote desktop | Complete |
+| Debug/automation | QMP/native debug, captures, performance metrics | serial/QMP/GDB-remote, captures, object graphs, class/Fiber/driver reflection, guest timing and shared-service telemetry | Complete |
+| Web serving | Python network services | Rack-shaped request environment/router/response served by RubyOS's bare-metal TCP stack | Foundation complete |
+| Teaching examples | curated storage/network/graphics/audio/internals lessons | executable Ruby lessons for storage, networking, graphics, audio, internals, live Ruby, object graphs, web, and remote desktop | Complete |
 
 ## Delivery order
 

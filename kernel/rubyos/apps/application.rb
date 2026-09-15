@@ -22,6 +22,15 @@ module RubyOS
       end
 
       def register(name, application)
+        key = String(name)
+        raise ArgumentError, "application already registered: #{key}" if @applications.key?(key)
+        @applications[key] = application
+        self
+      end
+
+      def replace(name, application)
+        RubyOS.invariant(application.is_a?(Application),
+                         "registry accepts RubyOS applications")
         @applications[String(name)] = application
         self
       end

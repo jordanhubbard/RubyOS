@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd "$(dirname "$0")/.." && pwd)"
+elf="$root/build/baremetal/rubyos-arm64-tcp-gui/rubyos.elf"
+port="${RUBYOS_REMOTEOS_PORT:-17012}"
+output="$(mktemp /tmp/rubyos-tcp-gui.XXXXXX)"
+service_output="$(mktemp /tmp/rubyos-tcp-gui-service.XXXXXX)"
+
+cleanup() {
+    kill "${qemu_pid:-}" 2>/dev/null || true
+    kill "${service_pid:-}" 2>/dev/null || true
+    rm -f "$output" "$service_output"
+}
+trap cleanup EXIT
+
+qemu-system-aarch64 -M virt -cpu cortex-a72 -m 512M \
+    -nographic -monitor none -serial stdio -no-reboot -kernel "$elf" \
+    -netdev user,id=rubyos-net,hostfwd=tcp:127.0.0.1:"$port"-:5001 \
+    -device virtio-net-device,netdev=rubyos-net,mac=52:54:00:12:34:57 \
+    </dev/null >"$output" 2>&1 &
+qemu_pid=$!
+
+REMOTEOS_SDL_MODE=headless SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+    "$root/services/remoteos-sdl/remoteos-sdl" \
+    --connect-tcp "127.0.0.1:$port" --connect-timeout-ms 30000 \
+    >"$service_output" 2>&1 &
+service_pid=$!
+
+for _ in $(seq 1 600); do
+    if grep -q 'RemoteOS over native TCP: PASS' "$output"; then
+        break
+    fi
+    if ! kill -0 "$qemu_pid" 2>/dev/null; then
+        cat "$output" "$service_output"
+        exit 1
+    fi
+    sleep 0.05
+done
+
+cat "$output"
+cat "$service_output"
+grep -q 'RemoteOS TCP ready on 10.0.2.15:5001' "$output"
+grep -q 'RemoteOS over native TCP: PASS' "$output"
+grep -q 'remote SDL desktop: PASS' "$output"
+grep -q 'negotiated protocol v2 with client=rubyos' "$service_output"
+! grep -q 'FATAL\|EXCEPTION\|ASSERT\|\[BUG\]' "$output"
+echo 'RubyOS bare-metal RemoteOS native TCP desktop: PASS'

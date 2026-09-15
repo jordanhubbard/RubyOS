@@ -8,7 +8,8 @@ This project builds Ruby from the official upstream source archive. It does
 not use a system Ruby package, a system `ruby` executable, or a system
 `libruby`. The pinned version and checksum live in `config/ruby.mk`.
 
-See [the current release notes](RELEASE-NOTES.md) and [changelog](CHANGELOG.md).
+See [the current release notes](RELEASE-NOTES.md), [changelog](CHANGELOG.md),
+and [the three-repository alignment guide](docs/remoteos-alignment.md).
 
 ## What runs today
 
@@ -25,9 +26,13 @@ RubyOS carries the PythonOS behavior surface in Ruby on source-built CRuby:
 - writable ext2, VirtIO block/network, DHCP/DNS/TCP, and concurrent TCP Ruby consoles
 - a Ruby-native `Element -> View -> Container/Label -> Button` GUI hierarchy
 - a Ruby compositor with focus/z-order, windows, menu bar, dock, and system apps
-- a forked SDL2 companion plus an idiomatic Ruby
+- the shared RemoteOS-SDL v2 service plus an idiomatic Ruby
   `Transport -> Client -> Surface -> RemoteDesktop` hierarchy
-- PythonOS-compatible length-prefixed bridge framing
+- strict, jointly versioned RemoteOS framing with bounded render batches,
+  combined present/input commits, and service telemetry
+- transactional live application reloads and class patches, plus object graph,
+  Fiber, class, heap, device, and driver reflection
+- a Rack-shaped HTTP server that serves real requests from the bare-metal stack
 - native PS/2 and VirtIO input, x86 HDA and ARM VirtIO Sound
 - ARM PSCI and x86 APIC multi-core bring-up with GVL-safe native worker mailboxes
 - a unified serial, QMP, GDB-remote, capture, and performance-debug plane
@@ -38,6 +43,7 @@ Run it with:
 ```sh
 make smoke
 make test
+make test-iseq
 make teaching-examples
 make test-ext2
 make test-network
@@ -49,6 +55,8 @@ make ruby-x86_64
 make rubyos-x86_64-smoke
 make rubyos-arm64-smoke
 make rubyos-arm64-gui-smoke
+make rubyos-arm64-tcp-gui-smoke
+make rubyos-arm64-web-smoke
 make rubyos-arm64-repl-smoke
 make rubyos-arm64-storage-smoke
 make rubyos-arm64-network-smoke
@@ -92,13 +100,14 @@ in `platform/PYTHONOS-LICENSE`.
 
 `make teaching-examples` runs focused lessons in `examples/` for VFS and file
 descriptors, typed network packets, compositor drawing, PCM synthesis, device
-binding, and Fiber scheduling. They use the private source-built Ruby and the
+binding, Fiber scheduling, live class replacement, bounded object graphs, and
+Rack-shaped web apps. They use the private source-built Ruby and the
 same classes embedded into the bare-metal kernel, so each example is a small
 starting point rather than a parallel mock API.
 
 ## SDL remote desktop
 
-`make test-bridge` builds `bridge/rubyos_bridge` and uses the privately built
+`make test-bridge` builds the shared `services/remoteos-sdl/remoteos-sdl` and uses the privately built
 Ruby—not a system interpreter—to open a hidden SDL desktop, draw the GUI object
 tree, present it, poll input, capture it, and shut it down.
 
@@ -112,18 +121,21 @@ For the visible exploratory desktop, run these in two terminals:
 
 ```sh
 make bridge
-RUBYOS_DESKTOP_MODE=interactive \
-  bridge/rubyos_bridge --listen-tcp 127.0.0.1:17010
+REMOTEOS_SDL_MODE=interactive \
+  services/remoteos-sdl/remoteos-sdl --listen-tcp 127.0.0.1:17010
 ```
 
 ```sh
 build/host-ruby/bin/ruby -I kernel examples/remote_desktop.rb
 ```
 
-The wire protocol is currently unauthenticated and unencrypted. Keep it on
-loopback or a trusted private/SSH-forwarded connection. VirtIO console is the
-current bare-metal transport; a future TCP transport can implement the same
-small byte-stream interface without changing the SDL or Ruby object layers.
+The v2 wire protocol is currently unauthenticated and unencrypted. Keep it on
+loopback or a trusted private/SSH-forwarded connection.
+
+`make rubyos-arm64-tcp-gui-smoke` proves the preferred bare-metal transport:
+RubyOS acquires DHCP through its VirtIO NIC, accepts RemoteOS-SDL on its own TCP
+listener, segments the stream below Ethernet MTU, and drives the same desktop
+client. VirtIO console remains useful as an independent local device path.
 
 The bare-metal desktop is composed by Ruby objects rather than a fixed bridge
 scene. `Compositor` owns window focus and z-order, while `Application`
@@ -136,7 +148,10 @@ measure, render, and close host SDL_ttf fonts with explicit ownership. SDL mouse
 Ruby hit testing; keyboard and UTF-8 text events follow window focus into Ruby
 widgets, including a live Terminal evaluator and VFS-persisted Editor. The
 bare-metal smoke types into Terminal and clicks the dock to launch and focus the
-System Monitor. Ruby sine generators and a saturating PCM mixer stream stereo
+System Monitor. The dock also exposes Ruby Inspector and a Live Ruby app whose
+source lives at `/apps/live_hello.rb`; Editor recompiles it in an anonymous
+Module and swaps the application only after successful evaluation. Ruby sine
+generators and a saturating PCM mixer stream stereo
 audio through the same companion. The SDL companion remains a rendering,
 input, and audio device.
 
@@ -169,6 +184,13 @@ objects. A host-forwarded connection also exercises the server-side TCP
 handshake and evaluates Ruby through the freestanding kernel's TCP REPL. The
 REPL demultiplexes simultaneous connections, preserves a private Ruby binding
 for each client, and shares the live RubyOS object graph between them.
+
+`make rubyos-arm64-web-smoke` serves an actual HTTP request from that same
+bare-metal TCP stack. The application contract is intentionally Rack-shaped:
+`call(env)` returns `[status, headers, body]`. This is the honest stepping stone
+toward Rack and eventually Rails; Rails itself still needs a substantially
+richer stdlib/gem, threading, clock, persistence, socket, and native-extension
+surface than RubyOS currently provides.
 
 For an interactive session:
 
@@ -204,10 +226,10 @@ SMP, and debug smokes on both native architectures where applicable.
 
 GitHub Actions runs `release-linux` on an ARM64 Ubuntu runner and
 `release-macos` on an Apple Silicon runner. The Linux gate executes the full
-QEMU parity matrix and packages ARM64 ELFs, x86_64 ISOs, the ext2 image, SDL
-bridge, and source-built Ruby runtime. The macOS gate runs the hosted kernel,
+QEMU parity matrix and packages ARM64 ELFs, x86_64 ISOs, the ext2 image,
+RemoteOS-SDL, and source-built Ruby runtime. The macOS gate runs the hosted kernel,
 object, lesson, network, and SDL suites before packaging its source-built Ruby
-and native bridge.
+and the same RemoteOS-SDL service.
 
 ```sh
 make docker-build      # Linux freestanding builder

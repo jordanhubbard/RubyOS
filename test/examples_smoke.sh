@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
-for lesson in storage network graphics audio internals; do
+for lesson in storage network graphics audio internals live_ruby object_graph web; do
     output="$($root/build/host-ruby/bin/ruby -I "$root/kernel" "$root/examples/$lesson.rb")"
     printf '%s\n' "$output"
     grep -q "$lesson lesson: PASS" <<<"$output"

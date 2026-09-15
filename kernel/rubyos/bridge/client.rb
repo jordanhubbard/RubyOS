@@ -19,17 +19,39 @@ module RubyOS
         @next_id = 1
         @features = [].freeze
         @metrics = {}
+        @pending = []
+        @hello_result = nil
       end
 
       def hello
-        result = call("hello", { protocol: PROTOCOL_VERSION })
+        return @hello_result if @hello_result
+        result = call("hello", { protocol: PROTOCOL_VERSION, client: "rubyos" })
         RubyOS.invariant(result.fetch("protocol") == PROTOCOL_VERSION,
                          "display protocol mismatch")
         @features = result.fetch("features", []).freeze
-        result
+        @hello_result = result.freeze
       end
 
       def call(operation, parameters = {}, payload: +"".b)
+        flush unless @pending.empty?
+        send_call(operation, parameters, payload:)
+      end
+
+      def cast(operation, parameters = {})
+        @pending << { "op" => String(operation),
+                      "params" => parameters.transform_keys(&:to_s) }
+        self
+      end
+
+      def flush
+        return self if @pending.empty?
+        operations = @pending
+        @pending = []
+        send_call("render.batch", { ops: operations })
+        self
+      end
+
+      def send_call(operation, parameters = {}, payload: +"".b)
         started_ns = monotonic_ns
         id = @next_id
         @next_id += 1
@@ -41,6 +63,8 @@ module RubyOS
 
         length = Protocol.decode_length(@transport.read_exact(4))
         response = Codec.load(@transport.read_exact(length))
+        RubyOS.invariant(response.fetch("v") == PROTOCOL_VERSION,
+                         "bridge response protocol mismatch")
         RubyOS.invariant(response.fetch("id") == id, "bridge response id mismatch")
         unless response["ok"]
           failure = response.fetch("error", {})
@@ -68,7 +92,7 @@ module RubyOS
       end
 
       def performance_snapshot(reset: false)
-        host = call("debug.metrics", { reset: })
+        host = call("telemetry.snapshot", { reset: })
         { guest_round_trip: metrics(reset:), host_service: host }.freeze
       end
 
@@ -77,6 +101,7 @@ module RubyOS
       end
 
       def close
+        flush
         @transport.close
       end
 

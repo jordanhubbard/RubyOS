@@ -15,7 +15,7 @@ firmware/bootloader -> assembly/C -> static CRuby -> RubyOS::Kernel.boot
                                       |
        scheduler / devices / VFS / network / GUI / applications
                                       |
-      VirtIO console or TCP bridge -> host SDL window/audio/input
+      VirtIO console or native TCP -> shared RemoteOS-SDL v2 service
 ```
 
 ## Source policy
@@ -33,10 +33,10 @@ interpreter semantics RubyOS needs to validate.
 - a freestanding libc and allocator, adapted to symbols CRuby actually imports
 - a small built-in `RubyOS::HAL` extension for port I/O, MMIO, DMA, interrupt
   routing, performance counters, and raw UART transport
-- the version-1 bridge protocol: a four-byte network-order JSON length,
-  optional binary trailer, capability handshake, batches, and ordered one-way
-  frames
-- compositor behavior and the host SDL companion's operation vocabulary
+- RemoteOS protocol v2 framing: a four-byte network-order JSON length,
+  optional binary trailer, mandatory negotiation, bounded render batches,
+  ordered one-way frames, combined present/input commits, and telemetry
+- compositor behavior and the shared RemoteOS-SDL operation vocabulary
 
 The Ruby implementation is intentionally not a transliteration. Blocks,
 mixins, `Enumerable`, `Fiber`, `Data`, pattern matching, refinements, and DSLs
@@ -62,6 +62,20 @@ should define its public shape.
    symbols, desktop logs, and captures; `make parity` exercises the complete
    hosted and native behavior matrix.
 
+## Shared-service boundary
+
+RemoteOS-SDL is a device service, not a second application runtime. It owns SDL
+resources and host policy; RubyOS owns widgets, scenes, scheduling, files, and
+application identity. PythonOS and RubyOS pin the same service commit and move
+protocol versions together. No language-branded binaries or compatibility
+facades sit between them.
+
+This boundary is intentionally narrower than exposing arbitrary SDL. Named,
+validated operations let the service enforce handle ownership, payload limits,
+batch safety, file-transfer bounds, and useful metrics. The remaining security
+gap is explicit: v2 has no authentication or encryption and must stay on
+loopback, a private network, or an authenticated tunnel.
+
 ## Instruction sequence policy
 
 Ruby VM instruction-sequence binaries are useful as a later build artifact,
@@ -69,7 +83,9 @@ but they are MRI-, version-, machine-, and architecture-dependent and their
 loader does not verify hostile or corrupted input. Early kernels embed trusted
 Ruby source and compile it with the exact linked interpreter. A later freezer
 may emit ISeq blobs only from the same pinned target build and must retain the
-source for inspection and recovery.
+source for inspection and recovery. The measured cross-build mismatch is
+concrete: the build VM is `aarch64-linux`, while the kernel is `aarch64-none`.
+See [the ISeq cache experiment](iseq-cache.md).
 
 ## Static embedding finding
 
@@ -98,3 +114,5 @@ initialized.
 - POSIX process compatibility
 - running CRuby VM code concurrently outside its GVL
 - production isolation via experimental Ruby Box
+- claiming Rails compatibility before RubyOS supplies the required stdlib,
+  gems, socket/thread semantics, persistence, and native-extension contracts
