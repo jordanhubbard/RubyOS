@@ -4,6 +4,15 @@ All notable RubyOS changes are documented here.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-09-15
+
+- Add PythonOS-style everyday make commands, with `help` and a separate
+  advanced-targets guide. Bare `make` builds the ARM64 console.
+- Add a persistent native-TCP desktop and a Ruby launcher with checkout-local
+  start/stop supervision, plus real-console/desktop lifecycle regression tests.
+- Keep hosted tests explicit as `test-host`; preserve Ruby caches on `clean`.
+- Include the persistent desktop ELF in Linux release bundles.
+
 ## [0.2.1] - 2026-09-15
 
 - Synchronize native input injection with driver readiness, not generic boot.

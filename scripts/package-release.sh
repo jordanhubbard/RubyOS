@@ -23,7 +23,7 @@ cp -rf config docs examples kernel "$stage/share/rubyos/"
 
 if [[ "$platform" == linux ]]; then
     mkdir -p "$stage/images/arm64" "$stage/images/x86_64"
-    for variant in rubyos-arm64 rubyos-arm64-gui rubyos-arm64-repl \
+    for variant in rubyos-arm64 rubyos-arm64-gui rubyos-arm64-repl rubyos-arm64-desktop \
                    rubyos-arm64-storage rubyos-arm64-network rubyos-arm64-input \
                    rubyos-arm64-audio rubyos-arm64-smp; do
         cp -f "build/baremetal/$variant/rubyos.elf" "$stage/images/arm64/$variant.elf"

@@ -1,4 +1,5 @@
 include config/ruby.mk
+.DEFAULT_GOAL := all
 
 HOST_RUBY := $(CURDIR)/build/host-ruby/bin/ruby
 HOST_RUBY_STAMP := $(CURDIR)/build/host-ruby/.rubyos-built
@@ -28,7 +29,7 @@ BUILDER_IMAGE := pythonos-builder
 .PHONY: all ruby smoke test test-iseq teaching-examples test-ext2 test-network bridge test-bridge debug-smoke debug-session parity build-linux build-macos release release-linux release-macos docker-build validate-release embed-probe baremetal-arm64 baremetal-smoke ruby-arm64 ruby-x86_64 rubyos-x86_64 rubyos-x86_64-smoke rubyos-x86_64-input-smoke rubyos-x86_64-audio-smoke rubyos-x86_64-smp-smoke rubyos-arm64 rubyos-arm64-smoke rubyos-arm64-gui rubyos-arm64-gui-smoke rubyos-arm64-tcp-gui rubyos-arm64-tcp-gui-smoke rubyos-arm64-input-smoke rubyos-arm64-audio-smoke rubyos-arm64-smp-smoke rubyos-arm64-repl rubyos-arm64-repl-smoke rubyos-arm64-storage rubyos-arm64-storage-smoke rubyos-arm64-network rubyos-arm64-network-smoke rubyos-arm64-web rubyos-arm64-web-smoke disk \
 	clean distclean provenance
 
-all: smoke
+all: build
 
 ruby: $(HOST_RUBY_STAMP)
 
@@ -38,7 +39,7 @@ $(HOST_RUBY_STAMP): tools/build-ruby-from-source.sh config/ruby.mk
 smoke: $(HOST_RUBY_STAMP)
 	$(HOST_RUBY) -I kernel kernel/boot.rb
 
-test: $(HOST_RUBY_STAMP)
+test-host: $(HOST_RUBY_STAMP)
 	$(HOST_RUBY) -I kernel test/kernel_test.rb
 
 test-iseq: $(HOST_RUBY_STAMP)
@@ -68,7 +69,7 @@ debug-session: $(ARM64_GUI_ELF) bridge
 	./test/rubyos_debug_smoke.py --hold
 
 parity:
-	$(MAKE) provenance smoke test test-iseq teaching-examples test-ext2 test-network test-bridge
+	$(MAKE) provenance smoke test-host test-iseq teaching-examples test-ext2 test-network test-bridge
 	$(MAKE) embed-probe baremetal-smoke
 	$(MAKE) rubyos-arm64-smoke rubyos-x86_64-smoke
 	$(MAKE) rubyos-arm64-gui-smoke rubyos-arm64-repl-smoke
@@ -78,6 +79,7 @@ parity:
 	$(MAKE) rubyos-arm64-input-smoke rubyos-x86_64-input-smoke
 	$(MAKE) rubyos-arm64-audio-smoke rubyos-x86_64-audio-smoke
 	$(MAKE) rubyos-arm64-smp-smoke rubyos-x86_64-smp-smoke debug-smoke
+	$(MAKE) test-user-commands
 
 docker-build:
 	docker build --platform linux/arm64 -t $(BUILDER_IMAGE) -f tools/Dockerfile .
@@ -85,7 +87,7 @@ docker-build:
 build-linux: parity
 
 build-macos:
-	$(MAKE) provenance smoke test test-iseq teaching-examples test-network test-bridge
+	$(MAKE) provenance smoke test-host test-iseq teaching-examples test-network test-bridge
 
 release-linux: build-linux
 	./scripts/package-release.sh linux
@@ -293,9 +295,13 @@ provenance: $(HOST_RUBY_STAMP)
 	@$(HOST_RUBY) --version
 	@$(HOST_RUBY) -e 'abort "unexpected executable" unless File.expand_path(RbConfig.ruby).start_with?(File.expand_path("build/host-ruby")); puts RbConfig.ruby'
 
-clean:
+clean: stop
 	$(MAKE) -C services/remoteos-sdl clean
-	rm -rf build/ruby-build build/host-ruby build/embed-probe build/baremetal
+	rm -f build/embed-probe
+	@for dir in build/baremetal/arm64 build/baremetal/rubyos-*; do test ! -d "$$dir" || rm -rf "$$dir"; done
 
 distclean: clean
+	rm -rf build/ruby-build build/host-ruby build/baremetal
 	rm -f deps/$(RUBY_ARCHIVE)
+
+include mk/user.mk

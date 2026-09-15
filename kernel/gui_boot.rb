@@ -147,7 +147,47 @@ module RubyOS
       true
     end
 
-    def boot_remote_desktop_tcp(port: 5_001)
+    def run_interactive_desktop(transport)
+      client = Bridge::Client.new(transport)
+      client.hello
+      desktop = Bridge::RemoteDesktop.new(client, width: 640, height: 480, title: "RubyOS")
+      compositor = GUI::Compositor.new(width: 640, height: 480, title: "RubyOS")
+      applications = Apps::Registry.new
+      { "About" => Apps::About.new, "Files" => Apps::Files.new,
+        "Terminal" => Apps::Terminal.new, "Monitor" => Apps::SystemMonitor.new,
+        "Inspector" => Apps::RubyInspector.new, "Clock" => Apps::Clock.new,
+        "Settings" => Apps::Settings.new, "Invaders" => Apps::Invaders.new,
+        "Snake" => Apps::Snake.new }.each { |name, app| applications.register(name, app) }
+      runtime = Live::Runtime.new(vfs: state.fetch(:vfs), registry: applications)
+      runtime.install("Live Hello", source: Apps::LIVE_HELLO_SOURCE, path: "/apps/live_hello.rb")
+      applications.register("Editor", Apps::Editor.new(
+        path: "/apps/live_hello.rb", runtime:, application_name: "Live Hello"))
+      applications.each do |name, application|
+        compositor.add_dock_item(name[0, 4]) { application.launch(compositor) }
+      end
+      applications.fetch("Terminal").launch(compositor)
+      ready = false
+      loop do
+        events = desktop.events
+        # RemoteOS protocol v2 uses wire event 6 for SDL_QUIT.
+        break if events.any? { |event| event.kind == 6 || event.kind == Input::QUIT }
+        events.each { |event| compositor.handle(event) }
+        compositor.draw(desktop.surface, uptime: "#{state.fetch(:clock).milliseconds} ms")
+        desktop.present
+        unless ready
+          HAL.serial_write("[RubyOS] interactive desktop: READY\n")
+          ready = true
+        end
+        HAL.sleep_us(16_000)
+      end
+      desktop.close
+      client.call("shutdown")
+      client.close
+      HAL.serial_write("[RubyOS] interactive desktop: CLOSED\n")
+      true
+    end
+
+    def boot_remote_desktop_tcp(port: 5_001, interactive: false)
       device = Drivers::VirtioNet.find
       lease = Net::DHCPClient.new(device).acquire
       stack = Net::Stack.new(device, address: lease.address, gateway: lease.gateway)
@@ -155,7 +195,10 @@ module RubyOS
         "[RubyOS/arm64] RemoteOS TCP ready on #{lease.address}:#{port}\n"
       )
       connection = stack.listen(port).accept(timeout_ms: 120_000)
-      boot_remote_desktop(transport: Bridge::Transport::NativeTCP.new(connection))
+      transport = Bridge::Transport::NativeTCP.new(connection)
+      return run_interactive_desktop(transport) if interactive
+
+      boot_remote_desktop(transport:)
       RubyOS::HAL.serial_write("[RubyOS/arm64] RemoteOS over native TCP: PASS\n")
       true
     end

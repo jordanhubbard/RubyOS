@@ -25,8 +25,8 @@ e2fsprogs qemu-system-arm qemu-system-x86 qemu-utils libsdl2-dev
 libsdl2-image-dev libsdl2-ttf-dev`. Freestanding builds also need Docker.
 On macOS, install Xcode command-line tools and run
 `brew install pkg-config sdl2 sdl2_image sdl2_ttf libyaml qemu`.
-Use `make build-macos` for the hosted suite, or `make docker-build` followed
-by the freestanding targets with Docker running.
+With Docker running, use the same `make`, `make run`, and `make run-gui`
+entry points below. `make build-macos` remains a hosted-only development suite.
 
 For Windows, use these Linux instructions inside WSL2 with Docker integration
 enabled. Visible SDL windows require WSLg or another working display server.
@@ -58,38 +58,37 @@ RubyOS carries the PythonOS behavior surface in Ruby on source-built CRuby:
 - a unified serial, QMP, GDB-remote, capture, and performance-debug plane
 - QEMU kernels that enter CRuby with the RubyOS libc and boot the real Ruby object model
 
-Run it with:
+Everyday commands:
 
 ```sh
-make smoke
-make test
-make test-iseq
-make teaching-examples
-make test-ext2
-make test-network
-make test-bridge
-make embed-probe
-make baremetal-smoke
-make ruby-arm64
-make ruby-x86_64
-make rubyos-x86_64-smoke
-make rubyos-arm64-smoke
-make rubyos-arm64-gui-smoke
-make rubyos-arm64-tcp-gui-smoke
-make rubyos-arm64-web-smoke
-make rubyos-arm64-repl-smoke
-make rubyos-arm64-storage-smoke
-make rubyos-arm64-network-smoke
-make rubyos-arm64-input-smoke
-make rubyos-x86_64-input-smoke
-make rubyos-arm64-audio-smoke
-make rubyos-x86_64-audio-smoke
-make rubyos-arm64-smp-smoke
-make rubyos-x86_64-smp-smoke
-make debug-smoke
-make parity
-make provenance
+make              # build the bootable Ruby console
+make run          # boot it; type Ruby at rubyos>
+make run-gui      # open the persistent SDL desktop
+make test         # hosted checks + bare-metal console smoke
+make test-gui     # headless native-TCP desktop smoke
+make stop         # stop this checkout's running session
+make help         # show the small public command set
 ```
+
+These commands use the ARM64 reference guest on every host; the interactive
+native-TCP desktop is not yet an x86_64 guest feature. Docker must be running;
+the builder image is created automatically if missing. The builder itself is
+Linux ARM64, so x86_64 Linux hosts also need Docker ARM64 emulation configured.
+The specialized x86_64 targets remain available for development.
+
+`make build-gui` prepares the GUI without starting it. `make package` builds,
+tests and packages locally without publishing. `make clean` preserves the
+source-built Ruby caches and persistent disk; `make cleanall` also removes
+runtime builds and the downloaded archive. Both stop this checkout's session.
+
+The desktop stays open until its window closes, Ctrl-C, or `make stop` in a
+second terminal. Guest output is in `build/run/serial.log`. Set
+`REMOTEOS_SDL_MODE=headless SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy`
+for a hidden desktop. `RUBYOS_REMOTEOS_PORT` selects the local forwarded port
+(default 17012). The launcher binds only loopback and does not kill other VMs.
+
+For subsystem probes, source-built runtime tools, cross-architecture tests and
+release gates, see [advanced build targets](docs/build-targets.md).
 
 `make embed-probe` also links a C executable directly against the privately
 built `libruby-static.a`, enters through CRuby's embedding lifecycle, and

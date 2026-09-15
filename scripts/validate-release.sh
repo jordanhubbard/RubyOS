@@ -35,6 +35,7 @@ grep -q '/runtime/bin/ruby$' "$manifest"
 grep -q '/bin/remoteos-sdl$' "$manifest"
 if [[ "$platform" == linux ]]; then
     grep -q '/images/arm64/rubyos-arm64.elf$' "$manifest"
+    grep -q '/images/arm64/rubyos-arm64-desktop.elf$' "$manifest"
     grep -q '/images/arm64/rubyos-arm64-tcp-gui.elf$' "$manifest"
     grep -q '/images/arm64/rubyos-arm64-web.elf$' "$manifest"
     grep -q '/images/x86_64/rubyos-x86_64.iso$' "$manifest"

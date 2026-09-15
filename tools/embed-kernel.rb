@@ -74,6 +74,9 @@ end
 if ENV["RUBYOS_EMBED_REPL"] == "1"
   source << "RubyOS::Shell.new.run\n"
 end
+if ENV["RUBYOS_EMBED_INTERACTIVE_DESKTOP"] == "1"
+  source << "RubyOS::Kernel.boot_remote_desktop_tcp(interactive: true)\n"
+end
 if ENV["RUBYOS_EMBED_INPUT"] == "1"
   source << "RubyOS::Kernel.boot_native_input\n"
 end

@@ -1,41 +1,49 @@
-# RubyOS v0.2.1
+# RubyOS v0.2.2
 
-## Ruby deserves a first checkout that actually works
+## An operating system, now with commands humans can remember
 
-This patch release makes recursive cloning and SDL prerequisites explicit,
-and tells an incomplete checkout how to initialize its shared service.
-Headless desktop tests now set the service's actual `REMOTEOS_SDL_MODE`
-variable. A lovingly named variable that nobody reads is not configuration.
+RubyOS has achieved the previously unimaginable: `make`, `make run`,
+`make run-gui`, and `make stop`. The specialized targets still exist, but
+memorizing the entire bring-up history is no longer an entrance examination.
+`make help` introduces the everyday commands; the advanced build guide keeps
+the architecture and device experiments available to their devoted audience.
 
-Native input probes now announce readiness after device initialization; host
-tests wait for that signal before injecting keyboard and mouse events. This
-removes a race where a fast test could send input before VirtIO was listening.
-The release script explicitly propagates failed CI checks before downloading
-artifacts.
+The desktop now stays open. This astonishing innovation replaces the smoke
+test's scripted visit with a persistent, interactive RemoteOS-SDL session.
+Terminal, Files, Inspector, Editor, games, and the other Ruby applications
+share the existing compositor and native TCP transport.
 
-RubyOS pins RemoteOS-SDL 0.1.1, aligned with PythonOS 0.4.1. Protocol v2 and
-Ruby's class hierarchy, Fibers, live editing, introspection and bare-metal TCP
-desktop remain unchanged. No new Ruby VM or runtime is quietly substituted:
-CRuby 4.0.6 is still built from source, never taken from old system packages.
+A Ruby process supervisor owns each checkout's console or desktop session.
+It rejects duplicate launches, coordinates shutdown, and stops its own child
+processes. Stopping your OS need not involve hunting unrelated processes
+with a particularly optimistic kill command.
 
-## Release media and validation
+`make clean` preserves the expensive source-built Ruby caches and persistent
+disk. `make cleanall` removes build caches when you actually mean it.
+`make package` builds local release media; it does not publish a release.
 
-Linux ARM64 and macOS ARM64 bundles include the private Ruby runtime and native
-SDL service. The Linux bundle also contains ARM64 ELF variants and x86_64 ISO
-variants. DGX Spark passed the complete Linux parity gate, including networking,
-storage, native TCP desktop, input, audio, SMP and debugger checks. An extracted
-bundle ran with its relocated Ruby runtime.
+## Platforms and validation
 
-The release script requires green Linux and macOS CI, verifies both bundles'
-checksums, and publishes the CI-produced artifacts. Host SDL dependencies are
-still required; WSL2/WSLg remains unverified. The HTTP service is Rack-shaped,
-not a claim that Rails boots today, and remote protocol v2 still needs a
-trusted network or authenticated tunnel.
+The everyday guest commands currently target ARM64 on every host. Native
+x86_64 boot, runtime, input, audio, and SMP probes remain available, but
+x86_64 does not yet have the equivalent native-TCP interactive desktop.
+The ARM64 Docker builder requires ARM execution or emulation on x86 hosts.
+This is a current implementation boundary, not a Ruby language restriction.
+
+Linux ARM64 bundles include the new persistent desktop ELF alongside the
+existing ARM64 images and x86_64 ISO variants. macOS ARM64 bundles remain
+hosted-runtime packages, not proof of macOS bare-metal guest parity.
+CRuby 4.0.6 is still built privately from source; RemoteOS-SDL remains 0.1.1.
+
+Lifecycle regression tests exercise the real console, a persistent headless
+desktop, duplicate rejection, and scoped shutdown. The release workflow
+requires local Linux validation and green Linux/macOS CI, then checks and
+publishes the CI-produced bundles. Host SDL dependencies remain required;
+WSL2/WSLg is not claimed as verified.
 
 ## Executive summary
 
-A cleaner installation, correct headless tests, and the same intensely Ruby
-system sharing one host service with PythonOS. Less setup archaeology, more
-objects worth inspecting.
+Fewer commands to learn, a desktop that stays, and cleanup that remembers
+how long Ruby took to compile. An outrageous outbreak of approachability.
 
-[RubyOS v0.2.1](https://github.com/jordanhubbard/RubyOS/releases/tag/v0.2.1)
+[RubyOS v0.2.2](https://github.com/jordanhubbard/RubyOS/releases/tag/v0.2.2)
