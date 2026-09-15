@@ -1,71 +1,35 @@
-# RubyOS v0.2.0
+# RubyOS v0.2.1
 
-## Ruby has stopped sharing its SDL homework
+## Ruby deserves a first checkout that actually works
 
-RubyOS and PythonOS now speak one deliberately breaking RemoteOS protocol v2
-to one shared RemoteOS-SDL service. The copied C companion is gone. Ruby queues
-response-free drawing operations as a bounded render batch, then
-`frame.commit` presents and brings input home in the same round trip. The host
-reports wire volume, dropped events, audio depth, and per-operation SDL time,
-which is rather more actionable than staring sternly at a window.
+This patch release makes recursive cloning and SDL prerequisites explicit,
+and tells an incomplete checkout how to initialize its shared service.
+Headless desktop tests now set the service's actual `REMOTEOS_SDL_MODE`
+variable. A lovingly named variable that nobody reads is not configuration.
 
-More importantly, this path runs from bare metal. CRuby 4.0.6 acquires DHCP
-through RubyOS's VirtIO NIC, accepts the display service through RubyOS's TCP
-listener, segments the stream below Ethernet MTU, and drives the entire desktop
-without a QEMU character-device shortcut. The old VirtIO-console route remains
-an independently useful device path, not a compatibility facade.
+RubyOS pins RemoteOS-SDL 0.1.1, aligned with PythonOS 0.4.1. Protocol v2 and
+Ruby's class hierarchy, Fibers, live editing, introspection and bare-metal TCP
+desktop remain unchanged. No new Ruby VM or runtime is quietly substituted:
+CRuby 4.0.6 is still built from source, never taken from old system packages.
 
-## The live system is aggressively Ruby
+## Release media and validation
 
-The desktop now includes Live Ruby and Ruby Inspector. Application source lives
-in the RubyOS VFS, compiles into an anonymous Module, and replaces the registry
-entry only after evaluation succeeds. A syntax error or failed evaluation
-leaves the running application intact. `RubyOS::Live::ClassEditor` similarly
-patches real instance methods and restores their prior definitions if the
-transaction raises.
+Linux ARM64 and macOS ARM64 bundles include the private Ruby runtime and native
+SDL service. The Linux bundle also contains ARM64 ELF variants and x86_64 ISO
+variants. DGX Spark passed the complete Linux parity gate, including networking,
+storage, native TCP desktop, input, audio, SMP and debugger checks. An extracted
+bundle ran with its relocated Ruby runtime.
 
-The introspection API reports bounded, cycle-aware object graphs; class
-ancestors, methods, and constants; heap leaders; scheduler Fibers; and live
-device/driver bindings. This is not a generic remote-debug facade painted red.
-It is Ruby's object model used as an operating-system workbench.
-
-## A web server, with honesty included
-
-RubyOS now parses HTTP, routes with blocks, creates a Rack-shaped environment,
-and serves `[status, headers, body]` responses from its bare-metal TCP stack.
-The release gate boots the kernel and curls it through QEMU forwarding.
-
-That is a meaningful path toward Rack and, eventually, Rails. It is not a claim
-that Rails runs today. Rails still expects a much larger stdlib and gem surface,
-stronger socket/thread contracts, persistent services, databases, clocks, and
-native extensions. RubyOS will earn those layers instead of adding a logo and
-hoping nobody asks for Active Record.
-
-## ISeq: cache, not constitution
-
-The source-built Ruby can freeze and reload instruction sequences, and the new
-tool records engine, version, revision, platform, source hash, and binary hash.
-MRI itself says those binaries are not portable and its loader does not verify
-hostile input. Our build interpreter is `aarch64-linux`; the kernel is
-`aarch64-none`. Therefore source remains the boot format and ISeq remains an
-exact-build, trusted cache experiment until the target itself can produce it.
-
-## Builds and artifacts
-
-- Linux CI builds source Ruby and executes hosted plus ARM64/x86_64 bare-metal
-  parity, including native-TCP desktop and HTTP server gates.
-- macOS CI builds Ruby from source, runs the hosted/runtime/RemoteOS suites, and
-  emits its own release bundle.
-- Windows continues through the Linux contract under WSL2.
-- Bundles include the source-built Ruby runtime and canonical `remoteos-sdl`
-  binary, never a distribution Ruby package.
+The release script requires green Linux and macOS CI, verifies both bundles'
+checksums, and publishes the CI-produced artifacts. Host SDL dependencies are
+still required; WSL2/WSLg remains unverified. The HTTP service is Rack-shaped,
+not a claim that Rails boots today, and remote protocol v2 still needs a
+trusted network or authenticated tunnel.
 
 ## Executive summary
 
-RubyOS 0.2.0 has one shared, measured host-device boundary; a native TCP remote
-desktop; live Module/class surgery with rollback; an object/Fiber/driver
-inspector; and an HTTP server running where an operating system normally lives.
-It remains source-built CRuby all the way down, because ancient package managers
-have contributed enough to this experiment already.
+A cleaner installation, correct headless tests, and the same intensely Ruby
+system sharing one host service with PythonOS. Less setup archaeology, more
+objects worth inspecting.
 
-[Download RubyOS v0.2.0](https://github.com/jordanhubbard/RubyOS/releases/tag/v0.2.0)
+[RubyOS v0.2.1](https://github.com/jordanhubbard/RubyOS/releases/tag/v0.2.1)

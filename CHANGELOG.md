@@ -4,6 +4,15 @@ All notable RubyOS changes are documented here.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-15
+
+- Clarify recursive cloning, submodule recovery and SDL prerequisites.
+- Set the shared service's actual headless-mode variable in desktop tests.
+- Pin RemoteOS-SDL 0.1.1, including corrected package checksums and standalone
+  Linux ARM64 release media.
+- Validate local Linux ARM64 builds, full parity tests and relocated packages
+  on DGX Spark; retain required Linux/macOS hosted release gates.
+
 ## [0.2.0] - 2026-09-14
 
 ### Added
