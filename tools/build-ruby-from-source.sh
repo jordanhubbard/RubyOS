@@ -25,14 +25,15 @@ if [[ ! -f "$archive_path" ]]; then
 fi
 
 if command -v sha256sum >/dev/null 2>&1; then
-    echo "${ruby_sha256}  ${archive_path}" | sha256sum --check --status
+    actual_sha256="$(sha256sum "$archive_path" | awk '{print $1}')"
 else
     actual_sha256="$(shasum -a 256 "$archive_path" | awk '{print $1}')"
-    [[ "$actual_sha256" == "$ruby_sha256" ]]
-fi || {
-  echo "Ruby source checksum mismatch: $archive_path" >&2
-  exit 1
-}
+fi
+
+if [[ "$actual_sha256" != "$ruby_sha256" ]]; then
+    echo "Ruby source checksum mismatch: $archive_path" >&2
+    exit 1
+fi
 
 if [[ ! -f "$source_dir/configure" ]]; then
     rm -rf "$source_dir"
