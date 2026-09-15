@@ -17,7 +17,7 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 | GUI API | SDL-compatible surfaces, events, images, fonts | Ruby `Surface`, owned SDL_ttf `Font`, and widget hierarchy with focused keyboard/text dispatch | Complete |
 | Desktop | compositor, windows, menu bar, dock, wallpaper, shortcuts | Ruby compositor with focus/z-order, close/minimize/drag, patterned wallpaper, shortcuts, menu bar, and dock | Complete |
 | Apps | terminal, editor, files, image viewer, monitor, clock, settings | About, interactive Terminal, VFS Editor, Files, Image Viewer, System Monitor, Clock, Settings | Complete |
-| Demos and games | graphics/audio demos and arcade games | Ruby Chipset Workbench desktop demo | Partial |
+| Demos and games | graphics/audio demos and arcade games | graphics/audio/chipset lessons plus interactive Ruby Invaders and Snake desktop games with input, animation, collision, scoring, sound cues, and chipset rendering | Complete |
 | Input | PS/2 and VirtIO input, canonical event queue | bounded canonical Ruby event queue fed by SDL, native x86 PS/2 keyboard/mouse, and ARM64 VirtIO keyboard/mouse, all polled at CRuby-safe points | Complete |
 | Audio | Intel HDA/VirtIO/bridge mixer and sound API | Ruby PCM/waveform mixer, bare-metal SDL bridge, native ARM64 VirtIO Sound, and native x86_64 Intel HDA DMA | Complete |
 | Images | PNG/JPEG decoding and viewer | Ruby remote surfaces, raw upload, bare-metal PNG/JPEG decode/blit, and Image Viewer | Complete |
@@ -28,6 +28,6 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 
 ## Delivery order
 
-Parity work follows dependency order: demos and games; SMP; then parity-level
+Parity work follows dependency order: SMP; then parity-level
 automation. Each row moves to complete only when a
 bare-metal integration test covers the corresponding behavior.

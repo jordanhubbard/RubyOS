@@ -29,6 +29,7 @@ paths = %w[
   kernel/rubyos/gui/compositor.rb
   kernel/rubyos/apps/application.rb
   kernel/rubyos/apps/system_apps.rb
+  kernel/rubyos/apps/games.rb
   kernel/rubyos/bridge/protocol.rb
   kernel/rubyos/bridge/codec.rb
   kernel/rubyos/bridge/client.rb

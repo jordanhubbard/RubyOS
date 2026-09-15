@@ -179,6 +179,17 @@ engine.tick
 engine.stop
 assert(engine.ticks == 1 && presented.first.map(&:length).all?(&:positive?), "chipset clock presents raster and audio")
 
+invaders = RubyOS::Games::Invaders.new
+invaders.enemies.replace([[15, 16]])
+invaders.fire.tick
+assert(invaders.score == 100 && invaders.enemies.empty?, "Invaders collision and score")
+assert(invaders.cue.is_a?(RubyOS::Sound::PCM), "Invaders produces Ruby PCM cues")
+snake = RubyOS::Games::Snake.new
+6.times { snake.tick }
+assert(snake.score == 10 && snake.body.length == 4, "Snake movement, food, and growth")
+snake.handle(RubyOS::Input::Event.build(kind: RubyOS::Input::KEY_DOWN, code: 115))
+assert(snake.direction == [0, 1], "Snake canonical input steering")
+
 frame = RubyOS::Bridge::Protocol.encode_json_frame('{"v":1}')
 assert(RubyOS::Bridge::Protocol.decode_length(frame.byteslice(0, 4)) == 7, "bridge length")
 document = { "v" => 1, "ok" => true, "values" => [nil, -3, "Ruby\nOS"] }

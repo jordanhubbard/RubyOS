@@ -26,10 +26,13 @@ module RubyOS
         .register("Chipset", Apps::ChipsetWorkbench.new)
         .register("Clock", Apps::Clock.new)
         .register("Settings", settings)
+        .register("Invaders", Apps::Invaders.new)
+        .register("Snake", Apps::Snake.new)
       dock_labels = { "About" => "Abt", "Files" => "File", "Terminal" => "Term",
                       "Monitor" => "Mon", "Editor" => "Edit", "Image" => "Img",
                       "Chipset" => "Chip", "Clock" => "Clk", "Settings" => "Set" }
       applications.each do |name, application|
+        next if ["Invaders", "Snake"].include?(name)
         compositor.add_dock_item(dock_labels.fetch(name, name)) { application.launch(compositor) }
       end
       compositor.add_shortcut("Clock", x: 8, y: 42) { applications.fetch("Clock").launch(compositor) }
@@ -38,6 +41,20 @@ module RubyOS
       applications.fetch("Files").launch(compositor)
       applications.fetch("Chipset").launch(compositor)
       applications.fetch("Terminal").launch(compositor)
+      invaders = applications.fetch("Invaders")
+      game_window = invaders.launch(compositor)
+      invaders.game.enemies.replace([[15, 16]])
+      invaders.game.fire
+      invaders.game.tick
+      RubyOS.invariant(invaders.game.score.positive? && invaders.game.cue,
+                       "Invaders collision, scoring, or sound cue failed")
+      compositor.close(game_window)
+      snake = applications.fetch("Snake")
+      snake_window = snake.launch(compositor)
+      6.times { snake.game.tick }
+      RubyOS.invariant(snake.game.score == 10 && snake.game.body.length == 4,
+                       "Snake growth and scoring failed")
+      compositor.close(snake_window)
       client.call("debug.event.inject", { kind: 1, code: 0, text: "6" })
       client.call("debug.event.inject", { kind: 1, code: 13 })
       desktop.events.each { |event| compositor.handle(event) }
@@ -112,6 +129,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS/arm64] SDL audio bridge: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] Ruby chipset workbench: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] dual-playfield chipset clock: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS/arm64] Ruby arcade games: PASS\n")
       true
     end
   end
