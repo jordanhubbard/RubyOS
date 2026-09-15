@@ -16,6 +16,7 @@ paths = %w[
   kernel/rubyos/device.rb
   kernel/rubyos/drivers/virtio_block.rb
   kernel/rubyos/drivers/virtio_net.rb
+  kernel/rubyos/drivers/virtio_sound.rb
   kernel/rubyos/net/address.rb
   kernel/rubyos/net/packet.rb
   kernel/rubyos/net/dhcp.rb
@@ -37,6 +38,7 @@ paths = %w[
   kernel/network_boot.rb
   kernel/gui_boot.rb
   kernel/input_boot.rb
+  kernel/audio_boot.rb
 ]
 
 source = paths.map do |path|
@@ -59,6 +61,9 @@ if ENV["RUBYOS_EMBED_REPL"] == "1"
 end
 if ENV["RUBYOS_EMBED_INPUT"] == "1"
   source << "RubyOS::Kernel.boot_native_input\n"
+end
+if ENV["RUBYOS_EMBED_AUDIO"] == "1"
+  source << "RubyOS::Kernel.boot_native_audio\n"
 end
 
 puts "/* Generated from RubyOS kernel sources. */"

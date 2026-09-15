@@ -15,11 +15,12 @@ ARM64_REPL_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-repl/rubyos.elf
 ARM64_STORAGE_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-storage/rubyos.elf
 ARM64_NETWORK_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-network/rubyos.elf
 ARM64_INPUT_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-input/rubyos.elf
+ARM64_AUDIO_ELF := $(CURDIR)/build/baremetal/rubyos-arm64-audio/rubyos.elf
 DISK_IMAGE := $(CURDIR)/build/disk.img
 RUBY_PC := PKG_CONFIG_PATH=$(CURDIR)/build/host-ruby/lib/pkgconfig pkg-config
 BUILDER_IMAGE := pythonos-builder
 
-.PHONY: all ruby smoke test teaching-examples test-ext2 test-network bridge test-bridge embed-probe baremetal-arm64 baremetal-smoke ruby-arm64 ruby-x86_64 rubyos-x86_64 rubyos-x86_64-smoke rubyos-x86_64-input-smoke rubyos-arm64 rubyos-arm64-smoke rubyos-arm64-gui rubyos-arm64-gui-smoke rubyos-arm64-input-smoke rubyos-arm64-repl rubyos-arm64-repl-smoke rubyos-arm64-storage rubyos-arm64-storage-smoke rubyos-arm64-network rubyos-arm64-network-smoke disk \
+.PHONY: all ruby smoke test teaching-examples test-ext2 test-network bridge test-bridge embed-probe baremetal-arm64 baremetal-smoke ruby-arm64 ruby-x86_64 rubyos-x86_64 rubyos-x86_64-smoke rubyos-x86_64-input-smoke rubyos-arm64 rubyos-arm64-smoke rubyos-arm64-gui rubyos-arm64-gui-smoke rubyos-arm64-input-smoke rubyos-arm64-audio-smoke rubyos-arm64-repl rubyos-arm64-repl-smoke rubyos-arm64-storage rubyos-arm64-storage-smoke rubyos-arm64-network rubyos-arm64-network-smoke disk \
 	clean distclean provenance
 
 all: smoke
@@ -123,6 +124,18 @@ $(ARM64_INPUT_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
 
 rubyos-arm64-input-smoke: $(ARM64_INPUT_ELF)
 	./test/rubyos_arm64_input_smoke.py
+
+$(ARM64_AUDIO_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
+		baremetal/arm64/boot.S baremetal/arm64/ruby_kernel.c \
+		baremetal/arm64/platform_stubs.c baremetal/arm64/setjmp.S \
+		baremetal/arm64/gic_timer.c \
+		baremetal/arm64/linker.ld tools/embed-kernel.rb $(shell find kernel -type f -name '*.rb') \
+		$(wildcard platform/libc/*.c platform/libc/include/*.h platform/libc/include/sys/*.h platform/boot/*.h)
+	docker run --rm --platform linux/arm64 --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
+		env RUBYOS_EMBED_AUDIO=1 RUBYOS_ARM64_VARIANT=rubyos-arm64-audio ./tools/build-rubyos-arm64.sh
+
+rubyos-arm64-audio-smoke: $(ARM64_AUDIO_ELF)
+	./test/rubyos_arm64_audio_smoke.sh
 
 rubyos-arm64-repl: $(ARM64_REPL_ELF)
 $(ARM64_REPL_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
