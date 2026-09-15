@@ -112,6 +112,13 @@ module RubyOS
       RubyOS.invariant(audio.queued_bytes >= 0, "SDL audio queue unavailable")
       audio.close
       desktop.capture("/tmp/rubyos-baremetal-desktop.bmp")
+      performance = client.performance_snapshot
+      guest_ops = performance.fetch(:guest_round_trip)
+      host_ops = performance.fetch(:host_service).fetch("ops")
+      RubyOS.invariant(guest_ops.fetch("display.present").fetch(:count).positive?,
+                       "guest bridge timing did not record display.present")
+      RubyOS.invariant(host_ops.fetch("display.present").fetch("count").positive?,
+                       "host bridge timing did not record display.present")
       title_surface.destroy
       png_surface.destroy
       jpeg_surface.destroy
@@ -130,6 +137,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS/arm64] Ruby chipset workbench: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] dual-playfield chipset clock: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] Ruby arcade games: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS/arm64] guest/host performance metrics: PASS\n")
       true
     end
   end

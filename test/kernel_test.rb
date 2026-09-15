@@ -130,6 +130,11 @@ clock = RubyOS::Timekeeper.new(monotonic_ns: -> { samples.shift })
 assert(clock.milliseconds == 1, "monotonic milliseconds")
 clock.set_hms(12, 34, 56)
 assert(clock.format_hms == "12:34:58", "session wall clock advances from monotonic time")
+
+debug = RubyOS::Debug.snapshot(state.merge(memory: memory))
+assert(debug.fetch(:ruby).include?("ruby"), "debug snapshot Ruby identity")
+assert(debug.fetch(:memory).fetch(:total_bytes).positive?, "debug snapshot memory")
+assert(debug.fetch(:concurrency).fetch(:online).positive?, "debug snapshot CPUs")
 clock.clear_wall_clock
 assert(!clock.wall_clock_set?, "session wall clock clears")
 

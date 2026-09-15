@@ -84,6 +84,11 @@ begin
   raise "wrong injected event" unless event["kind"] == 4 && event["x"] == 20 && event["y"] == 30
   desktop.capture(capture_path)
   raise "desktop capture is empty" unless File.size?(capture_path)
+  performance = client.performance_snapshot
+  guest_present = performance.fetch(:guest_round_trip).fetch("display.present")
+  host_present = performance.fetch(:host_service).fetch("ops").fetch("display.present")
+  raise "guest bridge timing missing" unless guest_present.fetch(:count).positive?
+  raise "host bridge timing missing" unless host_present.fetch("count").positive?
   image.destroy
   decoded.destroy
   decoded_jpeg.destroy

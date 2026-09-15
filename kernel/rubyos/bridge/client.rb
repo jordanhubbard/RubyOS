@@ -18,6 +18,7 @@ module RubyOS
         @transport = transport
         @next_id = 1
         @features = [].freeze
+        @metrics = {}
       end
 
       def hello
@@ -29,6 +30,7 @@ module RubyOS
       end
 
       def call(operation, parameters = {}, payload: +"".b)
+        started_ns = monotonic_ns
         id = @next_id
         @next_id += 1
         parameters = parameters.transform_keys(&:to_s)
@@ -46,6 +48,28 @@ module RubyOS
                           failure.fetch("msg", "unknown display failure"))
         end
         response.fetch("result", {})
+      ensure
+        record_metric(operation, monotonic_ns - started_ns) if started_ns
+      end
+
+      def metrics(reset: false)
+        snapshot = @metrics.transform_values do |row|
+          count = row.fetch(:count)
+          {
+            count:,
+            total_ns: row.fetch(:total_ns),
+            max_ns: row.fetch(:max_ns),
+            mean_us: count.zero? ? 0.0 : row.fetch(:total_ns) / count / 1_000.0,
+            max_us: row.fetch(:max_ns) / 1_000.0
+          }.freeze
+        end.freeze
+        @metrics.clear if reset
+        snapshot
+      end
+
+      def performance_snapshot(reset: false)
+        host = call("debug.metrics", { reset: })
+        { guest_round_trip: metrics(reset:), host_service: host }.freeze
       end
 
       def sdl_call(name, *arguments)
@@ -54,6 +78,23 @@ module RubyOS
 
       def close
         @transport.close
+      end
+
+      private
+
+      def monotonic_ns
+        if defined?(RubyOS::HAL) && RubyOS::HAL.respond_to?(:monotonic_ns)
+          RubyOS::HAL.monotonic_ns
+        else
+          Process.clock_gettime(Process::CLOCK_MONOTONIC, :nanosecond)
+        end
+      end
+
+      def record_metric(operation, elapsed_ns)
+        row = (@metrics[String(operation)] ||= { count: 0, total_ns: 0, max_ns: 0 })
+        row[:count] += 1
+        row[:total_ns] += elapsed_ns
+        row[:max_ns] = elapsed_ns if elapsed_ns > row[:max_ns]
       end
     end
   end

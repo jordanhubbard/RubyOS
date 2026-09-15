@@ -23,11 +23,11 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 | Images | PNG/JPEG decoding and viewer | Ruby remote surfaces, raw upload, bare-metal PNG/JPEG decode/blit, and Image Viewer | Complete |
 | Chipset laboratory | dual playfields, display windows/lists, Copper, blitter, sprites, Paula audio, clock | Ruby indexed/direct dual playfields with keying, display-window wipes, extended Copper registers, fill/copy/cookie Blitter, sprites, four-channel Paula, and clocked View engine | Complete |
 | Concurrency | ARM64/x86 SMP, pthread substrate, no-GIL workers | ARM64 PSCI and x86 INIT/SIPI AP bring-up with C-safe native worker mailboxes exposed through Ruby while CRuby remains GVL-safe on the BSP | Complete |
-| Debug/automation | QMP/native debug, captures, performance metrics | deterministic QEMU smokes and SDL captures | Partial |
+| Debug/automation | QMP/native debug, captures, performance metrics | unified serial/QMP/GDB-remote session manifest, SDL captures, Ruby round-trip and host-service timing, plus deterministic cross-architecture parity gates | Complete |
 | Teaching examples | curated storage/network/graphics/audio/internals lessons | executable Ruby lessons for storage, networking, graphics, audio, internals, plus remote desktop | Complete |
 
 ## Delivery order
 
-Parity work follows dependency order: SMP; then parity-level
-automation. Each row moves to complete only when a
-bare-metal integration test covers the corresponding behavior.
+Every PythonOS behavior row now has a RubyOS implementation and integration
+evidence. `make parity` runs the hosted contracts and the ARM64/x86_64 native
+matrix; future changes should keep the corresponding bare-metal gate green.

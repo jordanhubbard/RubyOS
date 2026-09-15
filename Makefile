@@ -23,7 +23,7 @@ DISK_IMAGE := $(CURDIR)/build/disk.img
 RUBY_PC := PKG_CONFIG_PATH=$(CURDIR)/build/host-ruby/lib/pkgconfig pkg-config
 BUILDER_IMAGE := pythonos-builder
 
-.PHONY: all ruby smoke test teaching-examples test-ext2 test-network bridge test-bridge embed-probe baremetal-arm64 baremetal-smoke ruby-arm64 ruby-x86_64 rubyos-x86_64 rubyos-x86_64-smoke rubyos-x86_64-input-smoke rubyos-x86_64-audio-smoke rubyos-x86_64-smp-smoke rubyos-arm64 rubyos-arm64-smoke rubyos-arm64-gui rubyos-arm64-gui-smoke rubyos-arm64-input-smoke rubyos-arm64-audio-smoke rubyos-arm64-smp-smoke rubyos-arm64-repl rubyos-arm64-repl-smoke rubyos-arm64-storage rubyos-arm64-storage-smoke rubyos-arm64-network rubyos-arm64-network-smoke disk \
+.PHONY: all ruby smoke test teaching-examples test-ext2 test-network bridge test-bridge debug-smoke debug-session parity embed-probe baremetal-arm64 baremetal-smoke ruby-arm64 ruby-x86_64 rubyos-x86_64 rubyos-x86_64-smoke rubyos-x86_64-input-smoke rubyos-x86_64-audio-smoke rubyos-x86_64-smp-smoke rubyos-arm64 rubyos-arm64-smoke rubyos-arm64-gui rubyos-arm64-gui-smoke rubyos-arm64-input-smoke rubyos-arm64-audio-smoke rubyos-arm64-smp-smoke rubyos-arm64-repl rubyos-arm64-repl-smoke rubyos-arm64-storage rubyos-arm64-storage-smoke rubyos-arm64-network rubyos-arm64-network-smoke disk \
 	clean distclean provenance
 
 all: smoke
@@ -54,6 +54,22 @@ bridge:
 test-bridge: $(HOST_RUBY_STAMP) bridge
 	mkdir -p build
 	$(HOST_RUBY) -I kernel test/remote_desktop_smoke.rb
+
+debug-smoke: $(ARM64_GUI_ELF) bridge
+	./test/rubyos_debug_smoke.py
+
+debug-session: $(ARM64_GUI_ELF) bridge
+	./test/rubyos_debug_smoke.py --hold
+
+parity:
+	$(MAKE) provenance smoke test teaching-examples test-ext2 test-network test-bridge
+	$(MAKE) embed-probe baremetal-smoke
+	$(MAKE) rubyos-arm64-smoke rubyos-x86_64-smoke
+	$(MAKE) rubyos-arm64-gui-smoke rubyos-arm64-repl-smoke
+	$(MAKE) rubyos-arm64-storage-smoke rubyos-arm64-network-smoke
+	$(MAKE) rubyos-arm64-input-smoke rubyos-x86_64-input-smoke
+	$(MAKE) rubyos-arm64-audio-smoke rubyos-x86_64-audio-smoke
+	$(MAKE) rubyos-arm64-smp-smoke rubyos-x86_64-smp-smoke debug-smoke
 
 embed-probe: $(EMBED_PROBE)
 	$(EMBED_PROBE)

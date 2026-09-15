@@ -44,26 +44,23 @@ should define its public shape.
 
 ## Gates
 
-1. **Source runtime (complete):** source-built CRuby runs the kernel model and
-   tests.
-2. **Freestanding link probe (complete):** build `libruby-static.a` against a
-   measured RubyOS libc and evaluate embedded source without a Linux ELF
-   interpreter.
-3. **Serial Ruby kernel (booting):** QEMU enters CRuby 4.0.6, initializes Prism,
-   and prints through the RubyOS serial substrate. GC stress and a richer HAL
-   remain.
-4. **Fiber kernel (cooperative slice complete):** Ruby Fibers schedule and
-   yield on the freestanding ARM64 runtime. Timer-driven ticks, exception
-   containment, and task introspection remain.
-5. **Remote desktop (bare-metal slice complete):** hosted and freestanding Ruby
-   drive a forked SDL2 companion through `Transport`, `Client`, `Surface`, and
-   `RemoteDesktop` objects. The ARM64 kernel's transport and VirtQueue logic
-   are Ruby over five MMIO/DMA HAL primitives.
-6. **Ruby-native desktop:** compositor, IRB-like terminal, object browser,
-   source workspace, live method replacement, and app DSL.
-7. **Storage/network:** port VirtIO, VFS, TCP, and remote REPL as Ruby objects.
-8. **SMP research:** only after the single-core system is stable, evaluate
-   CRuby Threads/Ractors and the platform hooks they require.
+1. **Source runtime:** source-built CRuby runs the hosted model and tests.
+2. **Freestanding runtime:** ARM64 and x86_64 static CRuby enter Prism and the
+   embedded kernel with no Linux interpreter or system Ruby dependency.
+3. **Kernel substrate:** exceptions, 100 Hz timers, TLS, allocation, DMA, and
+   serial diagnostics are live on both architectures.
+4. **Ruby kernel:** Fibers, task lifecycle, devices/drivers, memory, VFS/ext2,
+   and network protocols are Ruby objects covered on bare metal.
+5. **Desktop and media:** Ruby drives the SDL companion, compositor, apps,
+   games, chipset laboratory, image/font APIs, canonical input, and PCM audio.
+6. **Native devices:** ARM VirtIO and x86 PS/2/HDA paths cross real QEMU device
+   queues and DMA rather than hosted substitutes.
+7. **Concurrency:** PSCI and APIC bring all requested CPUs online. CRuby stays
+   on its GVL-owning bootstrap processor; Ruby dispatches explicitly C-safe
+   hash work to native AP mailboxes.
+8. **Debug and automation:** one manifest describes serial, QMP, GDB-remote,
+   symbols, desktop logs, and captures; `make parity` exercises the complete
+   hosted and native behavior matrix.
 
 ## Instruction sequence policy
 
@@ -92,11 +89,12 @@ stdio, and processless syscall semantics. In particular, Ruby 4's dynamic
 `PTHREAD_STACK_MIN` query must return a real value before Fiber stack pools are
 initialized.
 
-## Explicit non-goals for the first bare-metal milestone
+## Deliberate non-goals
 
 - system Ruby packages
 - mruby as a substitute for current CRuby
 - YJIT or ZJIT
 - arbitrary native gems or dynamic loading
 - POSIX process compatibility
-- parallel Ractors or production isolation via experimental Ruby Box
+- running CRuby VM code concurrently outside its GVL
+- production isolation via experimental Ruby Box

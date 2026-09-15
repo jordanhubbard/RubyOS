@@ -8,6 +8,7 @@ paths = %w[
   kernel/rubyos/memory.rb
   kernel/rubyos/input.rb
   kernel/rubyos/concurrency.rb
+  kernel/rubyos/debug.rb
   kernel/rubyos/sound.rb
   kernel/rubyos/chipset.rb
   kernel/rubyos/fs.rb

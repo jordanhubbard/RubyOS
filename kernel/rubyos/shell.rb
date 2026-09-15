@@ -7,6 +7,7 @@ module RubyOS
       "version" => "show the running Ruby implementation",
       "devices" => "list devices and bound drivers",
       "tasks" => "list scheduler tasks and states",
+      "debug" => "show a machine-readable kernel snapshot",
       "uptime" => "show monotonic uptime in milliseconds",
       "time" => "show or set the session clock: time [HH:MM:SS|clear]",
       "sleep" => "sleep using the kernel timer: sleep milliseconds",
@@ -63,6 +64,8 @@ module RubyOS
       when "tasks"
         scheduler = RubyOS::Kernel.state&.fetch(:scheduler, nil)
         scheduler&.tasks&.each { |task| @output.puts "#{task.name}: #{task.state}" }
+      when "debug"
+        @output.puts RubyOS::Debug.snapshot.inspect
       when "uptime"
         @output.puts "#{clock.milliseconds} ms"
       when "time"

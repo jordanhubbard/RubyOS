@@ -8,6 +8,19 @@ __attribute__((noreturn)) void rubyos_exception_report(uint64_t esr, uint64_t el
 #define PL011_FR   (*(volatile uint32_t *)(PL011_BASE + 0x018))
 #define PL011_TXFF (1U << 5)
 
+/* The bootstrap assembly is shared with the complete CRuby kernel. These
+ * entry points keep this deliberately single-core, pre-runtime rung linkable
+ * while secondary CPUs remain parked and interrupts remain disabled. */
+uint64_t rubyos_ap_stack_top[4];
+
+__attribute__((noreturn)) void rubyos_ap_main(uint32_t index)
+{
+    (void)index;
+    for (;;) __asm__ volatile("wfe");
+}
+
+void rubyos_irq_handler(void) {}
+
 static void serial_putc(char value)
 {
     while (PL011_FR & PL011_TXFF) {

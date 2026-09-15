@@ -8,25 +8,28 @@ This project builds Ruby from the official upstream source archive. It does
 not use a system Ruby package, a system `ruby` executable, or a system
 `libruby`. The pinned version and checksum live in `config/ruby.mk`.
 
-## Current vertical slice
+## What runs today
 
-The first slice proves the language-level architecture on a source-built CRuby:
+RubyOS carries the PythonOS behavior surface in Ruby on source-built CRuby:
 
 - Ruby 4.0.6 bootstrapped and installed privately in `build/host-ruby`
 - the same CRuby source cross-built as freestanding ARM64 and x86_64 static runtimes
-- a cooperative `Fiber` kernel scheduler with timed sleep/deadline queues
+- a cooperative `Fiber` kernel scheduler with timed deadlines and task lifecycle accounting
 - ARM generic-counter monotonic time, 100 Hz GICv2/v3 timer IRQs, sleeping, and a Ruby session clock
 - a Ruby VFS/tmpfs with mount routing and file-descriptor semantics
 - Ruby-native Ethernet, ARP, IPv4, ICMP, and UDP packet objects
-- `Device`, `Driver`, and `Bus` object protocols
+- an enumerable device hierarchy, typed resources, and a matching/priority driver DSL
+- reclaimable page-frame memory backed by the native allocator
+- writable ext2, VirtIO block/network, DHCP/DNS/TCP, and concurrent TCP Ruby consoles
 - a Ruby-native `Element -> View -> Container/Label -> Button` GUI hierarchy
 - a Ruby compositor with focus/z-order, windows, menu bar, dock, and system apps
 - a forked SDL2 companion plus an idiomatic Ruby
   `Transport -> Client -> Surface -> RemoteDesktop` hierarchy
 - PythonOS-compatible length-prefixed bridge framing
-- a QEMU kernel that enters CRuby with the RubyOS libc and boots the real
-  Ruby object model
-- boot smoke tests and a dependency-free hosted test suite
+- native PS/2 and VirtIO input, x86 HDA and ARM VirtIO Sound
+- ARM PSCI and x86 APIC multi-core bring-up with GVL-safe native worker mailboxes
+- a unified serial, QMP, GDB-remote, capture, and performance-debug plane
+- QEMU kernels that enter CRuby with the RubyOS libc and boot the real Ruby object model
 
 Run it with:
 
@@ -47,6 +50,14 @@ make rubyos-arm64-gui-smoke
 make rubyos-arm64-repl-smoke
 make rubyos-arm64-storage-smoke
 make rubyos-arm64-network-smoke
+make rubyos-arm64-input-smoke
+make rubyos-x86_64-input-smoke
+make rubyos-arm64-audio-smoke
+make rubyos-x86_64-audio-smoke
+make rubyos-arm64-smp-smoke
+make rubyos-x86_64-smp-smoke
+make debug-smoke
+make parity
 make provenance
 ```
 
@@ -63,13 +74,14 @@ the local builder image, not with the host Linux compiler.
 That builder also cross-compiles the pinned CRuby source into an ARM64 static
 archive and links it only with RubyOS's freestanding platform layer and
 `libgcc`. The resulting ELF has no program interpreter and boots CRuby 4.0.6,
-Prism, Ruby-defined devices, and cooperative Fibers on QEMU's `virt` machine.
+Prism, Ruby-defined devices, cooperative Fibers, and native VirtIO devices on
+QEMU's `virt` machine.
 
 `make rubyos-x86_64-smoke` independently cross-builds CRuby with its amd64
 Fiber coroutine backend, packages a Multiboot2 ELF with GRUB, and boots the
-same embedded Ruby kernel under `qemu-system-x86_64`. Its early port currently
-provides COM1, static TLS, SSE, a heap, a 100 Hz PIT clock, and an IDT with a
-boot-time exception probe; ARM64 remains the full device-integration target.
+same embedded Ruby kernel under `qemu-system-x86_64`. It provides COM1, static
+TLS, SSE, a reclaimable heap, a 100 Hz PIT clock, IDT exception probes, PS/2
+input, Intel HDA audio, and APIC multi-core workers.
 
 The initial platform libc is adapted from PythonOS and retains its BSD license
 in `platform/PYTHONOS-LICENSE`.
@@ -135,7 +147,7 @@ the small-machine graphics laboratory in Ruby and render as a desktop demo.
 `make rubyos-arm64-repl-smoke` builds the console kernel and drives its PL011
 input under QEMU. The prompt evaluates ordinary Ruby and provides `help`,
 `version`, `devices`, `tasks`, `uptime`, `sleep`, `time`, `ls`, `cat`, and
-`write`, `mkdir`, and `rm` commands backed by live kernel objects.
+`write`, `mkdir`, `rm`, and `debug` commands backed by live kernel objects.
 
 `make rubyos-arm64-storage-smoke` adds a generated ext2 disk to QEMU. Ruby
 discovers it through a Ruby VirtIO-MMIO block driver, parses ext2 without a C
@@ -164,3 +176,24 @@ qemu-system-aarch64 -M virt -cpu cortex-a72 -m 512M \
   -nographic -monitor none -serial stdio \
   -kernel build/baremetal/rubyos-arm64-repl/rubyos.elf
 ```
+
+## Native debugging and parity automation
+
+`make debug-smoke` launches the ARM64 desktop with independent serial, QMP,
+and GDB-remote planes, records `build/rubyos-debug.json`, verifies a native
+stop reply, captures the SDL framebuffer, and checks both Ruby-side request
+latency and SDL companion service-time metrics. `make debug-session` performs
+the same checks and then keeps the VM alive. From another terminal:
+
+```sh
+tools/rubyos_debug.py session
+tools/rubyos_debug.py serial
+tools/rubyos_debug.py qmp status
+tools/rubyos_debug.py native
+tools/rubyos_debug.py native -- "info registers" "bt"
+tools/rubyos_debug.py capture
+```
+
+`make parity` is the release-style gate. It runs hosted object-model tests and
+teaching examples, then the storage, network, desktop, console, input, audio,
+SMP, and debug smokes on both native architectures where applicable.
