@@ -7,6 +7,7 @@ paths = %w[
   kernel/rubyos/timekeeper.rb
   kernel/rubyos/memory.rb
   kernel/rubyos/input.rb
+  kernel/rubyos/concurrency.rb
   kernel/rubyos/sound.rb
   kernel/rubyos/chipset.rb
   kernel/rubyos/fs.rb
@@ -41,6 +42,7 @@ paths = %w[
   kernel/gui_boot.rb
   kernel/input_boot.rb
   kernel/audio_boot.rb
+  kernel/smp_boot.rb
 ]
 
 source = paths.map do |path|
@@ -66,6 +68,9 @@ if ENV["RUBYOS_EMBED_INPUT"] == "1"
 end
 if ENV["RUBYOS_EMBED_AUDIO"] == "1"
   source << "RubyOS::Kernel.boot_native_audio\n"
+end
+if ENV["RUBYOS_EMBED_SMP"] == "1"
+  source << "RubyOS::Kernel.boot_smp\n"
 end
 
 puts "/* Generated from RubyOS kernel sources. */"

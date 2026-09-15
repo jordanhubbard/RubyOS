@@ -22,7 +22,7 @@ native to Ruby while offering the same useful system surfaces as PythonOS.
 | Audio | Intel HDA/VirtIO/bridge mixer and sound API | Ruby PCM/waveform mixer, bare-metal SDL bridge, native ARM64 VirtIO Sound, and native x86_64 Intel HDA DMA | Complete |
 | Images | PNG/JPEG decoding and viewer | Ruby remote surfaces, raw upload, bare-metal PNG/JPEG decode/blit, and Image Viewer | Complete |
 | Chipset laboratory | dual playfields, display windows/lists, Copper, blitter, sprites, Paula audio, clock | Ruby indexed/direct dual playfields with keying, display-window wipes, extended Copper registers, fill/copy/cookie Blitter, sprites, four-channel Paula, and clocked View engine | Complete |
-| Concurrency | ARM64/x86 SMP, pthread substrate, no-GIL workers | single-core pthread compatibility | Missing |
+| Concurrency | ARM64/x86 SMP, pthread substrate, no-GIL workers | ARM64 PSCI AP bring-up and C-safe WFE/SEV native worker mailboxes exposed through Ruby without violating CRuby's GVL; x86 AP bring-up pending | Partial |
 | Debug/automation | QMP/native debug, captures, performance metrics | deterministic QEMU smokes and SDL captures | Partial |
 | Teaching examples | curated storage/network/graphics/audio/internals lessons | executable Ruby lessons for storage, networking, graphics, audio, internals, plus remote desktop | Complete |
 

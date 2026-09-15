@@ -15,6 +15,9 @@ assert(output.string.include?("Ruby owns the machine"), "boot marker")
 assert(state[:trace] == [[0, :start], [1, :start], [0, :finish], [1, :finish]], "fiber order")
 assert(state[:scheduler].tasks.all? { |task| task.state == :complete }, "task completion")
 assert(state[:timer_trace] == [:sleep, :wake], "bare scheduler deadline")
+assert(RubyOS::Concurrency.stats == RubyOS::Concurrency::Stats.new(cpus: 1, online: 1,
+                                                                   worker_selftests: 1),
+       "hosted concurrency fallback")
 
 input_queue = RubyOS::Input::EventQueue.new(capacity: 2)
 observed_input = []

@@ -89,6 +89,37 @@ _start:
 
 .size _start, . - _start
 
+.global rubyos_ap_entry
+rubyos_ap_entry:
+    mov x19, x0
+    mrs x0, CurrentEL
+    lsr x0, x0, #2
+    cmp x0, #2
+    b.ne 11f
+    mov x0, #(1 << 31)
+    msr hcr_el2, x0
+    adr x0, 11f
+    msr elr_el2, x0
+    mov x0, #0x3c5
+    msr spsr_el2, x0
+    msr sctlr_el1, xzr
+    isb
+    eret
+11:
+    mrs x0, cpacr_el1
+    orr x0, x0, #(3 << 20)
+    msr cpacr_el1, x0
+    isb
+    adrp x0, rubyos_ap_stack_top
+    add x0, x0, :lo12:rubyos_ap_stack_top
+    ldr x0, [x0, x19, lsl #3]
+    mov sp, x0
+    mov x0, x19
+    bl rubyos_ap_main
+12:
+    wfe
+    b 12b
+
 .balign 2048
 .global exception_vectors
 exception_vectors:

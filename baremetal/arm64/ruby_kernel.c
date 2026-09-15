@@ -9,6 +9,11 @@ extern size_t malloc_free_bytes(void);
 extern size_t malloc_total_bytes(void);
 extern void rubyos_timer_init(void);
 extern uint64_t rubyos_timer_ticks(void);
+extern void rubyos_smp_init(void);
+extern uint32_t rubyos_smp_cpu_count(void);
+extern uint32_t rubyos_smp_online_count(void);
+extern uint32_t rubyos_smp_selftests(void);
+extern int rubyos_smp_hash(uint64_t, uint64_t, uint64_t *);
 
 #define PL011_BASE 0x09000000UL
 #define PL011_DR   (*(volatile uint32_t *)(PL011_BASE + 0x000))
@@ -208,6 +213,18 @@ static VALUE hal_interrupt_ticks(VALUE self)
     return ULL2NUM(rubyos_timer_ticks());
 }
 
+static VALUE hal_cpu_count(VALUE self) { (void)self; return UINT2NUM(rubyos_smp_cpu_count()); }
+static VALUE hal_online_cpus(VALUE self) { (void)self; return UINT2NUM(rubyos_smp_online_count()); }
+static VALUE hal_worker_selftests(VALUE self) { (void)self; return UINT2NUM(rubyos_smp_selftests()); }
+static VALUE hal_worker_hash(VALUE self, VALUE input, VALUE rounds)
+{
+    uint64_t result;
+    (void)self;
+    if (!rubyos_smp_hash(NUM2ULL(input), NUM2ULL(rounds), &result))
+        rb_raise(rb_eRuntimeError, "no native AP worker available");
+    return ULL2NUM(result);
+}
+
 static VALUE exception_full_message(VALUE error)
 {
     return rb_funcall(error, rb_intern("full_message"), 0);
@@ -231,6 +248,7 @@ void rubyos_kernel_main(uint64_t dtb_address)
 
     serial_puts("[RubyOS/arm64] boot: RubyOS libc initialized\n");
     rubyos_timer_init();
+    rubyos_smp_init();
     __asm__ volatile("msr daifclr, #2");
     while (rubyos_timer_ticks() < 3) __asm__ volatile("yield");
     serial_puts("[RubyOS/arm64] boot: timer IRQs active\n");
@@ -267,6 +285,10 @@ void rubyos_kernel_main(uint64_t dtb_address)
     rb_define_module_function(hal, "monotonic_ns", hal_monotonic_ns, 0);
     rb_define_module_function(hal, "sleep_us", hal_sleep_us, 1);
     rb_define_module_function(hal, "interrupt_ticks", hal_interrupt_ticks, 0);
+    rb_define_module_function(hal, "cpu_count", hal_cpu_count, 0);
+    rb_define_module_function(hal, "online_cpus", hal_online_cpus, 0);
+    rb_define_module_function(hal, "worker_selftests", hal_worker_selftests, 0);
+    rb_define_module_function(hal, "worker_hash", hal_worker_hash, 2);
     rb_eval_string_protect(rubyos_kernel_source, &state);
     if (state != 0) {
         VALUE error = rb_errinfo();

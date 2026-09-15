@@ -22,6 +22,7 @@ aarch64-elf-gcc "${cflags[@]}" -c "$root/baremetal/arm64/platform_stubs.c" \
     -o "$out/platform_stubs.o"
 aarch64-elf-gcc "${cflags[@]}" -c "$root/baremetal/arm64/gic_timer.c" \
     -o "$out/gic_timer.o"
+aarch64-elf-gcc "${cflags[@]}" -c "$root/baremetal/arm64/smp.c" -o "$out/smp.o"
 aarch64-elf-gcc "${cflags[@]}" -c "$root/baremetal/arm64/setjmp.S" -o "$out/setjmp.o"
 
 libc_objects=()
@@ -34,7 +35,7 @@ done
 libgcc="$(aarch64-elf-gcc -print-libgcc-file-name)"
 aarch64-elf-ld -T "$root/baremetal/arm64/linker.ld" -nostdlib \
     -o "$out/rubyos.elf" "$out/boot.o" "$out/kernel.o" \
-    "$out/platform_stubs.o" "$out/gic_timer.o" "$out/setjmp.o" "${libc_objects[@]}" \
+    "$out/platform_stubs.o" "$out/gic_timer.o" "$out/smp.o" "$out/setjmp.o" "${libc_objects[@]}" \
     --whole-archive "$ruby_build/libruby-static.a" --no-whole-archive "$libgcc"
 
 if readelf -l "$out/rubyos.elf" | grep -q INTERP; then

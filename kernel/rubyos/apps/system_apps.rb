@@ -56,6 +56,7 @@ module RubyOS
         tasks = kernel.state.fetch(:scheduler).tasks
         uptime = kernel.state.fetch(:clock).milliseconds
         memory = kernel.state.fetch(:memory).snapshot
+        cpus = Concurrency.stats
         GUI::Window.new("System Monitor", x: 150, y: 36, width: 286, height: 132,
                         background: 0x202336).tap do |window|
           window.add(GUI::Label.new("Ruby tasks: #{tasks.length}", x: 0, y: 0, color: 0xf7c978))
@@ -63,6 +64,7 @@ module RubyOS
           window.add(GUI::Label.new("Scheduler: Fiber", x: 0, y: 48, color: 0xc3e88d))
           window.add(GUI::Label.new("Heap: #{memory.used_bytes / 1024} / #{memory.total_bytes / 1024} KiB",
                                     x: 0, y: 72, color: 0xe8b4ff))
+          window.add(GUI::Label.new("CPUs: #{cpus.online}/#{cpus.cpus}", x: 0, y: 96, color: 0x89ddff))
         end
       end
     end
