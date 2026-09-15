@@ -68,6 +68,12 @@ module RubyOS
       jpeg_surface = Bridge::Surface.load_image(client, jpeg)
       RubyOS.invariant([png_surface.width, png_surface.height] == [2, 2], "PNG decode dimensions")
       RubyOS.invariant([jpeg_surface.width, jpeg_surface.height] == [8, 8], "JPEG decode dimensions")
+      chipset_engine = Chipset::Engine.new
+      chipset_engine.load_view(Apps::ChipsetWorkbench.new.build_view).start
+      chipset_frame, chipset_audio = chipset_engine.tick
+      chipset_engine.stop
+      RubyOS.invariant(!chipset_frame.empty? && !chipset_audio.empty?,
+                       "chipset clock did not produce raster and Paula audio")
       png_surface.blit_to(desktop.surface, x: 460, y: 26)
       jpeg_surface.blit_to(desktop.surface, x: 464, y: 26)
       desktop.present
@@ -105,6 +111,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS/arm64] PNG/JPEG image surfaces: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] SDL audio bridge: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS/arm64] Ruby chipset workbench: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS/arm64] dual-playfield chipset clock: PASS\n")
       true
     end
   end

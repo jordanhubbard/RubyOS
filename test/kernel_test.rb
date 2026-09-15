@@ -146,6 +146,38 @@ assert(playfield.get(5, 2) == 0x123456, "overlap-safe chipset blitter copy")
 chipset_view = RubyOS::Apps::ChipsetWorkbench.new.build_view
 assert(chipset_view.raster.length == 512, "chipset raster dimensions")
 assert(chipset_view.pixel_at(23, 7) == 0xffd866, "chipset sprite priority")
+indexed_view = RubyOS::Chipset::View.new(4, 3, mode: RubyOS::Chipset::MODE_INDEXED)
+indexed_view.palette[1] = 0x112233
+indexed_view.palette[2] = 0xaabbcc
+indexed_view.pf0.fill(1)
+indexed_view.pf1.fill(0)
+indexed_view.bplcon = RubyOS::Chipset::BPLCON_PF1_KEY
+indexed_view.key_color = 0
+indexed_view.pf1.put(2, 1, 2)
+assert(indexed_view.pixel_at(0, 0) == 0x112233 && indexed_view.pixel_at(2, 1) == 0xaabbcc,
+       "indexed dual-playfield keying")
+source_field = RubyOS::Chipset::Playfield.new(2, 2, fill: 0xff)
+mask_field = RubyOS::Chipset::Playfield.new(2, 2)
+mask_field.put(1, 0, 1)
+RubyOS::Chipset::Blitter.cookie(source_field, mask_field, indexed_view.pf0,
+                                source_x: 0, source_y: 0, destination_x: 0, destination_y: 0,
+                                width: 2, height: 2)
+assert(indexed_view.pf0.get(1, 0) == 0xff, "cookie-cut blitter mask")
+RubyOS::Chipset::Toaster.wipe_step(indexed_view, 0.5, 1.0)
+assert(indexed_view.diw_stop == 1 && indexed_view.pixel_at(0, 2).zero?, "display-window wipe")
+paula = RubyOS::Chipset::Paula.new
+paula.channels.first.samples = [1_000, 1_000]
+paula.channels.first.pan = 0
+paula.channels.first.rate = 48_000
+paula.channels.first.play
+left, right = paula.mix(1).unpack("s<2")
+assert(left == 1_000 && right.zero?, "Paula channel volume and pan")
+presented = []
+engine = RubyOS::Chipset::Engine.new(paula:) { |frame_bytes, audio_bytes| presented << [frame_bytes, audio_bytes] }
+engine.load_view(indexed_view).start
+engine.tick
+engine.stop
+assert(engine.ticks == 1 && presented.first.map(&:length).all?(&:positive?), "chipset clock presents raster and audio")
 
 frame = RubyOS::Bridge::Protocol.encode_json_frame('{"v":1}')
 assert(RubyOS::Bridge::Protocol.decode_length(frame.byteslice(0, 4)) == 7, "bridge length")

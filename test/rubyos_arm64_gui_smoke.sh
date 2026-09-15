@@ -53,6 +53,7 @@ grep -q 'SDL_ttf Ruby Font: PASS' "$serial_log"
 grep -q 'PNG/JPEG image surfaces: PASS' "$serial_log"
 grep -q 'SDL audio bridge: PASS' "$serial_log"
 grep -q 'Ruby chipset workbench: PASS' "$serial_log"
+grep -q 'dual-playfield chipset clock: PASS' "$serial_log"
 ! grep -q 'FATAL\|EXCEPTION\|ASSERT\|\[BUG\]' "$serial_log"
 test -s "$capture"
 file "$capture" | grep -q '480 x 300'
