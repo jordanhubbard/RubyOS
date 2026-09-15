@@ -7,6 +7,11 @@
 extern int rubyos_tls_init(void);
 extern void rubyos_interrupts_init(void);
 extern uint64_t rubyos_x86_timer_ticks(void);
+extern void rubyos_x86_smp_init(uint64_t);
+extern uint32_t rubyos_x86_smp_cpu_count(void);
+extern uint32_t rubyos_x86_smp_online_count(void);
+extern uint32_t rubyos_x86_smp_selftests(void);
+extern int rubyos_x86_smp_hash(uint64_t, uint64_t, uint64_t *);
 extern void *aligned_alloc(size_t, size_t);
 extern void free(void *);
 extern void *memset(void *, int, size_t);
@@ -54,6 +59,10 @@ static uint32_t pci_address(unsigned bus, unsigned device, unsigned function, un
 static VALUE pci_read32(VALUE self, VALUE bus, VALUE device, VALUE function, VALUE offset) { (void)self; outl(0xcf8, pci_address(NUM2UINT(bus), NUM2UINT(device), NUM2UINT(function), NUM2UINT(offset))); return UINT2NUM(inl(0xcfc)); }
 static VALUE pci_write32(VALUE self, VALUE bus, VALUE device, VALUE function, VALUE offset, VALUE value) { (void)self; outl(0xcf8, pci_address(NUM2UINT(bus), NUM2UINT(device), NUM2UINT(function), NUM2UINT(offset))); outl(0xcfc, NUM2UINT(value)); return Qnil; }
 static VALUE full_message(VALUE e) { return rb_funcall(e, rb_intern("full_message"), 0); }
+static VALUE cpu_count(VALUE self) { (void)self; return UINT2NUM(rubyos_x86_smp_cpu_count()); }
+static VALUE online_cpus(VALUE self) { (void)self; return UINT2NUM(rubyos_x86_smp_online_count()); }
+static VALUE worker_selftests(VALUE self) { (void)self; return UINT2NUM(rubyos_x86_smp_selftests()); }
+static VALUE worker_hash(VALUE self, VALUE input, VALUE rounds) { uint64_t result; (void)self; if (!rubyos_x86_smp_hash(NUM2ULL(input),NUM2ULL(rounds),&result)) rb_raise(rb_eRuntimeError,"no native AP worker available"); return ULL2NUM(result); }
 
 void rubyos_x86_64_start(uint64_t magic, uint64_t info) {
     (void)magic; (void)info;
@@ -61,6 +70,9 @@ void rubyos_x86_64_start(uint64_t magic, uint64_t info) {
     puts1("[RubyOS/x86_64] boot: entering CRuby 4.0.6\n");
     if (!rubyos_tls_init()) { puts1("[RubyOS/x86_64] FATAL: TLS\n"); halt(); }
     rubyos_interrupts_init();
+    uint64_t page_table;
+    __asm__ volatile("mov %%cr3,%0" : "=r"(page_table));
+    rubyos_x86_smp_init(page_table);
     while (rubyos_x86_timer_ticks() < 3) __asm__ volatile("hlt");
     puts1("[RubyOS/x86_64] boot: IDT/PIT timer IRQs active\n");
     static char n[]="rubyos", e[]="-e", empty[]=""; static char *av[]={n,e,empty,0};
@@ -89,6 +101,10 @@ void rubyos_x86_64_start(uint64_t magic, uint64_t info) {
     rb_define_module_function(hal,"mmio_write8",mmio_write8,2);
     rb_define_module_function(hal,"pci_read32",pci_read32,4);
     rb_define_module_function(hal,"pci_write32",pci_write32,5);
+    rb_define_module_function(hal,"cpu_count",cpu_count,0);
+    rb_define_module_function(hal,"online_cpus",online_cpus,0);
+    rb_define_module_function(hal,"worker_selftests",worker_selftests,0);
+    rb_define_module_function(hal,"worker_hash",worker_hash,2);
     rb_eval_string_protect(rubyos_kernel_source,&state);
     if (state) { puts1("[RubyOS/x86_64] FATAL: embedded Ruby raised\n"); message=rb_protect(full_message,rb_errinfo(),&msg_state); if (!msg_state) puts1(StringValueCStr(message)); }
     halt();

@@ -20,6 +20,9 @@ align 4096
 pml4: resb 4096
 pdpt: resb 4096
 pd0: resb 4096
+pd1: resb 4096
+pd2: resb 4096
+pd3: resb 4096
 
 section .data
 mb_magic: dd 0
@@ -53,14 +56,44 @@ _start:
     mov eax, pd0
     or eax, 3
     mov [pdpt], eax
+    mov eax, pd1
+    or eax, 3
+    mov [pdpt + 8], eax
+    mov eax, pd2
+    or eax, 3
+    mov [pdpt + 16], eax
+    mov eax, pd3
+    or eax, 3
+    mov [pdpt + 24], eax
     xor ecx, ecx
     mov eax, 0x83
-.map:
+.map0:
     mov [pd0 + ecx * 8], eax
     add eax, 0x200000
     inc ecx
     cmp ecx, 512
-    jne .map
+    jne .map0
+    xor ecx, ecx
+.map1:
+    mov [pd1 + ecx * 8], eax
+    add eax, 0x200000
+    inc ecx
+    cmp ecx, 512
+    jne .map1
+    xor ecx, ecx
+.map2:
+    mov [pd2 + ecx * 8], eax
+    add eax, 0x200000
+    inc ecx
+    cmp ecx, 512
+    jne .map2
+    xor ecx, ecx
+.map3:
+    mov [pd3 + ecx * 8], eax
+    add eax, 0x200000
+    inc ecx
+    cmp ecx, 512
+    jne .map3
     mov eax, pml4
     mov cr3, eax
     lgdt [gdt_ptr]
