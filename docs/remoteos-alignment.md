@@ -23,3 +23,9 @@ it. RubyOS therefore does not transliterate PythonOS: its live workflow uses
 anonymous Modules and class replacement, its scheduler exposes Fibers, its
 driver model uses mixins and class DSLs, and its introspector reports actual
 Ruby classes, methods, ivars, and object relationships.
+
+RubyOS 0.3.0 and PythonOS 0.4.2 align on RemoteOS-SDL 0.2.0. Host devices now
+include depth-buffered 3D, FFmpeg decoding, audio-clocked playback and bounded
+Matroska export. RubyOS's `SDL` resources and `Media` scenes/timelines/recording
+are the Ruby layer above those neutral operations. PythonOS retains its own
+graphics personality. See [multimedia](multimedia.md) for examples and limits.

@@ -22,9 +22,9 @@ git submodule update --init --recursive
 
 On Debian/Ubuntu, install `build-essential curl xz-utils pkg-config file
 e2fsprogs qemu-system-arm qemu-system-x86 qemu-utils libsdl2-dev
-libsdl2-image-dev libsdl2-ttf-dev`. Freestanding builds also need Docker.
+libsdl2-image-dev libsdl2-ttf-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev libgl-dev ffmpeg`. Freestanding builds also need Docker.
 On macOS, install Xcode command-line tools and run
-`brew install pkg-config sdl2 sdl2_image sdl2_ttf libyaml qemu`.
+`brew install pkg-config sdl2 sdl2_image sdl2_ttf ffmpeg libyaml qemu`.
 With Docker running, use the same `make`, `make run`, and `make run-gui`
 entry points below. `make build-macos` remains a hosted-only development suite.
 
@@ -182,9 +182,10 @@ generators and a saturating PCM mixer stream stereo
 audio through the same companion. The SDL companion remains a rendering,
 input, and audio device.
 
-The Ruby Chipset Workbench is deliberately object-heavy: `Playfield`,
-`Blitter`, `Copper::Wait`/`Move`, `Sprite`, and raster `View` objects recreate
-the small-machine graphics laboratory in Ruby and render as a desktop demo.
+The Ruby Media Workbench and games use ordinary image objects. The new
+[Ruby multimedia framework](docs/multimedia.md) adds scoped SDL resources,
+2D scenes, perspective 3D meshes, animation, PCM audio and video decoding.
+See that guide for runnable creation/playback examples and current limits.
 
 ## Bare-metal Ruby console
 

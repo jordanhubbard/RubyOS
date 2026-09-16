@@ -10,7 +10,7 @@ paths = %w[
   kernel/rubyos/concurrency.rb
   kernel/rubyos/debug.rb
   kernel/rubyos/sound.rb
-  kernel/rubyos/chipset.rb
+  kernel/rubyos/media.rb
   kernel/rubyos/live.rb
   kernel/rubyos/fs.rb
   kernel/rubyos/fs/ext2.rb
@@ -41,6 +41,7 @@ paths = %w[
   kernel/rubyos/bridge/desktop.rb
   kernel/rubyos/bridge/virtio_console.rb
   kernel/rubyos/bridge/native_tcp.rb
+  kernel/rubyos/sdl.rb
   kernel/boot.rb
   kernel/storage_boot.rb
   kernel/network_boot.rb

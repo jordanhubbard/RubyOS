@@ -22,7 +22,7 @@ module RubyOS
         .register("Terminal", terminal)
         .register("Monitor", Apps::SystemMonitor.new)
         .register("Image", Apps::ImageViewer.new)
-        .register("Chipset", Apps::ChipsetWorkbench.new)
+        .register("Media", Apps::MediaWorkbench.new)
         .register("Clock", Apps::Clock.new)
         .register("Settings", settings)
         .register("Inspector", Apps::RubyInspector.new)
@@ -36,7 +36,7 @@ module RubyOS
       ))
       dock_labels = { "About" => "Abt", "Files" => "File", "Terminal" => "Term",
                       "Monitor" => "Mon", "Editor" => "Edit", "Image" => "Img",
-                      "Chipset" => "Chip", "Clock" => "Clk", "Settings" => "Set" }
+                      "Media" => "Art", "Clock" => "Clk", "Settings" => "Set" }
       applications.each do |name, application|
         next if ["Invaders", "Snake"].include?(name)
         compositor.add_dock_item(dock_labels.fetch(name, name)) { application.launch(compositor) }
@@ -45,7 +45,7 @@ module RubyOS
       compositor.add_shortcut("Files", x: 8, y: 104) { applications.fetch("Files").launch(compositor) }
       applications.fetch("About").launch(compositor)
       applications.fetch("Files").launch(compositor)
-      applications.fetch("Chipset").launch(compositor)
+      applications.fetch("Media").launch(compositor)
       applications.fetch("Terminal").launch(compositor)
       HAL.serial_write("[RubyOS] desktop smoke: applications launched\n")
       invaders = applications.fetch("Invaders")
@@ -94,12 +94,6 @@ module RubyOS
       jpeg_surface = Bridge::Surface.load_image(client, jpeg)
       RubyOS.invariant([png_surface.width, png_surface.height] == [2, 2], "PNG decode dimensions")
       RubyOS.invariant([jpeg_surface.width, jpeg_surface.height] == [8, 8], "JPEG decode dimensions")
-      chipset_engine = Chipset::Engine.new
-      chipset_engine.load_view(Apps::ChipsetWorkbench.new.build_view).start
-      chipset_frame, chipset_audio = chipset_engine.tick
-      chipset_engine.stop
-      RubyOS.invariant(!chipset_frame.empty? && !chipset_audio.empty?,
-                       "chipset clock did not produce raster and Paula audio")
       png_surface.blit_to(desktop.surface, x: 460, y: 26)
       jpeg_surface.blit_to(desktop.surface, x: 464, y: 26)
       desktop.present
@@ -124,6 +118,31 @@ module RubyOS
       audio.close
       HAL.serial_write("[RubyOS] desktop smoke: audio checked\n")
       desktop.capture("/tmp/rubyos-baremetal-desktop.bmp")
+      if client.features.include?("scene3d.render")
+        session = SDL::Session.new(client)
+        session.canvas(width: 96, height: 64) do |canvas|
+          scene = Media::Scene3D.new
+          cube = scene.add(Media::Mesh.cube)
+          cube.rotation_y = 0.5
+          result = canvas.render(scene)
+          RubyOS.invariant(result.fetch("triangles") == 12, "cube triangle count")
+          canvas.text("Ruby 3D", x: 2, y: 2)
+          if client.features.include?("video.encode") && client.features.include?("video.playback")
+            movie = session.encoder(width: 96, height: 64, fps: 10, audio: true) do |encoder|
+              2.times { encoder.frame(canvas, pcm: "\0".b * 19200) }
+              encoder.finish
+            end
+            session.video(movie) do |video|
+              video.play
+              RubyOS.invariant(video.tick(canvas).fetch("playing"), "movie did not start")
+              video.pause.seek(0)
+              RubyOS.invariant(!video.tick(canvas).fetch("playing"), "movie did not pause")
+            end
+            HAL.serial_write("[RubyOS] Ruby SDL A/V export and playback: PASS\n")
+          end
+        end
+        HAL.serial_write("[RubyOS] Ruby SDL 3D scene: PASS\n")
+      end
       performance = client.performance_snapshot
       HAL.serial_write("[RubyOS] desktop smoke: metrics received\n")
       guest_ops = performance.fetch(:guest_round_trip)
@@ -147,8 +166,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS] SDL_ttf Ruby Font: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] PNG/JPEG image surfaces: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] SDL audio bridge: PASS\n")
-      RubyOS::HAL.serial_write("[RubyOS] Ruby chipset workbench: PASS\n")
-      RubyOS::HAL.serial_write("[RubyOS] dual-playfield chipset clock: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] Ruby media canvas: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] Ruby arcade games: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] guest/host performance metrics: PASS\n")
       true

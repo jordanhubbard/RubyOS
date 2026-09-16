@@ -69,7 +69,7 @@ should define its public shape.
 4. **Ruby kernel:** Fibers, task lifecycle, devices/drivers, memory, VFS/ext2,
    and network protocols are Ruby objects covered on bare metal.
 5. **Desktop and media:** Ruby drives the SDL companion, compositor, apps,
-   games, chipset laboratory, image/font APIs, canonical input, and PCM audio.
+   games, media canvas, image/font APIs, canonical input, and PCM audio.
 6. **Native devices:** ARM VirtIO and x86 PS/2/HDA paths cross real QEMU device
    queues and DMA rather than hosted substitutes.
 7. **Concurrency:** PSCI and APIC bring all requested CPUs online. CRuby stays

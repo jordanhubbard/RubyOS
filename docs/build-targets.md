@@ -16,7 +16,7 @@ a hosted-only gate and does not silently acquire a Docker requirement.
 | Development task | Targets |
 | --- | --- |
 | Hosted Ruby/kernel | `ruby`, `smoke`, `test-host`, `provenance`, `embed-probe` |
-| Language and services | `test-iseq`, `teaching-examples`, `test-ext2`, `test-network`, `test-bridge` |
+| Language and services | `test-iseq`, `teaching-examples`, `test-ext2`, `test-network`, `test-bridge`, `test-media` |
 | Freestanding runtime | `ruby-arm64`, `ruby-x86_64`, `baremetal-smoke` |
 | Guest boot/console | `rubyos-{arm64,x86_64}-smoke`, `rubyos-{arm64,x86_64}-repl-smoke` |
 | Desktop transports | `rubyos-arm64-gui-smoke` (serial), `rubyos-{arm64,x86_64}-tcp-gui-smoke` |

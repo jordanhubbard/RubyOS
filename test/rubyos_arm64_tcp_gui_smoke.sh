@@ -22,7 +22,7 @@ trap cleanup EXIT
 qemu_pid=$!
 
 REMOTEOS_SDL_MODE=headless SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-    "$root/services/remoteos-sdl/remoteos-sdl" \
+    "${REMOTEOS_SDL_BIN:-$root/services/remoteos-sdl/remoteos-sdl}" \
     --connect-tcp "127.0.0.1:$port" --connect-timeout-ms 30000 \
     >"$service_output" 2>&1 &
 service_pid=$!
@@ -46,3 +46,8 @@ grep -q 'remote SDL desktop: PASS' "$output"
 grep -q 'negotiated protocol v2 with client=rubyos' "$service_output"
 ! grep -q 'FATAL\|EXCEPTION\|ASSERT\|\[BUG\]' "$output"
 echo 'RubyOS bare-metal RemoteOS native TCP desktop: PASS'
+
+if [[ "${RUBYOS_REQUIRE_MEDIA:-0}" == 1 ]]; then
+    grep -q 'Ruby SDL 3D scene: PASS' "$output"
+    grep -q 'Ruby SDL A/V export and playback: PASS' "$output"
+fi

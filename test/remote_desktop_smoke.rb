@@ -17,7 +17,7 @@ environment = {
   "SDL_AUDIODRIVER" => "dummy"
 }
 bridge_pid = Process.spawn(environment,
-                           File.join(root, "services", "remoteos-sdl", "remoteos-sdl"),
+                           ENV.fetch("REMOTEOS_SDL_BIN", File.join(root, "services", "remoteos-sdl", "remoteos-sdl")),
                            "--listen-tcp", "127.0.0.1:#{port}",
                            out: log_path, err: [:child, :out])
 client = nil

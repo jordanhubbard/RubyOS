@@ -10,7 +10,7 @@ port="$($root/build/host-ruby/bin/ruby -rsocket -e 'server = TCPServer.new("127.
 
 rm -f "$serial_log" "$bridge_log" "$capture"
 REMOTEOS_SDL_MODE=headless SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-    "$root/services/remoteos-sdl/remoteos-sdl" --listen-tcp "127.0.0.1:$port" \
+    "${REMOTEOS_SDL_BIN:-$root/services/remoteos-sdl/remoteos-sdl}" --listen-tcp "127.0.0.1:$port" \
     >"$bridge_log" 2>&1 &
 bridge_pid=$!
 cleanup() {
@@ -52,10 +52,14 @@ grep -q 'compositor desktop mechanics: PASS' "$serial_log"
 grep -q 'SDL_ttf Ruby Font: PASS' "$serial_log"
 grep -q 'PNG/JPEG image surfaces: PASS' "$serial_log"
 grep -q 'SDL audio bridge: PASS' "$serial_log"
-grep -q 'Ruby chipset workbench: PASS' "$serial_log"
-grep -q 'dual-playfield chipset clock: PASS' "$serial_log"
+grep -q 'Ruby media canvas: PASS' "$serial_log"
 grep -q 'Ruby arcade games: PASS' "$serial_log"
 ! grep -q 'FATAL\|EXCEPTION\|ASSERT\|\[BUG\]' "$serial_log"
 test -s "$capture"
 file "$capture" | grep -q '480 x 300'
 echo 'RubyOS bare-metal CRuby SDL remote desktop smoke: PASS'
+
+if [[ "${RUBYOS_REQUIRE_MEDIA:-0}" == 1 ]]; then
+    grep -q 'Ruby SDL 3D scene: PASS' "$serial_log"
+    grep -q 'Ruby SDL A/V export and playback: PASS' "$serial_log"
+fi

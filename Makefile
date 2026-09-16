@@ -2,6 +2,8 @@ include config/ruby.mk
 .DEFAULT_GOAL := all
 
 HOST_RUBY := $(CURDIR)/build/host-ruby/bin/ruby
+REMOTEOS_SDL_DIR ?= services/remoteos-sdl
+export REMOTEOS_SDL_BIN ?= $(abspath $(REMOTEOS_SDL_DIR)/remoteos-sdl)
 HOST_RUBY_STAMP := $(CURDIR)/build/host-ruby/.rubyos-built
 EMBED_PROBE := $(CURDIR)/build/embed-probe
 ARM64_ELF := $(CURDIR)/build/baremetal/arm64/rubyos-arm64.elf
@@ -43,6 +45,7 @@ smoke: $(HOST_RUBY_STAMP)
 test-host: $(HOST_RUBY_STAMP)
 	$(HOST_RUBY) -I kernel test/kernel_test.rb
 	$(HOST_RUBY) -I kernel test/virtio_transport_test.rb
+	$(HOST_RUBY) -I kernel test/media_test.rb
 
 test-iseq: $(HOST_RUBY_STAMP)
 	$(HOST_RUBY) test/iseq_cache_test.rb
@@ -57,8 +60,12 @@ test-network: $(HOST_RUBY_STAMP)
 	$(HOST_RUBY) -I kernel test/network_test.rb
 
 bridge:
-	@test -f services/remoteos-sdl/Makefile || { echo "Initialize the display service: git submodule update --init --recursive" >&2; exit 1; }
-	$(MAKE) -C services/remoteos-sdl
+	@test -f $(REMOTEOS_SDL_DIR)/Makefile || { echo "Initialize the display service: git submodule update --init --recursive" >&2; exit 1; }
+	$(MAKE) -C $(REMOTEOS_SDL_DIR)
+
+.PHONY: test-media
+test-media: $(HOST_RUBY_STAMP) bridge
+	$(HOST_RUBY) -I kernel test/media_smoke.rb
 
 test-bridge: $(HOST_RUBY_STAMP) bridge
 	mkdir -p build
@@ -71,7 +78,7 @@ debug-session: $(ARM64_GUI_ELF) bridge
 	./test/rubyos_debug_smoke.py --hold
 
 parity:
-	$(MAKE) provenance smoke test-host test-iseq teaching-examples test-ext2 test-network test-bridge
+	$(MAKE) provenance smoke test-host test-iseq teaching-examples test-ext2 test-network test-bridge test-media
 	$(MAKE) embed-probe baremetal-smoke
 	$(MAKE) rubyos-arm64-smoke rubyos-x86_64-smoke
 	$(MAKE) rubyos-arm64-gui-smoke rubyos-arm64-repl-smoke
@@ -91,7 +98,7 @@ docker-build:
 build-linux: parity
 
 build-macos:
-	$(MAKE) provenance smoke test-host test-iseq teaching-examples test-network test-bridge
+	$(MAKE) provenance smoke test-host test-iseq teaching-examples test-network test-bridge test-media
 
 release-linux: build-linux
 	./scripts/package-release.sh linux

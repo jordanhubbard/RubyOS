@@ -60,13 +60,10 @@ module RubyOS
       end
 
       def view
-        display = Chipset::View.new(32, 20, mode: Chipset::MODE_INDEXED)
-        display.palette[1] = 0x89ddff
-        display.palette[2] = 0xffd866
-        display.palette[3] = 0xff668a
-        enemies.each { |x, y| Chipset::Blitter.fill(display.pf0, x:, y:, width: 2, height: 1, color: 1) }
-        Chipset::Blitter.fill(display.pf0, x: player_x, y: 18, width: 3, height: 1, color: 2)
-        display.pf0.put(*shot, 3) if shot
+        display = Media::Bitmap.new(32, 20)
+        enemies.each { |x, y| display.rect(x, y, 2, 1, color: 0x89ddff) }
+        display.rect(player_x, 18, 3, 1, color: 0xffd866)
+        display.put(*shot, 0xff668a) if shot
         display
       end
 
@@ -121,11 +118,9 @@ module RubyOS
       def finished? = @finished
 
       def view
-        display = Chipset::View.new(32, 20, mode: Chipset::MODE_INDEXED)
-        display.palette[1] = 0xc3e88d
-        display.palette[2] = 0xff668a
-        body.each { |x, y| display.pf0.put(x, y, 1) }
-        display.pf0.put(*food, 2)
+        display = Media::Bitmap.new(32, 20)
+        body.each { |x, y| display.put(x, y, 0xc3e88d) }
+        display.put(*food, 0xff668a)
         display
       end
     end

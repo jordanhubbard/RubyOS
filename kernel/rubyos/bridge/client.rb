@@ -21,6 +21,7 @@ module RubyOS
         @metrics = {}
         @pending = []
         @hello_result = nil
+        @batch_limit = 256
       end
 
       def hello
@@ -29,6 +30,8 @@ module RubyOS
         RubyOS.invariant(result.fetch("protocol") == PROTOCOL_VERSION,
                          "display protocol mismatch")
         @features = result.fetch("features", []).freeze
+        @batch_limit = [Integer(result.fetch("limits", {}).fetch("batch_ops", 256)), 256].min
+        RubyOS.invariant(@batch_limit.positive?, "invalid batch limit")
         @hello_result = result.freeze
       end
 
@@ -38,6 +41,7 @@ module RubyOS
       end
 
       def cast(operation, parameters = {})
+        flush if @pending.length >= @batch_limit
         @pending << { "op" => String(operation),
                       "params" => parameters.transform_keys(&:to_s) }
         self
@@ -47,7 +51,8 @@ module RubyOS
         return self if @pending.empty?
         operations = @pending
         @pending = []
-        send_call("render.batch", { ops: operations })
+        result = send_call("render.batch", { ops: operations })
+        raise Error.new(9, "render batch contained failed operations") unless result.fetch("errors", 0).zero?
         self
       end
 
@@ -91,6 +96,13 @@ module RubyOS
         snapshot
       end
 
+      def notify(operation, parameters = {})
+        flush
+        json = Codec.dump(v: PROTOCOL_VERSION, id: 0, op: operation, params: parameters)
+        @transport.write(Protocol.encode_json_frame(json, +"".b))
+        self
+      end
+
       def performance_snapshot(reset: false)
         host = call("telemetry.snapshot", { reset: })
         { guest_round_trip: metrics(reset:), host_service: host }.freeze
@@ -102,6 +114,7 @@ module RubyOS
 
       def close
         flush
+      ensure
         @transport.close
       end
 

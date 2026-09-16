@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module RubyOS
-  VERSION = "0.2.2"
+  VERSION = "0.3.0"
 
   class Error < StandardError; end
   class InvariantError < Error; end
@@ -18,7 +18,7 @@ require "rubyos/input"
 require "rubyos/concurrency"
 require "rubyos/debug"
 require "rubyos/sound"
-require "rubyos/chipset"
+require "rubyos/media"
 require "rubyos/live"
 require "rubyos/fs"
 require "rubyos/fs/ext2"
@@ -48,3 +48,4 @@ require "rubyos/bridge/codec"
 require "rubyos/bridge/client"
 require "rubyos/bridge/desktop"
 require "rubyos/bridge/tcp"
+require "rubyos/sdl"

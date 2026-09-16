@@ -12,6 +12,7 @@ permissions:
 
 env:
   RUBYOS_BUILD_JOBS: "3"
+  RUBYOS_REQUIRE_MEDIA: "1"
   SDL_VIDEODRIVER: dummy
   SDL_AUDIODRIVER: dummy
 
@@ -40,7 +41,7 @@ jobs:
           sudo apt-get install -y \
             build-essential pkg-config file e2fsprogs \
             qemu-system-arm qemu-system-x86 qemu-utils \
-            libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev
+            libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev libgl-dev ffmpeg
 
       - name: Build freestanding toolchain container
         run: make docker-build
@@ -72,7 +73,7 @@ jobs:
           submodules: recursive
 
       - name: Install host dependencies
-        run: brew install pkg-config sdl2 sdl2_image sdl2_ttf libyaml
+        run: brew install pkg-config sdl2 sdl2_image sdl2_ttf ffmpeg libyaml
 
       - name: Validate macOS build and release targets
         env:

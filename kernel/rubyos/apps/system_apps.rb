@@ -224,45 +224,40 @@ module RubyOS
       end
     end
 
-    class ChipsetPreview < GUI::View
-      def initialize(chipset_view, scale: 5, **options)
+    class CanvasPreview < GUI::View
+      def initialize(bitmap, scale: 5, **options)
         super(**options)
-        @chipset_view = chipset_view
+        @bitmap = bitmap
         @scale = scale
       end
 
       def draw(surface)
-        pixels = @chipset_view.raster
-        @chipset_view.height.times do |row|
-          @chipset_view.width.times do |column|
+        pixels = @bitmap.raster
+        @bitmap.height.times do |row|
+          @bitmap.width.times do |column|
             surface.fill_rect(x + column * @scale, y + row * @scale,
-                              @scale, @scale, pixels[row * @chipset_view.width + column])
+                              @scale, @scale, pixels[row * @bitmap.width + column])
           end
         end
       end
     end
 
-    class ChipsetWorkbench < Application
+    class MediaWorkbench < Application
       def build_view
-        view = Chipset::View.new(32, 16)
+        view = Media::Bitmap.new(32, 16)
         16.times do |row|
-          color = [0x28143d, 0x43205f, 0x6c348f, 0xa852b8][row / 4]
-          Chipset::Blitter.fill(view.playfield, x: 0, y: row, width: 32, height: 1, color:)
+          view.rect(0, row, 32, 1, color: [0x17243a, 0x203951, 0x28516a, 0x357489][row / 4])
         end
-        sprite = Chipset::Playfield.new(5, 5)
-        Chipset::Blitter.fill(sprite, x: 1, y: 0, width: 3, height: 5, color: 0xffd866)
-        Chipset::Blitter.fill(sprite, x: 0, y: 1, width: 5, height: 3, color: 0xffd866)
-        view.sprites << Chipset::Sprite.new(sprite, x: 21, y: 6)
-        view.copper = Chipset::Copper.new(Chipset::Wait.new(8),
-                                           Chipset::Move.new(:color0, 0xff668a))
+        view.rect(6, 3, 10, 9, color: 0x51d6c5)
+        view.rect(14, 6, 11, 7, color: 0xffce73)
         view
       end
 
       def build_window
-        GUI::Window.new("Ruby Chipset Workbench", x: 138, y: 56, width: 196, height: 140,
+        GUI::Window.new("Ruby Media Studio", x: 138, y: 56, width: 196, height: 140,
                         background: 0x0c0912).tap do |window|
-          window.add(ChipsetPreview.new(build_view, x: 2, y: 0, width: 160, height: 80))
-          window.add(GUI::Label.new("Copper + Blitter + Sprite", x: 2, y: 88, color: 0xe8dff5))
+          window.add(CanvasPreview.new(build_view, x: 2, y: 0, width: 160, height: 80))
+          window.add(GUI::Label.new("Scenes, sound, motion", x: 2, y: 88, color: 0xe8dff5))
         end
       end
     end
