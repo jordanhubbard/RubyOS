@@ -7,7 +7,7 @@ This is a creation-framework foundation, not a finished audiovisual editor.
 
 ## Try it
 
-RubyOS pins RemoteOS-SDL 0.2.0. Initialize submodules and install the README's
+RubyOS pins RemoteOS-SDL 0.2.1. Initialize submodules and install the README's
 SDL/FFmpeg/OpenGL dependencies before building.
 
 ```sh

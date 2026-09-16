@@ -9,7 +9,7 @@ All notable RubyOS changes are documented here.
 - Add block-scoped Ruby SDL resources, capability checks, bounded batching,
   2D scenes, perspective meshes, seekable timelines and a paced Studio loop.
 - Add video decode/seek, audio-clocked playback and fixed-step audiovisual
-  recording through shared RemoteOS-SDL 0.2.0; include Studio and movie examples.
+  recording through shared RemoteOS-SDL 0.2.1; include Studio and movie examples.
 - Remove the emulated chipset hierarchy and migrate games to plain bitmaps.
 - Validate 3D and audiovisual export/playback from ARM64 and x86_64 bare-metal
   guests over native TCP, plus hosted integration in the platform release gate.
