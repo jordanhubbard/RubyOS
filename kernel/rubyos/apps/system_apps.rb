@@ -527,7 +527,7 @@ module RubyOS
     end
 
     class Editor < Application
-      attr_reader :path, :content, :reload_error, :file_dialog
+      attr_reader :path, :content, :reload_error, :file_dialog, :input, :dirty
 
       def initialize(path: "/home/welcome.txt", runtime: nil,
                      application_name: nil, **)
@@ -538,12 +538,27 @@ module RubyOS
         @content = kernel.state.fetch(:vfs).read_file(path)
       rescue FS::NotFound
         @content = +""
+      ensure
+        @saved_content = @content.to_s.dup
+        @dirty = false
       end
 
-      def save(text)
-        @content = String(text)
+      def save(text = nil)
+        @content = String(text || @input&.text || content)
         kernel.state.fetch(:vfs).write_file(path, @content)
+        @saved_content = @content.dup
+        @dirty = false
+        refresh_title
         show_status("Saved #{path}") if @status
+        self
+      end
+
+      def cancel_changes(*)
+        @content = @saved_content.dup
+        @input&.replace(@content, notify: false)&.move_cursor(0)
+        @dirty = false
+        refresh_title
+        show_status("Changes cancelled") if @status
         self
       end
 
@@ -551,8 +566,10 @@ module RubyOS
         contents = kernel.state.fetch(:vfs).read_file(new_path)
         @path = String(new_path)
         @content = contents
+        @saved_content = contents.dup
+        @dirty = false
         @input&.replace(contents, notify: false)&.move_cursor(0)
-        @window.title = "Editor - #{path}" if @window
+        refresh_title
         show_status("Opened #{path}") if @status
         self
       rescue FS::Error => error
@@ -579,12 +596,12 @@ module RubyOS
       def save_as(new_path)
         @path = String(new_path)
         save(@input ? @input.text : content)
-        @window.title = "Editor - #{path}" if @window
         self
       end
 
       def reload(*)
         raise RubyOS::Error, "editor is not attached to a live application" unless @runtime
+        save
         @runtime.reload(@application_name, path:)
         @reload_error = nil
         @status.text = "Reloaded #{@application_name}"
@@ -602,10 +619,13 @@ module RubyOS
       def build_window
         @window = GUI::Window.new("Editor - #{path}", x: 72, y: 54, width: 350, height: 184,
                                   background: 0x171a24).tap do |window|
-          @input = window.add(GUI::TextInput.new(text: content, x: 0, y: 0,
-                                                  width: 326, height: 108,
-                                                  background: 0x11151e, multiline: true,
-                                                  on_change: method(:save)),
+          @input = window.add(GUI::EditorInput.new(text: content, x: 0, y: 0,
+                                                    width: 326, height: 108,
+                                                    background: 0x11151e,
+                                                    on_change: method(:buffer_changed),
+                                                    on_save: method(:save),
+                                                    on_quit: -> { @compositor.close(@window) },
+                                                    on_command: method(:editor_command)),
                               anchors: [:left, :right, :top, :bottom],
                               minimum_width: 100, minimum_height: 40)
           @input.move_cursor(0)
@@ -618,7 +638,7 @@ module RubyOS
                                                 color: 0xa8d8ff),
                                  anchors: [:left, :right, :bottom], minimum_width: 40)
           else
-            @status = window.add(GUI::Label.new("Autosave enabled", x: 0, y: 116,
+            @status = window.add(GUI::Label.new("L1 C1  Saved", x: 0, y: 116,
                                                 width: 326, color: 0xa8d8ff),
                                  anchors: [:left, :right, :bottom], minimum_width: 80)
           end
@@ -628,24 +648,70 @@ module RubyOS
       def menus(compositor)
         items = [
           GUI::MenuItem.command("Open...") { open_dialog },
-          GUI::MenuItem.command("Save") { save(@input.text) },
+          GUI::MenuItem.command("Save", shortcut: "Ctrl+S") { save },
           GUI::MenuItem.command("Save As...") { save_as_dialog },
           GUI::MenuItem.separator,
-          GUI::MenuItem.command("Autosave enabled", enabled: false)
+          GUI::MenuItem.command("Cancel Changes") { cancel_changes }
         ]
         items << GUI::MenuItem.command("Reload Ruby") { reload } if @runtime
         edit_items = [
-          GUI::MenuItem.command("Cut", shortcut: "Ctrl+X") { @input.cut },
+          GUI::MenuItem.command("Cut") { @input.cut },
           GUI::MenuItem.command("Copy", shortcut: "Ctrl+C") { @input.copy },
-          GUI::MenuItem.command("Paste", shortcut: "Ctrl+V") { @input.paste },
+          GUI::MenuItem.command("Paste") { @input.paste },
           GUI::MenuItem.separator,
-          GUI::MenuItem.command("Select All", shortcut: "Ctrl+A") { @input.select_all }
+          GUI::MenuItem.command("Select All") { @input.select_all }
+        ]
+        navigation_items = [
+          GUI::MenuItem.command("Beginning of Line", shortcut: "Ctrl+A") do
+            @input.move_line_edge(:start)
+            refresh_editor_status
+          end,
+          GUI::MenuItem.command("End of Line", shortcut: "Ctrl+E") do
+            @input.move_line_edge(:end)
+            refresh_editor_status
+          end,
+          GUI::MenuItem.command("Backward / Forward Word", shortcut: "Alt+B / Alt+F", enabled: false),
+          GUI::MenuItem.command("Backward / Forward Sentence", shortcut: "Alt+A / Alt+E", enabled: false),
+          GUI::MenuItem.command("Previous / Next Paragraph", shortcut: "Alt+{ / Alt+}", enabled: false),
+          GUI::MenuItem.command("Previous / Next Page", shortcut: "Alt+V / Ctrl+V", enabled: false),
+          GUI::MenuItem.command("Buffer Start / End", shortcut: "Alt+< / Alt+>", enabled: false),
+          GUI::MenuItem.command("Recenter", shortcut: "Ctrl+L") do
+            @input.recenter
+            show_status("Recenter")
+          end
         ]
         [GUI::Menu.new(title: "File", items:),
-         GUI::Menu.new(title: "Edit", items: edit_items), *super]
+         GUI::Menu.new(title: "Edit", items: edit_items),
+         GUI::Menu.new(title: "Navigate", items: navigation_items), *super]
       end
 
       private
+
+      def buffer_changed(text)
+        @content = String(text)
+        @dirty = @content != @saved_content
+        refresh_title
+        refresh_editor_status
+      end
+
+      def editor_command(message)
+        if message
+          show_status(message)
+        else
+          refresh_editor_status
+        end
+      end
+
+      def refresh_editor_status
+        return unless @status && @input
+
+        state = dirty ? "Unsaved" : "Saved"
+        show_status("L#{@input.caret_line + 1} C#{@input.caret_column + 1}  #{state}")
+      end
+
+      def refresh_title
+        @window.title = "Editor - #{path}#{dirty ? ' *' : ''}" if @window
+      end
 
       def show_status(message, error: false)
         @status.text = String(message)[0, 52]

@@ -266,6 +266,44 @@ assert(multiline.cursor == 14, "pointer placement maps visible editor rows to th
 multiline.handle("kind" => RubyOS::Input::POINTER_WHEEL, "dy" => 1, "dx" => 0)
 assert(multiline.scroll_line == 0, "multiline editor supports wheel scrollback")
 
+editor_saved = editor_quit = false
+editor_messages = []
+editor_buffer = RubyOS::GUI::EditorInput.new(
+  text: "alpha beta.  gamma\n\n  delta\nomega", width: 160, height: 68,
+  on_save: -> { editor_saved = true }, on_quit: -> { editor_quit = true },
+  on_command: ->(message) { editor_messages << message }
+)
+editor_buffer.focused = true
+editor_buffer.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 44, "text" => "<",
+                     "mods" => RubyOS::Input::MOD_ALT | RubyOS::Input::MOD_SHIFT)
+editor_buffer.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 102,
+                     "mods" => RubyOS::Input::MOD_ALT)
+assert(editor_buffer.cursor == 5, "Editor Alt+< and Alt+F navigate from buffer start by word")
+editor_buffer.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 101,
+                     "mods" => RubyOS::Input::MOD_ALT)
+assert(editor_buffer.cursor == 13, "Editor Alt+E advances to the next sentence")
+editor_buffer.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 93, "text" => "}",
+                     "mods" => RubyOS::Input::MOD_ALT | RubyOS::Input::MOD_SHIFT)
+assert([editor_buffer.caret_line, editor_buffer.caret_column] == [2, 0],
+       "Editor Alt+} advances to the next paragraph")
+editor_buffer.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 101,
+                     "mods" => RubyOS::Input::MOD_CTRL)
+editor_buffer.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 107,
+                     "mods" => RubyOS::Input::MOD_CTRL)
+assert(editor_buffer.text.include?("deltaomega"), "Editor Ctrl+E and Ctrl+K join at line end")
+editor_buffer.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 120,
+                     "mods" => RubyOS::Input::MOD_CTRL)
+assert(editor_buffer.ctrl_x_pending && editor_messages.include?("C-x"),
+       "Editor Ctrl+X enters and reports a composable prefix command")
+editor_buffer.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 115,
+                     "mods" => RubyOS::Input::MOD_CTRL)
+assert(editor_saved && !editor_buffer.ctrl_x_pending, "Editor Ctrl+X Ctrl+S saves")
+editor_buffer.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 120,
+                     "mods" => RubyOS::Input::MOD_CTRL)
+editor_buffer.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 99,
+                     "mods" => RubyOS::Input::MOD_CTRL)
+assert(editor_quit, "Editor Ctrl+X Ctrl+C closes through its host callback")
+
 menu_action = false
 menu_bar = RubyOS::GUI::MenuBar.new(width: 320, height: 200)
 menu_bar.replace([RubyOS::GUI::Menu.new(title: "RubyOS", items: [
@@ -870,6 +908,20 @@ assert(save_dialog.accept && saved_path == "/home/renamed.rb" && save_dialog.don
        "shared save dialog accepts an edited filename")
 
 editor_window = editor.launch(dialog_desktop)
+persisted_editor_text = state.fetch(:vfs).read_file(editor.path)
+editor.input.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 35, "text" => "#")
+assert(editor.dirty && editor_window.title.end_with?(" *") &&
+       state.fetch(:vfs).read_file(editor.path) == persisted_editor_text,
+       "Editor marks an in-memory change dirty without autosaving")
+editor.input.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 115,
+                    "mods" => RubyOS::Input::MOD_CTRL)
+assert(!editor.dirty && state.fetch(:vfs).read_file(editor.path).start_with?("#"),
+       "Editor Ctrl+S explicitly persists and clears the dirty marker")
+saved_editor_text = editor.content.dup
+editor.input.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 120, "text" => "x")
+editor.cancel_changes
+assert(!editor.dirty && editor.input.text == saved_editor_text,
+       "Editor Cancel Changes restores the last explicitly saved buffer")
 editor.open_dialog
 assert(dialog_desktop.focused_window.title == "Open Ruby or text file",
        "Editor exposes the shared open dialog")

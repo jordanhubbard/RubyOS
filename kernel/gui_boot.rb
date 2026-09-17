@@ -285,8 +285,30 @@ module RubyOS
       RubyOS.invariant(GUI::Clipboard.default.read == "clas" &&
                        editor.content == original_editor_content,
                        "Editor selection copy/paste did not preserve the Ruby source")
-      compositor.close(editor_window)
-      HAL.serial_write("[RubyOS] desktop smoke: file dialog and clipboard checked\n")
+      client.call("debug.event.inject", { kind: 1, code: 44, text: "<", mod: 0x0101 })
+      client.call("debug.event.inject", { kind: 1, code: 102, mod: 0x0100 })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(editor.input.cursor == 5,
+                       "Editor Alt+< and Alt+F did not navigate by Ruby word")
+      persisted_editor_content = state.fetch(:vfs).read_file(editor.path)
+      client.call("debug.event.inject", { kind: 1, code: 44, text: "<", mod: 0x0101 })
+      client.call("debug.event.inject", { kind: 1, code: 35, text: "#" })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(editor.dirty && editor_window.title.end_with?(" *") &&
+                       state.fetch(:vfs).read_file(editor.path) == persisted_editor_content,
+                       "Editor change did not stay dirty and in memory before save")
+      client.call("debug.event.inject", { kind: 1, code: 120, mod: 0x0040 })
+      client.call("debug.event.inject", { kind: 1, code: 115, mod: 0x0040 })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(!editor.dirty &&
+                       state.fetch(:vfs).read_file(editor.path).start_with?("#"),
+                       "Editor Ctrl+X Ctrl+S did not explicitly persist the buffer")
+      client.call("debug.event.inject", { kind: 1, code: 120, mod: 0x0040 })
+      client.call("debug.event.inject", { kind: 1, code: 99, mod: 0x0040 })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(!compositor.windows.include?(editor_window),
+                       "Editor Ctrl+X Ctrl+C did not close its window")
+      HAL.serial_write("[RubyOS] desktop smoke: editor commands and persistence checked\n")
       export_source = "RubyOS host export from the bare-metal VFS.\n"
       state.fetch(:vfs).write_file("/home/rubyos-host-export.txt", export_source)
       exported_path, exported_count = file_transfer.export("/home/rubyos-host-export.txt")
@@ -430,6 +452,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS] shared open/save dialog: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] host file transfer: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] text selection and guest clipboard: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] editor navigation and explicit persistence: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] compositor desktop mechanics: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] SDL_ttf Ruby Font: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] PNG/JPEG image surfaces: PASS\n")

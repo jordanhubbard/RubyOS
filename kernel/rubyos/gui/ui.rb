@@ -459,6 +459,107 @@ module RubyOS
         self
       end
 
+      def caret_line = cursor_position.first
+      def caret_column = cursor_position.last
+
+      def move_character(direction, extend: false)
+        move_cursor(cursor + Integer(direction), extend:)
+      end
+
+      def move_line(direction, extend: false)
+        move_cursor(vertical_target(Integer(direction)), extend:)
+      end
+
+      def move_line_edge(edge, extend: false)
+        line = caret_line
+        target = edge == :start ? line_start(line) : line_end(line)
+        move_cursor(target, extend:)
+      end
+
+      def move_page(direction, extend: false)
+        move_cursor(vertical_target(Integer(direction) * row_count), extend:)
+      end
+
+      def move_buffer(edge, extend: false)
+        move_cursor(edge == :start ? 0 : text.each_char.count, extend:)
+      end
+
+      def move_word(direction, extend: false)
+        characters = text.each_char.to_a
+        position = cursor
+        if Integer(direction).negative?
+          position -= 1 while position.positive? && !word_character?(characters.fetch(position - 1))
+          position -= 1 while position.positive? && word_character?(characters.fetch(position - 1))
+        else
+          position += 1 while position < characters.length && !word_character?(characters.fetch(position))
+          position += 1 while position < characters.length && word_character?(characters.fetch(position))
+        end
+        move_cursor(position, extend:)
+      end
+
+      def move_sentence(direction, extend: false)
+        characters = text.each_char.to_a
+        position = cursor
+        if Integer(direction).negative?
+          position -= 1 while position.positive? && characters.fetch(position - 1).match?(/\s/)
+          position -= 1 while position.positive? && !characters.fetch(position - 1).match?(/[.!?]/)
+          position += 1 while position < characters.length && characters.fetch(position).match?(/\s/)
+        else
+          position += 1 while position < characters.length && !characters.fetch(position).match?(/[.!?]/)
+          position += 1 if position < characters.length
+          position += 1 while position < characters.length && characters.fetch(position).match?(/\s/)
+        end
+        move_cursor(position, extend:)
+      end
+
+      def move_paragraph(direction, extend: false)
+        lines = logical_lines
+        row = caret_line
+        if Integer(direction).negative?
+          row -= 1 if caret_column.zero? && row.positive?
+          row -= 1 while row.positive? && lines.fetch(row).strip.empty?
+          row -= 1 while row.positive? && !lines.fetch(row - 1).strip.empty?
+        else
+          row += 1 while row < lines.length && !lines.fetch(row).strip.empty?
+          row += 1 while row < lines.length && lines.fetch(row).strip.empty?
+          if row >= lines.length
+            return move_buffer(:end, extend:)
+          end
+        end
+        move_cursor(line_start(row), extend:)
+      end
+
+      def move_to_indentation(extend: false)
+        line = logical_lines.fetch(caret_line)
+        indentation = line.each_char.take_while { |character| character.match?(/\s/) }.length
+        move_cursor(line_start(caret_line) + indentation, extend:)
+      end
+
+      def recenter
+        maximum = [logical_lines.length - row_count, 0].max
+        @scroll_line = [[caret_line - row_count / 2, 0].max, maximum].min
+        invalidate
+        self
+      end
+
+      def delete_forward_command
+        delete_forward
+        ensure_cursor_visible
+        invalidate
+        self
+      end
+
+      def kill_line
+        finish = line_end(caret_line)
+        finish += 1 if cursor == finish && finish < text.each_char.count
+        return self if finish == cursor
+
+        characters = text.each_char.to_a
+        characters.slice!(cursor...finish)
+        replace(characters.join)
+        self
+      end
+
       def context_menu_items
         has_selection = !selection_range.nil?
         [
@@ -477,6 +578,8 @@ module RubyOS
 
       def columns = [(width - 8) / 8, 1].max
       def row_count = [(height - 8) / 20, 1].max
+
+      def word_character?(character) = character.match?(/[[:alnum:]_]/)
 
       def logical_lines = text.split("\n", -1)
 
@@ -623,6 +726,135 @@ module RubyOS
         @cursor += inserted.length
         @selection_anchor = nil
         replace(characters.join)
+      end
+    end
+
+    class EditorInput < TextInput
+      attr_reader :ctrl_x_pending
+
+      def initialize(on_save: nil, on_quit: nil, on_command: nil, **options)
+        @on_save = on_save
+        @on_quit = on_quit
+        @on_command = on_command
+        @ctrl_x_pending = false
+        super(multiline: true, **options)
+      end
+
+      def handle(event)
+        return super unless event.respond_to?(:fetch)
+        return super unless event.fetch("kind", 0) == Input::KEY_DOWN
+
+        @message_sent = false
+        code = event.fetch("code", 0)
+        mods = event.fetch("mods", 0)
+        ctrl = (mods & Input::MOD_CTRL) != 0
+        meta = (mods & (Input::MOD_ALT | Input::MOD_META)) != 0
+        shifted = (mods & Input::MOD_SHIFT) != 0
+        letter = code.between?(65, 122) ? code.chr.downcase : ""
+
+        if ctrl_x_pending
+          @ctrl_x_pending = false
+          handled = if ctrl && letter == "s"
+                      @on_save&.call
+                      @message_sent = true
+                      true
+                    elsif ctrl && letter == "c"
+                      @on_quit&.call
+                      true
+                    else
+                      command_message("C-x cancelled")
+                    end
+          command_changed
+          return handled
+        end
+
+        if meta && !ctrl
+          handled = handle_meta_command(letter, code, event.fetch("text", ""), shifted)
+          command_changed
+          return handled
+        end
+
+        if ctrl
+          handled = handle_control_command(letter)
+          if handled
+            command_changed
+            return true
+          end
+        end
+
+        handled = super
+        command_changed if handled
+        handled
+      end
+
+      private
+
+      def handle_control_command(letter)
+        case letter
+        when "x"
+          @ctrl_x_pending = true
+          command_message("C-x")
+        when "s"
+          @on_save&.call
+          @message_sent = true
+          true
+        when "q"
+          @on_quit&.call
+          true
+        when "g"
+          @ctrl_x_pending = false
+          command_message("Cancel")
+        when "a" then move_line_edge(:start)
+        when "e" then move_line_edge(:end)
+        when "b" then move_character(-1)
+        when "f" then move_character(1)
+        when "p" then move_line(-1)
+        when "n" then move_line(1)
+        when "v" then move_page(1)
+        when "d" then delete_forward_command
+        when "k" then kill_line
+        when "l"
+          recenter
+          command_message("Recenter")
+        when "c", "v"
+          false
+        else
+          false
+        end
+      end
+
+      def handle_meta_command(letter, code, typed, shifted)
+        case letter
+        when "b" then move_word(-1)
+        when "f" then move_word(1)
+        when "a" then move_sentence(-1)
+        when "e" then move_sentence(1)
+        when "v" then move_page(-1)
+        when "m" then move_to_indentation
+        else
+          if typed == "<" || (code == 44 && shifted)
+            move_buffer(:start)
+          elsif typed == ">" || (code == 46 && shifted)
+            move_buffer(:end)
+          elsif typed == "{" || (code == 91 && shifted)
+            move_paragraph(-1)
+          elsif typed == "}" || (code == 93 && shifted)
+            move_paragraph(1)
+          else
+            return true
+          end
+        end
+        true
+      end
+
+      def command_message(message)
+        @message_sent = true
+        @on_command&.call(message)
+        true
+      end
+
+      def command_changed
+        @on_command&.call(nil) unless @message_sent
       end
     end
 

@@ -25,6 +25,10 @@ All notable RubyOS changes are documented here.
   square, triangle, and chord PCM. Replace the placeholder Image Viewer with
   VFS-backed BMP/PNG/JPEG decoding, keyboard/wheel panning, shared Open dialog,
   file-manager routing, and close-safe remote surface ownership.
+- Replace Editor autosave with explicit saved/dirty/cancel state and add an
+  idiomatic `EditorInput` command object: Ctrl-X save/close composition,
+  character/line/word/sentence/paragraph/page/buffer navigation, indentation,
+  kill-line, recentering, bound menus, and frozen-guest persistence checks.
 
 ## [0.3.1] - 2026-09-16
 

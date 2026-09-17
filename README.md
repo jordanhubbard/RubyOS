@@ -109,7 +109,12 @@ export selected guest files through bounded 32 KiB protocol chunks; imports
 use safe collision-free VFS names and exports stay inside the host's configured
 destination policy. Its multiline Ruby buffer supports caret placement,
 Shift/drag selection, vertical/page navigation, wheel scrolling, and guest
-clipboard cut/copy/paste through the standard Ctrl+A/C/X/V chords.
+clipboard actions. Editing stays in memory with a visible dirty marker until
+Save or Ctrl-S; Cancel Changes restores the last saved text. Ruby's dedicated
+`EditorInput` adds composable Ctrl-X commands plus Emacs-style character,
+line, word, sentence, paragraph, page, buffer, indentation, kill-line, and
+recenter navigation through Ctrl/Alt chords without baking policy into the
+generic text field.
 Windows resize from their lower-right grip. Anchored Ruby views stretch or
 track an edge declaratively, which keeps Files, Terminal, Editor, dialogs,
 the application catalog, and Ruby demos usable as their windows change size.
@@ -226,7 +231,7 @@ decode PNG/JPEG through SDL_image,
 blit, and destroy remote image resources. Ruby `Font` objects discover, open,
 measure, render, and close host SDL_ttf fonts with explicit ownership. SDL mouse events are normalized by the bridge and routed through
 Ruby hit testing; keyboard and UTF-8 text events follow window focus into Ruby
-widgets, including a live Terminal evaluator and VFS-persisted Editor. The
+widgets, including a live Terminal evaluator and explicitly persisted Editor. The
 bare-metal smoke types into Terminal and clicks the dock to launch and focus the
 System Monitor. The dock also exposes Ruby Inspector and a Live Ruby app whose
 source lives at `/apps/live_hello.rb`; Editor recompiles it in an anonymous
