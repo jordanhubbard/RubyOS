@@ -55,6 +55,33 @@ module RubyOS
       end
     end
 
+    class DockStore
+      HEADER = "# RubyOS dock v1"
+      DEFAULT_PATH = "/home/.rubyos-dock"
+
+      attr_reader :vfs, :path
+
+      def initialize(vfs:, path: DEFAULT_PATH)
+        @vfs = vfs
+        @path = String(path)
+      end
+
+      def load
+        lines = vfs.read_file(path).lines(chomp: true)
+        return nil unless lines.shift == HEADER
+
+        lines.reject(&:empty?).uniq
+      rescue FS::NotFound
+        nil
+      end
+
+      def save(names)
+        values = Array(names).map { |name| String(name) }.reject(&:empty?).uniq
+        vfs.write_file(path, ([HEADER] + values).join("\n") + "\n")
+        values.length
+      end
+    end
+
     class Application
       attr_reader :kernel
 

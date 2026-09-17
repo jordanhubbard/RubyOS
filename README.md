@@ -92,6 +92,9 @@ the application catalog, and Ruby demos usable as their windows change size.
 Right-click opens keyboard-navigable context menus: the desktop launches core
 apps, windows expose minimize/close, and text fields offer selection-aware
 cut/copy/paste actions.
+The dock keeps a compact set of core applications, marks running apps, shows
+unpinned apps transiently, and persists Keep/Remove choices in
+`/home/.rubyos-dock`.
 
 These commands select the host CPU by default: ARM64 on ARM hosts, x86_64 on
 Intel/AMD hosts. Use `make run-gui TARGET_ARCH=x86_64` or `TARGET_ARCH=arm64`

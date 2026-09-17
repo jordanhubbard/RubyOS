@@ -391,6 +391,40 @@ assert(catalog.entry("Enumerable Lab").description == enumerable_entry.descripti
        catalog.entry("Enumerable Lab").category == :demo,
        "live replacement preserves application catalog metadata")
 RubyOS::Apps::Catalog.install_desktop(compositor, catalog)
+assert(compositor.pinned_dock_names == %w[Launcher Files Terminal Inspector Monitor],
+       "catalog installs a compact core dock instead of pinning every application")
+clock_app = catalog.fetch("Clock")
+transient_clock = clock_app.launch(compositor)
+assert(compositor.visible_dock_labels.include?("Clock"),
+       "a running unpinned application gains a transient dock item")
+compositor.minimize(transient_clock)
+clock_x, clock_y = compositor.dock_item_center_by_name("Clock")
+window_count = compositor.windows.length
+compositor.handle("kind" => RubyOS::Input::POINTER_DOWN, "button" => 1,
+                  "x" => clock_x, "y" => clock_y)
+assert(!transient_clock.minimized && compositor.focused_window == transient_clock &&
+       compositor.windows.length == window_count,
+       "dock activation restores a running window instead of duplicating it")
+compositor.close(transient_clock)
+assert(!compositor.visible_dock_labels.include?("Clock"),
+       "closing the last unpinned application window removes its transient dock item")
+monitor_x, monitor_y = compositor.dock_item_center_by_name("Monitor")
+compositor.handle("kind" => RubyOS::Input::POINTER_DOWN, "button" => 3,
+                  "x" => monitor_x, "y" => monitor_y)
+remove_x, remove_y = compositor.context_item_center(2)
+compositor.handle("kind" => RubyOS::Input::POINTER_DOWN, "button" => 1,
+                  "x" => remove_x, "y" => remove_y)
+assert(!compositor.pinned_dock_names.include?("Monitor") &&
+       state.fetch(:vfs).read_file(RubyOS::Apps::DockStore::DEFAULT_PATH).start_with?(
+         RubyOS::Apps::DockStore::HEADER
+       ), "dock context menu persists pin removal")
+dock_restore = RubyOS::GUI::Compositor.new(width: 480, height: 300)
+RubyOS::Apps::Catalog.install_desktop(dock_restore, catalog)
+assert(!dock_restore.pinned_dock_names.include?("Monitor"),
+       "desktop installation restores the persisted dock")
+dock_restore.pin_dock_item("Monitor")
+assert(dock_restore.pinned_dock_names.include?("Monitor"),
+       "an application can be kept in the dock again")
 compositor.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => RubyOS::Input::KEY_F1,
                   "mods" => 0)
 assert(compositor.focused_window.title == "Keyboard Shortcuts",

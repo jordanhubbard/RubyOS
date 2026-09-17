@@ -197,6 +197,7 @@ module RubyOS
 
     class Compositor
       Binding = Data.define(:name, :code, :mods, :action)
+      DockItem = Data.define(:name, :label, :application, :action)
       MENU_HEIGHT = 24
       DOCK_HEIGHT = 42
 
@@ -208,6 +209,8 @@ module RubyOS
         @title = title
         @windows = []
         @dock_items = []
+        @pinned_dock_items = {}
+        @dock_change = nil
         @shortcuts = []
         @dragging = nil
         @resizing = nil
@@ -264,13 +267,58 @@ module RubyOS
       end
 
       def add_dock_item(label, &action)
-        @dock_items << [String(label), action]
+        register_dock_item("legacy-#{@dock_items.length}-#{label}", label,
+                           pinned: true, &action)
+      end
+
+      def register_dock_item(name, label, application: nil, pinned: false, &action)
+        raise ArgumentError, "dock action required" unless action
+
+        name = String(name)
+        @dock_items.reject! { |item| item.name == name }
+        @dock_items << DockItem.new(name:, label: String(label), application:, action:).freeze
+        @pinned_dock_items[name] = true if pinned
         self
       end
 
+      def on_dock_change(&callback)
+        @dock_change = callback
+        self
+      end
+
+      def pin_dock_item(name)
+        name = String(name)
+        raise KeyError, "dock item not found: #{name}" unless @dock_items.any? { |item| item.name == name }
+        return false if @pinned_dock_items[name]
+
+        @pinned_dock_items[name] = true
+        persist_dock
+        true
+      end
+
+      def unpin_dock_item(name)
+        changed = !!@pinned_dock_items.delete(String(name))
+        persist_dock if changed
+        changed
+      end
+
+      def pinned_dock_names
+        @dock_items.filter_map { |item| item.name if @pinned_dock_items[item.name] }
+      end
+
+      def visible_dock_labels = visible_dock_items.map(&:label)
+
       def dock_item_center(label)
-        index = @dock_items.index { |item_label, _| item_label == String(label) }
+        index = visible_dock_items.index { |item| item.label == String(label) }
         raise KeyError, "dock item not found: #{label}" unless index
+
+        x = 12 + index * dock_slot_width
+        [x + (dock_slot_width - 8) / 2, height - DOCK_HEIGHT + 20]
+      end
+
+      def dock_item_center_by_name(name)
+        index = visible_dock_items.index { |item| item.name == String(name) }
+        raise KeyError, "dock item not found: #{name}" unless index
 
         x = 12 + index * dock_slot_width
         [x + (dock_slot_width - 8) / 2, height - DOCK_HEIGHT + 20]
@@ -384,9 +432,8 @@ module RubyOS
         point_x = event.fetch("x")
         point_y = event.fetch("y")
         if point_y >= height - DOCK_HEIGHT
-          index = (point_x - 12) / dock_slot_width
-          item = @dock_items[index] if index >= 0
-          item&.last&.call
+          item = dock_item_at(point_x, point_y)
+          activate_dock_item(item) if item
           return !item.nil?
         end
         window = window_at(point_x, point_y)
@@ -427,6 +474,9 @@ module RubyOS
 
       def open_context_menu(point_x, point_y)
         @menu_bar.dismiss
+        if (dock_item = dock_item_at(point_x, point_y))
+          return @context_menu.show(point_x, point_y, dock_context_items(dock_item))
+        end
         window = window_at(point_x, point_y)
         items = if window
                   focus(window)
@@ -443,6 +493,19 @@ module RubyOS
         [
           MenuItem.command("Minimize") { minimize(window) },
           MenuItem.command("Close", shortcut: "Ctrl+W") { close(window) }
+        ]
+      end
+
+      def dock_context_items(item)
+        pin_action = if @pinned_dock_items[item.name]
+                       MenuItem.command("Remove from Dock") { unpin_dock_item(item.name) }
+                     else
+                       MenuItem.command("Keep in Dock") { pin_dock_item(item.name) }
+                     end
+        [
+          MenuItem.command("Open #{item.name}") { activate_dock_item(item) },
+          MenuItem.separator,
+          pin_action
         ]
       end
 
@@ -467,18 +530,52 @@ module RubyOS
         y = height - DOCK_HEIGHT
         surface.fill_rect(0, y, width, DOCK_HEIGHT, 0x17131d)
         surface.fill_rect(0, y, width, 2, 0x49325f)
-        @dock_items.each_with_index do |(label, _), index|
+        visible_dock_items.each_with_index do |item, index|
           x = 12 + index * dock_slot_width
-          surface.fill_rect(x, y + 6, dock_slot_width - 8, 28, 0x49325f)
-          columns = [[(dock_slot_width - 14) / 8, 1].max, label.each_char.count].min
-          surface.draw_text(x + 7, y + 14, label.each_char.first(columns).join,
+          active = item.application && windows.any? do |window|
+            window.application.equal?(item.application)
+          end
+          surface.fill_rect(x, y + 6, dock_slot_width - 8, 28,
+                            active ? 0x7048a8 : 0x49325f)
+          columns = [[(dock_slot_width - 14) / 8, 1].max, item.label.each_char.count].min
+          surface.draw_text(x + 7, y + 14, item.label.each_char.first(columns).join,
                             color: 0xf2eaf7)
+          surface.fill_rect(x + 5, y + 35, dock_slot_width - 14, 2, 0xb792ff) if active
         end
       end
 
+      def visible_dock_items
+        @dock_items.select do |item|
+          @pinned_dock_items[item.name] ||
+            (item.application && windows.any? { |window| window.application.equal?(item.application) })
+        end
+      end
+
+      def dock_item_at(point_x, point_y)
+        return nil unless point_y >= height - DOCK_HEIGHT && point_x >= 12
+
+        index = (point_x - 12) / dock_slot_width
+        visible_dock_items[index] if index >= 0
+      end
+
+      def activate_dock_item(item)
+        existing = item.application && windows.reverse.find do |window|
+          window.application.equal?(item.application)
+        end
+        if existing
+          existing.minimized = false
+          focus(existing)
+        else
+          item.action.call
+        end
+      end
+
+      def persist_dock
+        @dock_change&.call(pinned_dock_names)
+      end
 
       def dock_slot_width
-        [(@width - 24) / [@dock_items.length, 1].max, 32].max
+        [[(@width - 24) / [visible_dock_items.length, 1].max, 32].max, 96].min
       end
     end
   end

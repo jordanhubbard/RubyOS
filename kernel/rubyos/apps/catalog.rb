@@ -3,6 +3,7 @@
 module RubyOS
   module Apps
     module Catalog
+      DEFAULT_DOCK = %w[Launcher Files Terminal Editor Inspector Monitor].freeze
       module_function
 
       def build(kernel: RubyOS::Kernel)
@@ -54,7 +55,23 @@ module RubyOS
           .bind_key(119, mods: Input::MOD_CTRL,
                     name: "Close Window") { compositor.close(compositor.focused_window) }
         registry.fetch("Keybindings").restore(compositor)
+        install_dock(compositor, registry)
         compositor
+      end
+
+      def install_dock(compositor, registry)
+        store = DockStore.new(vfs: registry.fetch("Keybindings").store.vfs)
+        saved = store.load
+        pinned = saved.nil? ? DEFAULT_DOCK : saved
+        entries = registry.entries
+        order = (pinned + entries.map(&:name)).uniq
+        entries.sort_by { |entry| order.index(entry.name) }.each do |entry|
+          compositor.register_dock_item(
+            entry.name, entry.dock_label, application: entry.application,
+            pinned: pinned.include?(entry.name)
+          ) { entry.application.launch(compositor) }
+        end
+        compositor.on_dock_change { |names| store.save(names) }
       end
 
       def register_apps(registry, kernel, shortcuts:)

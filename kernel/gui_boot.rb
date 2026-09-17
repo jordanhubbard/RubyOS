@@ -25,9 +25,6 @@ module RubyOS
       ), description: "Edit VFS files and transactionally reload Ruby applications",
          dock_label: "Edit")
       Apps::Catalog.install_desktop(compositor, applications)
-      applications.entries(category: :app).each do |entry|
-        compositor.add_dock_item(entry.dock_label) { entry.application.launch(compositor) }
-      end
       compositor.add_shortcut("Clock", x: 8, y: 42) { applications.fetch("Clock").launch(compositor) }
       compositor.add_shortcut("Files", x: 8, y: 104) { applications.fetch("Files").launch(compositor) }
       applications.fetch("About").launch(compositor)
@@ -35,6 +32,39 @@ module RubyOS
       applications.fetch("Media").launch(compositor)
       terminal_window = applications.fetch("Terminal").launch(compositor)
       HAL.serial_write("[RubyOS] desktop smoke: applications launched\n")
+      RubyOS.invariant(compositor.pinned_dock_names == Apps::Catalog::DEFAULT_DOCK,
+                       "desktop did not install the compact default dock")
+      files_window = compositor.windows.find do |window|
+        window.application.equal?(applications.fetch("Files"))
+      end
+      compositor.minimize(files_window)
+      files_x, files_y = compositor.dock_item_center_by_name("Files")
+      window_count = compositor.windows.length
+      client.call("debug.event.inject", { kind: 4, x: files_x, y: files_y, button: 1 })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(!files_window.minimized && compositor.focused_window == files_window &&
+                       compositor.windows.length == window_count,
+                       "dock click duplicated a running Files window instead of restoring it")
+      dock_x, dock_y = compositor.dock_item_center_by_name("Monitor")
+      client.call("debug.event.inject", { kind: 4, x: dock_x, y: dock_y, button: 3 })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(compositor.context_menu_open?,
+                       "dock right-click did not open pin controls")
+      compositor.draw(desktop.surface, uptime: "dynamic dock")
+      desktop.present
+      desktop.capture("/tmp/rubyos-dock-menu.bmp")
+      remove_x, remove_y = compositor.context_item_center(2)
+      client.call("debug.event.inject", { kind: 4, x: remove_x, y: remove_y, button: 1 })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(!compositor.pinned_dock_names.include?("Monitor"),
+                       "Remove from Dock did not unpin Monitor")
+      compositor.pin_dock_item("Monitor")
+      RubyOS.invariant(
+        state.fetch(:vfs).read_file(Apps::DockStore::DEFAULT_PATH).include?("Monitor"),
+        "dock pins were not persisted through the VFS"
+      )
+      compositor.focus(terminal_window)
+      HAL.serial_write("[RubyOS] desktop smoke: dynamic dock checked\n")
       RubyOS.invariant(applications.entries(category: :app).length == 13 &&
                        applications.entries(category: :demo).length == 3 &&
                        applications.entries(category: :game).length == 2,
@@ -276,6 +306,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS] menus and global shortcuts: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] persistent shortcut keymap: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] desktop/window/text context menus: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] dynamic persistent dock: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] shared open/save dialog: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] text selection and guest clipboard: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] compositor desktop mechanics: PASS\n")
@@ -301,9 +332,6 @@ module RubyOS
         description: "Edit VFS files and transactionally reload Ruby applications",
         dock_label: "Edit")
       Apps::Catalog.install_desktop(compositor, applications)
-      applications.entries(category: :app).each do |entry|
-        compositor.add_dock_item(entry.dock_label) { entry.application.launch(compositor) }
-      end
       applications.fetch("Terminal").launch(compositor)
       ready = false
       loop do
