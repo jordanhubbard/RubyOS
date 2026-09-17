@@ -916,6 +916,42 @@ assert(drop_desktop.handle(drop_event) &&
        "compositor routes host drops into the focused shared file dialog")
 dropped_dialog.cancel
 
+drag_source = "Ruby objects drag through bounded exports.\n"
+state.fetch(:vfs).write_file("/home/drag-export.txt", drag_source)
+transfer_client.exported.clear
+drag_desktop = RubyOS::GUI::Compositor.new(width: 640, height: 480)
+drag_desktop.install_file_transfer(transfer)
+drag_dialog = RubyOS::GUI::FileDialog.new(
+  compositor: drag_desktop, vfs: state.fetch(:vfs), mode: :open,
+  path: "/home/", extensions: [".txt"]
+)
+drag_index = drag_dialog.list.items.index { |item| item.fetch(:label) == "drag-export.txt" }
+assert(drag_index && drag_dialog.list.select(drag_index),
+       "shared file dialog exposes a selectable guest export source")
+drag_row = drag_dialog.list.selected_index - drag_dialog.list.scroll_offset
+drag_start_x = drag_dialog.window.x + 10 + drag_dialog.list.x + 12
+drag_start_y = drag_dialog.window.y + RubyOS::GUI::Window::TITLE_HEIGHT + 9 +
+               drag_dialog.list.y + drag_row * RubyOS::GUI::ListView::ROW_HEIGHT + 10
+drag_end_x = drag_dialog.window.x + 10 + drag_dialog.export_button.x +
+             drag_dialog.export_button.width / 2
+drag_end_y = drag_dialog.window.y + RubyOS::GUI::Window::TITLE_HEIGHT + 9 +
+             drag_dialog.export_button.y + drag_dialog.export_button.height / 2
+drag_desktop.handle("kind" => RubyOS::Input::POINTER_DOWN, "button" => 1,
+                    "x" => drag_start_x, "y" => drag_start_y)
+assert(!drag_dialog.done? && transfer_client.exported.empty?,
+       "drag-capable list selection waits for release instead of opening immediately")
+drag_desktop.handle("kind" => RubyOS::Input::POINTER_MOVE,
+                    "x" => drag_end_x, "y" => drag_end_y)
+assert(drag_dialog.list.dragging? && drag_dialog.status.text.include?("Drop drag-export.txt"),
+       "guest file drag captures the pointer and exposes destination feedback")
+drag_desktop.handle("kind" => RubyOS::Input::POINTER_UP, "button" => 1,
+                    "x" => drag_end_x, "y" => drag_end_y)
+assert(!drag_dialog.list.dragging? && transfer_client.exported == drag_source &&
+       drag_dialog.status.text.include?("Exported #{drag_source.bytesize} bytes"),
+       "dropping a guest file on Export streams it through host policy")
+drag_dialog.cancel
+state.fetch(:vfs).unlink("/home/drag-export.txt")
+
 drop_catalog = RubyOS::Apps::Catalog.build(kernel: RubyOS::Kernel)
 drop_desktop = RubyOS::GUI::Compositor.new(width: 640, height: 480)
 RubyOS::Apps::Catalog.install_desktop(drop_desktop, drop_catalog, file_transfer: transfer)

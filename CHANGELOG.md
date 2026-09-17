@@ -4,6 +4,13 @@ All notable RubyOS changes are documented here.
 
 ## [Unreleased]
 
+- Add pointer-captured guest file dragging to reusable Ruby `ListView` widgets;
+  Files and shared Open/Save dialogs now show a bounded drag badge and export
+  only when a file is released on the Export target, with frozen ARM64/x86_64
+  acceptance through the real host-policy transfer path.
+- Add ARM64 and x86_64 frozen-guest visual baselines for every catalog entry,
+  using Ruby BMP parsing and 16-pixel SHA-256 tile comparisons with explicit
+  refresh, catalog-membership checks, and a bounded allowance for live views.
 - Add focused-window source editing on F5: built-in application source is
   archived into frozen guests, copied to a writable `/apps` overlay, evaluated
   under an isolated Ruby namespace, and transactionally swapped into the live

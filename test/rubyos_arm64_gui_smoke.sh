@@ -14,12 +14,13 @@ plasma_capture="/tmp/rubyos-plasma.bmp"
 sprites_capture="/tmp/rubyos-sprites.bmp"
 image_viewer_capture="/tmp/rubyos-image-viewer.bmp"
 source_editor_capture="/tmp/rubyos-source-editor.bmp"
+file_drag_capture="/tmp/rubyos-interaction-file-drag.bmp"
 export_dir="$(mktemp -d /tmp/rubyos-gui-export.XXXXXX)"
 port="$($root/build/host-ruby/bin/ruby -rsocket -e 'server = TCPServer.new("127.0.0.1", 0); puts server.local_address.ip_port; server.close')"
 
 rm -f "$serial_log" "$bridge_log" "$capture" "$graphical_demo_capture" "$inspector_capture" \
     "$terminal_capture" "$arcade_capture" "$plasma_capture" "$sprites_capture" \
-    "$image_viewer_capture" "$source_editor_capture"
+    "$image_viewer_capture" "$source_editor_capture" "$file_drag_capture"
 REMOTEOS_SDL_MODE=headless SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
     REMOTEOS_SDL_EXPORT_DIR="$export_dir" \
     "${REMOTEOS_SDL_BIN:-$root/services/remoteos-sdl/remoteos-sdl}" --listen-tcp "127.0.0.1:$port" \
@@ -65,6 +66,7 @@ grep -q 'interactive Ruby graphical demos: PASS' "$serial_log"
 grep -q 'categorized Ruby curriculum: PASS' "$serial_log"
 grep -q 'live Terminal, Monitor, and Inspector: PASS' "$serial_log"
 grep -q 'host file transfer: PASS' "$serial_log"
+grep -q 'guest file drag export: PASS' "$serial_log"
 grep -q 'editor navigation and explicit persistence: PASS' "$serial_log"
 grep -q 'focused source edit and transactional reload: PASS' "$serial_log"
 grep -q 'compositor desktop mechanics: PASS' "$serial_log"
@@ -92,6 +94,8 @@ test -s "$image_viewer_capture"
 file "$image_viewer_capture" | grep -q '480 x 300'
 test -s "$source_editor_capture"
 file "$source_editor_capture" | grep -q '480 x 300'
+test -s "$file_drag_capture"
+file "$file_drag_capture" | grep -q '480 x 300'
 test "$(cat "$export_dir/rubyos-host-export.txt")" = \
     'RubyOS host export from the bare-metal VFS.'
 echo 'RubyOS bare-metal CRuby SDL remote desktop smoke: PASS'

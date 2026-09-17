@@ -5,7 +5,8 @@ module RubyOS
     class FileDialog
       MODES = [:open, :save].freeze
 
-      attr_reader :compositor, :vfs, :mode, :cwd, :result, :window, :transfer
+      attr_reader :compositor, :vfs, :mode, :cwd, :result, :window, :transfer,
+                  :list, :status, :export_button
 
       def initialize(compositor:, vfs:, mode: :open, path: nil,
                      title: nil, default_name: "untitled.rb", extensions: nil,
@@ -116,7 +117,29 @@ module RubyOS
       def export_selected(*)
         return false unless transfer&.export_supported?
 
-        item = @list.selected_item
+        export_item(@list.selected_item)
+      end
+
+      def begin_export_drag(item)
+        if item.fetch(:kind) == :file
+          report("Drop #{item.fetch(:label)} on Export")
+        else
+          report("Only files can be exported", error: true)
+        end
+        true
+      end
+
+      def finish_export_drag(item, point_x, point_y)
+        unless export_button&.contains?(point_x, point_y)
+          report("Drag a file onto Export", error: true)
+          return false
+        end
+        export_item(item)
+      end
+
+      def export_item(item)
+        return false unless transfer&.export_supported?
+
         unless item && item.fetch(:kind) == :file
           report("Select a file to export", error: true)
           return false
@@ -146,10 +169,17 @@ module RubyOS
                               action: method(:go_up)), anchors: [:right, :top])
         window.add(Button.new("Home", x: content_width - 50, y: 0, width: 56, height: 24,
                               action: ->(*) { navigate("/home") }), anchors: [:right, :top])
+        drag_options = if transfer&.export_supported?
+                         { on_drag: method(:begin_export_drag),
+                           on_drop: method(:finish_export_drag) }
+                       else
+                         {}
+                       end
         @list = window.add(ListView.new(x: 8, y: 34, width: content_width,
                                         height: list_height, background: 0x1d2535,
                                         on_activate: method(:activate),
-                                        on_back: method(:go_up), on_cancel: method(:cancel)),
+                                        on_back: method(:go_up), on_cancel: method(:cancel),
+                                        **drag_options),
                            anchors: [:left, :right, :top, :bottom],
                            minimum_width: 80, minimum_height: 28)
         controls_y = 44 + list_height
@@ -168,9 +198,11 @@ module RubyOS
                                        color: 0xa8d8ff),
                              anchors: [:left, :right, :bottom], minimum_width: 30)
         if transfer&.export_supported?
-          window.add(Button.new("Export", x: content_width - 212, y: controls_y,
-                                width: 68, height: 26, action: method(:export_selected)),
-                     anchors: [:right, :bottom])
+          @export_button = window.add(
+            Button.new("Export", x: content_width - 212, y: controls_y,
+                       width: 68, height: 26, action: method(:export_selected)),
+            anchors: [:right, :bottom]
+          )
         end
         action_label = mode == :save ? "Save" : "Open"
         window.add(Button.new(action_label, x: content_width - 138, y: controls_y,

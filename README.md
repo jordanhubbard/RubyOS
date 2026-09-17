@@ -111,7 +111,9 @@ The editor's File menu uses a shared, keyboard-and-mouse navigable VFS dialog
 for Open and Save As. Files and shared dialogs accept host file drops and
 export selected guest files through bounded 32 KiB protocol chunks; imports
 use safe collision-free VFS names and exports stay inside the host's configured
-destination policy. Its multiline Ruby buffer supports caret placement,
+destination policy. Files and the shared dialogs also capture an in-guest file
+drag, keep its badge inside the list viewport, and export only when it is
+released over the visible Export target. Its multiline Ruby buffer supports caret placement,
 Shift/drag selection, vertical/page navigation, wheel scrolling, and guest
 clipboard actions. Editing stays in memory with a visible dirty marker until
 Save or Ctrl-S; Cancel Changes restores the last saved text. Ruby's dedicated
@@ -128,6 +130,13 @@ cut/copy/paste actions.
 The dock keeps a compact set of core applications, marks running apps, shows
 unpinned apps transiently, and persists Keep/Remove choices in
 `/home/.rubyos-dock`.
+
+`make test-gui` launches and captures every registered app in an isolated
+compositor, then compares 16-pixel SHA-256 tile hashes against the checked-in
+baseline for the selected ARM64 or x86_64 guest. The real guest-file drag state
+is captured and compared as an interaction golden as well. Intentional visual changes use
+`RUBYOS_GOLDEN_REFRESH=1 make test-gui`; missing or stale catalog baselines fail
+the ordinary test instead of silently reducing coverage.
 
 These commands select the host CPU by default: ARM64 on ARM hosts, x86_64 on
 Intel/AMD hosts. Use `make run-gui TARGET_ARCH=x86_64` or `TARGET_ARCH=arm64`

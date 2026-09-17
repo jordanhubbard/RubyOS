@@ -15,7 +15,7 @@ module RubyOS
     end
 
     class Files < Application
-      attr_reader :path
+      attr_reader :path, :list, :status, :export_button
 
       def initialize(path: "/", **options)
         super(**options)
@@ -40,11 +40,17 @@ module RubyOS
         @window.add(GUI::Button.new("Home", x: content_width - 50, y: 0,
                                     width: 56, height: 24,
                                     action: ->(*) { navigate("/home") }), anchors: [:right, :top])
+        drag_options = if transfer&.export_supported?
+                         { on_drag: method(:begin_export_drag),
+                           on_drop: method(:finish_export_drag) }
+                       else
+                         {}
+                       end
         @list = @window.add(GUI::ListView.new(x: 8, y: 34, width: content_width,
                                               height: list_height,
                                               background: 0x1d2535,
                                               on_activate: method(:activate_entry),
-                                              on_back: method(:go_up)),
+                                              on_back: method(:go_up), **drag_options),
                             anchors: [:left, :right, :top, :bottom],
                             minimum_width: 80, minimum_height: 30)
         @status = @window.add(GUI::Label.new("", x: 8, y: 44 + list_height,
@@ -52,10 +58,11 @@ module RubyOS
                                              height: 22, color: 0xa8d8ff),
                               anchors: [:left, :right, :bottom], minimum_width: 80)
         if transfer&.export_supported?
-          @window.add(GUI::Button.new("Export", x: content_width - 70, y: 44 + list_height,
-                                      width: 70, height: 24,
-                                      action: method(:export_selected)),
-                      anchors: [:right, :bottom])
+          @export_button = @window.add(
+            GUI::Button.new("Export", x: content_width - 70, y: 44 + list_height,
+                            width: 70, height: 24, action: method(:export_selected)),
+            anchors: [:right, :bottom]
+          )
         end
         @window.on_file_drop { |event| receive_drop(event) } if transfer&.import_supported?
         refresh
@@ -123,7 +130,29 @@ module RubyOS
       def export_selected(*)
         return false unless transfer&.export_supported?
 
-        item = @list.selected_item
+        export_item(@list.selected_item)
+      end
+
+      def begin_export_drag(item)
+        if item.fetch(:kind) == :file
+          show_transfer_status("Drop #{item.fetch(:label)} on Export")
+        else
+          show_transfer_status("Only files can be exported", error: true)
+        end
+        true
+      end
+
+      def finish_export_drag(item, point_x, point_y)
+        unless export_button&.contains?(point_x, point_y)
+          show_transfer_status("Drag a file onto Export", error: true)
+          return false
+        end
+        export_item(item)
+      end
+
+      def export_item(item)
+        return false unless transfer&.export_supported?
+
         unless item && item.fetch(:kind) == :file
           show_transfer_status("Select a file to export", error: true)
           return false

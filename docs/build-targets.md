@@ -34,5 +34,9 @@ Publishing remains an explicitly authorized `scripts/release.sh` operation.
 
 The regular desktop uses its own `rubyos-<architecture>-desktop` image, without injected
 test events, synthetic gameplay or automatic shutdown. Smoke-test images keep
-their existing deterministic assertions. The runtime launcher is written in
+their existing deterministic assertions. Each native-TCP GUI smoke also checks
+every catalog entry and the guest-file drag state against
+`test/goldens/<architecture>`; set
+`RUBYOS_GOLDEN_REFRESH=1` only when intentionally reviewing and regenerating
+those baselines. The runtime launcher is written in
 Ruby and uses only this repository's private, source-built Ruby interpreter.

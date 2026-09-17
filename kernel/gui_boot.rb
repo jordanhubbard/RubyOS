@@ -26,6 +26,7 @@ module RubyOS
       ), description: "Edit VFS files and transactionally reload Ruby applications",
          dock_label: "Edit", source_path: Apps::Catalog::SYSTEM_SOURCE)
       Apps::Catalog.install_desktop(compositor, applications, file_transfer:, runtime:)
+      capture_catalog_goldens(desktop)
       compositor.add_shortcut("Clock", x: 8, y: 42) { applications.fetch("Clock").launch(compositor) }
       compositor.add_shortcut("Files", x: 8, y: 104) { applications.fetch("Files").launch(compositor) }
       about_window = applications.fetch("About").launch(compositor)
@@ -338,11 +339,42 @@ module RubyOS
       HAL.serial_write("[RubyOS] desktop smoke: editor commands and persistence checked\n")
       export_source = "RubyOS host export from the bare-metal VFS.\n"
       state.fetch(:vfs).write_file("/home/rubyos-host-export.txt", export_source)
-      exported_path, exported_count = file_transfer.export("/home/rubyos-host-export.txt")
-      RubyOS.invariant(exported_count == export_source.bytesize &&
-                       exported_path.end_with?("rubyos-host-export.txt"),
-                       "bounded host file export did not complete")
-      HAL.serial_write("[RubyOS] desktop smoke: host file export checked\n")
+      files = applications.fetch("Files")
+      files.navigate("/home")
+      compositor.focus(files_window)
+      export_index = files.list.items.index do |item|
+        item.fetch(:label) == "rubyos-host-export.txt"
+      end
+      RubyOS.invariant(export_index && files.list.select(export_index),
+                       "Files did not expose the guest export source")
+      export_row = files.list.selected_index - files.list.scroll_offset
+      drag_start_x = files_window.x + 10 + files.list.x + 12
+      drag_start_y = files_window.y + GUI::Window::TITLE_HEIGHT + 9 + files.list.y +
+                     export_row * GUI::ListView::ROW_HEIGHT + 10
+      drag_end_x = files_window.x + 10 + files.export_button.x +
+                   files.export_button.width / 2
+      drag_end_y = files_window.y + GUI::Window::TITLE_HEIGHT + 9 +
+                   files.export_button.y + files.export_button.height / 2
+      client.call("debug.event.inject", {
+        kind: Input::POINTER_DOWN, x: drag_start_x, y: drag_start_y, button: 1
+      })
+      client.call("debug.event.inject", {
+        kind: Input::POINTER_MOVE, x: drag_end_x, y: drag_end_y
+      })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(files.list.dragging? && files.status.text.include?("Drop rubyos-host-export"),
+                       "Files did not capture a guest file drag")
+      compositor.draw(desktop.surface, uptime: "guest file drag")
+      desktop.present
+      desktop.capture("/tmp/rubyos-interaction-file-drag.bmp")
+      client.call("debug.event.inject", {
+        kind: Input::POINTER_UP, x: drag_end_x, y: drag_end_y, button: 1
+      })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(!files.list.dragging? &&
+                       files.status.text.include?("Exported #{export_source.bytesize} bytes"),
+                       "dropping a guest file on Export did not complete")
+      HAL.serial_write("[RubyOS] desktop smoke: guest file drag export checked\n")
       client.call("debug.event.inject", { kind: 4, x: 126, y: 10, button: 1 })
       desktop.events.each { |event| compositor.handle(event) }
       compositor.draw(desktop.surface, uptime: "menus")
@@ -479,6 +511,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS] dynamic persistent dock: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] shared open/save dialog: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] host file transfer: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] guest file drag export: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] text selection and guest clipboard: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] editor navigation and explicit persistence: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] focused source edit and transactional reload: PASS\n")
@@ -489,6 +522,31 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS] Ruby media canvas: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] Ruby arcade games: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] guest/host performance metrics: PASS\n")
+      true
+    end
+
+    def capture_catalog_goldens(desktop)
+      applications = Apps::Catalog.build(kernel: self)
+      runtime = Live::Runtime.new(vfs: state.fetch(:vfs), registry: applications)
+      runtime.install("Live Hello", source: Apps::LIVE_HELLO_SOURCE,
+                      path: "/apps/live_hello.rb")
+      applications.register("Editor", Apps::Editor.new(
+        path: "/apps/live_hello.rb", runtime:, application_name: "Live Hello"
+      ), description: "Edit VFS files and transactionally reload Ruby applications",
+         dock_label: "Edit", source_path: Apps::Catalog::SYSTEM_SOURCE)
+      compositor = GUI::Compositor.new(width: 480, height: 300, title: "RubyOS")
+      Apps::Catalog.install_desktop(compositor, applications, runtime:)
+      applications.entries.each do |entry|
+        window = entry.application.launch(compositor)
+        compositor.draw(desktop.surface, uptime: "Ruby visual baseline")
+        desktop.present
+        slug = entry.name.downcase.gsub(/[^a-z0-9]+/, "-").gsub(/\A-|-\z/, "")
+        desktop.capture("/tmp/rubyos-app-#{slug}.bmp")
+        compositor.close(window)
+      end
+      HAL.serial_write(
+        "[RubyOS] catalog visual captures: #{applications.entries.length} PASS\n"
+      )
       true
     end
 

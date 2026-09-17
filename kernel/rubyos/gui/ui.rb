@@ -861,24 +861,30 @@ module RubyOS
 
     class ListView < View
       ROW_HEIGHT = 26
+      DRAG_THRESHOLD = 6
       UP_KEYS = [1_073_741_906].freeze
       DOWN_KEYS = [1_073_741_905].freeze
 
       attr_reader :items, :selected_index, :scroll_offset
 
-      def initialize(items: [], on_activate: nil, on_back: nil, on_cancel: nil, **options)
+      def initialize(items: [], on_activate: nil, on_back: nil, on_cancel: nil,
+                     on_drag: nil, on_drop: nil, **options)
         super(**options)
         @items = items
         @selected_index = items.empty? ? nil : 0
         @on_activate = on_activate
         @on_back = on_back
         @on_cancel = on_cancel
+        @on_drag = on_drag
+        @on_drop = on_drop
         @scroll_offset = 0
+        clear_pointer_drag
       end
 
       def replace(items)
         @items = Array(items)
         @selected_index = items.empty? ? nil : [[selected_index || 0, items.length - 1].min, 0].max
+        clear_pointer_drag
         keep_selected_visible
         invalidate
         self
@@ -916,6 +922,7 @@ module RubyOS
         if scroll_offset + visible_rows < items.length
           surface.draw_text(x + width - 12, y + height - 16, "v", color: 0x8f7cff)
         end
+        draw_drag_badge(surface) if dragging?
       end
 
       def handle(event)
@@ -948,21 +955,96 @@ module RubyOS
         end
       end
 
-      def handle_pointer(local_x, local_y, _event)
-        return false unless contains?(local_x, local_y)
+      def handle_pointer(local_x, local_y, event)
+        kind = event.fetch("kind", Input::POINTER_DOWN)
+        if kind == Input::POINTER_DOWN
+          return false unless contains?(local_x, local_y)
 
-        index = scroll_offset + (local_y - y) / ROW_HEIGHT
-        return false unless items[index]
+          index = scroll_offset + (local_y - y) / ROW_HEIGHT
+          return false unless items[index]
 
-        @selected_index = index
-        activate
+          @selected_index = index
+          unless drag_enabled?
+            return activate
+          end
+          @pointer_start = [index, local_x, local_y]
+          @pointer_x = local_x
+          @pointer_y = local_y
+          @dragging = false
+          invalidate
+          return true
+        end
+        return false unless pointer_capture?
+
+        @pointer_x = local_x
+        @pointer_y = local_y
+        if kind == Input::POINTER_MOVE
+          index, start_x, start_y = @pointer_start
+          if !dragging? && (local_x - start_x).abs + (local_y - start_y).abs >= DRAG_THRESHOLD
+            @dragging = true
+            @on_drag&.call(items.fetch(index))
+          end
+          invalidate
+          return true
+        end
+        return false unless kind == Input::POINTER_UP
+
+        index = @pointer_start.fetch(0)
+        item = items[index]
+        was_dragging = dragging?
+        clear_pointer_drag
+        result = was_dragging ? @on_drop&.call(item, local_x, local_y) : activate
+        invalidate
+        result != false
       end
 
       def focusable? = true
+      def pointer_capture? = !@pointer_start.nil?
+      def dragging? = !!@dragging
+
+      def select(index)
+        return false if items.empty?
+
+        @selected_index = [[Integer(index), 0].max, items.length - 1].min
+        keep_selected_visible
+        invalidate
+        true
+      end
 
       private
 
       def visible_rows = [height / ROW_HEIGHT, 1].max
+
+      def drag_enabled? = @on_drag || @on_drop
+
+      def clear_pointer_drag
+        @pointer_start = nil
+        @pointer_x = nil
+        @pointer_y = nil
+        @dragging = false
+      end
+
+      def draw_drag_badge(surface)
+        item = selected_item
+        return unless item
+
+        label = "Export #{item.fetch(:label)}"
+        badge_width = [[label.each_char.count * 8 + 16, 120].max, 240].min
+        maximum_x = [x + width - badge_width - 4, x].max
+        maximum_y = [y + height - 28, y].max
+        badge_x = [[@pointer_x + 8, x].max, maximum_x].min
+        badge_y = [[@pointer_y - 30, y].max, maximum_y].min
+        columns = (badge_width - 16) / 8
+        characters = label.each_char.to_a
+        display = if characters.length > columns
+                    characters.first([columns - 3, 1].max).join + "..."
+                  else
+                    label
+                  end
+        surface.fill_rect(badge_x + 3, badge_y + 3, badge_width, 24, 0x0b0910)
+        surface.fill_rect(badge_x, badge_y, badge_width, 24, 0x7048a8)
+        surface.draw_text(badge_x + 8, badge_y + 6, display, color: 0xffffff)
+      end
 
       def move(delta)
         return false if items.empty?

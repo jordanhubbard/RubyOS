@@ -46,6 +46,7 @@ smoke: $(HOST_RUBY_STAMP)
 test-host: $(HOST_RUBY_STAMP)
 	$(HOST_RUBY) -I kernel test/kernel_test.rb
 	$(HOST_RUBY) test/embed_manifest_test.rb
+	$(HOST_RUBY) test/visual_golden_unit_test.rb
 	$(HOST_RUBY) -I kernel test/virtio_transport_test.rb
 	$(HOST_RUBY) -I kernel test/media_test.rb
 
