@@ -76,6 +76,21 @@ module RubyOS
       desktop.events.each { |event| compositor.handle(event) }
       RubyOS.invariant(compositor.focused_window.title == "Keyboard Shortcuts",
                        "F1 did not launch the keybinding control panel")
+      keybindings = applications.fetch("Keybindings")
+      applications_binding = compositor.keybindings.find { |binding| binding.name == "Applications" }
+      keybindings.capture(binding: applications_binding)
+      client.call("debug.event.inject", { kind: 1, code: 97, mod: 0x0100 })
+      desktop.events.each { |event| compositor.handle(event) }
+      saved_keymap = state.fetch(:vfs).read_file(Apps::ShortcutStore::DEFAULT_PATH)
+      RubyOS.invariant(saved_keymap.include?("Applications\t97\t#{Input::MOD_ALT}"),
+                       "rebinding did not persist the Applications shortcut")
+      compositor.draw(desktop.surface, uptime: "persistent keymap")
+      desktop.present
+      desktop.capture("/tmp/rubyos-persistent-keymap.bmp")
+      keybindings.reset_defaults
+      restored_binding = compositor.keybindings.find { |binding| binding.name == "Applications" }
+      RubyOS.invariant(restored_binding.code == Input::KEY_F2 && restored_binding.mods.zero?,
+                       "shortcut reset did not restore F2")
       client.call("debug.event.inject", { kind: 1, code: 119, mod: 0x0040 })
       desktop.events.each { |event| compositor.handle(event) }
       RubyOS.invariant(compositor.focused_window == terminal_window,
@@ -245,6 +260,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS] core desktop apps: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] categorized Ruby demo catalog: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] menus and global shortcuts: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] persistent shortcut keymap: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] shared open/save dialog: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] text selection and guest clipboard: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] compositor desktop mechanics: PASS\n")

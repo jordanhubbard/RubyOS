@@ -7,7 +7,8 @@ module RubyOS
 
       def build(kernel: RubyOS::Kernel)
         registry = Registry.new
-        register_apps(registry, kernel)
+        shortcuts = ShortcutStore.new(vfs: kernel.state.fetch(:vfs))
+        register_apps(registry, kernel, shortcuts:)
         register_demos(registry, kernel)
         register_games(registry, kernel)
         registry.register(
@@ -47,9 +48,11 @@ module RubyOS
           .bind_key(Input::KEY_F4, name: "Files") { launch.call("Files") }
           .bind_key(119, mods: Input::MOD_CTRL,
                     name: "Close Window") { compositor.close(compositor.focused_window) }
+        registry.fetch("Keybindings").restore(compositor)
+        compositor
       end
 
-      def register_apps(registry, kernel)
+      def register_apps(registry, kernel, shortcuts:)
         entries = [
           ["About", About, "RubyOS version, runtime, and design identity", "Info"],
           ["Files", Files, "Browse the VFS and open files in the Ruby editor", "Files"],
@@ -59,12 +62,14 @@ module RubyOS
           ["Image", ImageViewer, "Ruby-generated bitmap and image surface viewer", "Image"],
           ["Media", MediaWorkbench, "Ruby bitmap, scene, sound, and motion workbench", "Media"],
           ["Clock", Clock, "Monotonic and session time", "Clock"],
-          ["Settings", Settings, "Desktop preferences", "Set"],
-          ["Keybindings", Keybindings, "Inspect and rebind global desktop shortcuts", "Keys"]
+          ["Settings", Settings, "Desktop preferences", "Set"]
         ]
         entries.each do |name, type, description, dock_label|
           registry.register(name, type.new(kernel:), description:, dock_label:)
         end
+        registry.register("Keybindings", Keybindings.new(kernel:, store: shortcuts),
+                          description: "Inspect, persist, and rebind global desktop shortcuts",
+                          dock_label: "Keys")
       end
 
       def register_demos(registry, kernel)

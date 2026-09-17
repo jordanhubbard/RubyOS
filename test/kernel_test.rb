@@ -389,6 +389,31 @@ assert(compositor.focused_window.title == "Enumerable Pipeline",
 compositor.close(compositor.focused_window)
 compositor.close(launcher_window)
 
+saved_keymap = state.fetch(:vfs).read_file(RubyOS::Apps::ShortcutStore::DEFAULT_PATH)
+assert(saved_keymap.start_with?(RubyOS::Apps::ShortcutStore::HEADER) &&
+       saved_keymap.include?("Applications\t97\t#{RubyOS::Input::MOD_ALT}"),
+       "shortcut rebinding persists a versioned VFS keymap")
+restored_desktop = RubyOS::GUI::Compositor.new(width: 480, height: 300)
+RubyOS::Apps::Catalog.install_desktop(restored_desktop, catalog)
+restored_binding = restored_desktop.keybindings.find { |binding| binding.name == "Applications" }
+assert(restored_binding.code == 97 && restored_binding.mods == RubyOS::Input::MOD_ALT,
+       "desktop installation restores persisted shortcut chords")
+restored_desktop.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 97,
+                        "mods" => RubyOS::Input::MOD_ALT)
+assert(restored_desktop.focused_window.title == "RubyOS Applications",
+       "restored shortcut invokes its original Ruby block")
+restored_desktop.close(restored_desktop.focused_window)
+keybindings.reset_defaults
+default_binding = restored_desktop.keybindings.find { |binding| binding.name == "Applications" }
+keymap_removed = begin
+  state.fetch(:vfs).read_file(RubyOS::Apps::ShortcutStore::DEFAULT_PATH)
+  false
+rescue RubyOS::FS::NotFound
+  true
+end
+assert(default_binding.code == RubyOS::Input::KEY_F2 && default_binding.mods.zero? && keymap_removed,
+       "shortcut reset restores defaults and removes the persisted override")
+
 settings = RubyOS::Apps::Settings.new
 settings_window = settings.launch(compositor)
 compositor.handle("kind" => 4, "button" => 1,

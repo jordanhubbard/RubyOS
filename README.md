@@ -80,6 +80,8 @@ matching; their underlying examples are readable in `/examples`.
 The desktop menu bar is registry-driven and gains commands from the focused
 Ruby application. F1 opens the live-rebindable keymap, F2 opens Applications,
 F3 opens Terminal, and F4 opens Files; Ctrl-W closes the focused window.
+Rebound shortcuts are stored in `/home/.rubyos-keybindings`, restored on the
+next desktop session, and can be reset to defaults from the Shortcuts menu.
 The editor's File menu uses a shared, keyboard-and-mouse navigable VFS dialog
 for Open and Save As. Its multiline Ruby buffer supports caret placement,
 Shift/drag selection, vertical/page navigation, wheel scrolling, and guest

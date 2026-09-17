@@ -251,6 +251,28 @@ module RubyOS
     end
 
     class Keybindings < Application
+      attr_reader :store
+
+      def initialize(store:, **options)
+        super(**options)
+        @store = store
+        @defaults = nil
+      end
+
+      def restore(compositor)
+        @compositor = compositor
+        @defaults ||= compositor.keybindings.to_h { |binding| [binding.name, [binding.code, binding.mods]] }
+        restored = 0
+        store.load.each do |record|
+          next unless @defaults.key?(record.fetch(:name))
+
+          compositor.rebind_key(record.fetch(:name), code: record.fetch(:code),
+                                mods: record.fetch(:mods))
+          restored += 1
+        end
+        restored
+      end
+
       def build_window
         window_x, window_y = spacious_desktop? ? [126, 52] : [50, 34]
         window_width, window_height = spacious_desktop? ? [390, 260] : [380, 210]
@@ -288,15 +310,51 @@ module RubyOS
             @compositor.rebind_key(binding.name, code: event.fetch("code", 0),
                                    mods: event.fetch("mods", 0))
             @list.replace(binding_items)
-            @status.text = "#{binding.name} is now #{chord(event.fetch('code', 0), event.fetch('mods', 0))}"
+            persisted = save
+            if persisted
+              @status.text = "Saved #{binding.name}: #{chord(event.fetch('code', 0), event.fetch('mods', 0))}"
+              @status.color = 0xc3e88d
+            end
           end
-          @status.color = 0xc3e88d
+          @status.color = 0xc3e88d if event.fetch("code", 0) == 27
           @status.invalidate
         end
         true
       end
 
+      def save
+        count = store.save(@compositor.keybindings)
+        show_status("Saved #{count} shortcuts")
+        count
+      rescue FS::Error => error
+        show_status("#{error.class}: #{error.message}", error: true)
+        false
+      end
+
+      def reset_defaults
+        @defaults.each do |name, (code, mods)|
+          @compositor.rebind_key(name, code:, mods:)
+        end
+        store.clear
+        @list&.replace(binding_items)
+        show_status("Restored default shortcuts") if @status
+        true
+      end
+
+      def menus(compositor)
+        [GUI::Menu.new(title: "Shortcuts", items: [
+          GUI::MenuItem.command("Save keymap") { save },
+          GUI::MenuItem.command("Reset defaults") { reset_defaults }
+        ]), *super]
+      end
+
       private
+
+      def show_status(message, error: false)
+        @status.text = String(message)
+        @status.color = error ? 0xff668a : 0xc3e88d
+        @status.invalidate
+      end
 
       def binding_items
         @compositor.keybindings.map do |binding|

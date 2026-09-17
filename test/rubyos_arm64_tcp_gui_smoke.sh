@@ -12,6 +12,7 @@ menu_capture="/tmp/rubyos-menu.bmp"
 file_dialog_capture="/tmp/rubyos-file-dialog.bmp"
 resized_window_capture="/tmp/rubyos-resized-window.bmp"
 editor_selection_capture="/tmp/rubyos-editor-selection.bmp"
+persistent_keymap_capture="/tmp/rubyos-persistent-keymap.bmp"
 
 cleanup() {
     kill "${qemu_pid:-}" 2>/dev/null || true
@@ -19,6 +20,7 @@ cleanup() {
     rm -f "$output" "$service_output" "$catalog_capture" "$menu_capture" \
         "$file_dialog_capture" "$resized_window_capture"
     rm -f "$editor_selection_capture"
+    rm -f "$persistent_keymap_capture"
 }
 trap cleanup EXIT
 
@@ -54,6 +56,7 @@ grep -q 'categorized Ruby demo catalog: PASS' "$output"
 grep -q 'menus and global shortcuts: PASS' "$output"
 grep -q 'shared open/save dialog: PASS' "$output"
 grep -q 'text selection and guest clipboard: PASS' "$output"
+grep -q 'persistent shortcut keymap: PASS' "$output"
 test -s "$catalog_capture"
 file "$catalog_capture" | grep -q '480 x 300'
 cp "$catalog_capture" "$root/build/rubyos-catalog.bmp"
@@ -69,6 +72,9 @@ cp "$resized_window_capture" "$root/build/rubyos-resized-window.bmp"
 test -s "$editor_selection_capture"
 file "$editor_selection_capture" | grep -q '480 x 300'
 cp "$editor_selection_capture" "$root/build/rubyos-editor-selection.bmp"
+test -s "$persistent_keymap_capture"
+file "$persistent_keymap_capture" | grep -q '480 x 300'
+cp "$persistent_keymap_capture" "$root/build/rubyos-persistent-keymap.bmp"
 grep -q 'negotiated protocol v2 with client=rubyos' "$service_output"
 ! grep -q 'FATAL\|EXCEPTION\|ASSERT\|\[BUG\]' "$output"
 echo 'RubyOS bare-metal RemoteOS native TCP desktop: PASS'

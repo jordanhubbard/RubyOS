@@ -2,6 +2,59 @@
 
 module RubyOS
   module Apps
+    class ShortcutStore
+      HEADER = "# RubyOS keybindings v1"
+      DEFAULT_PATH = "/home/.rubyos-keybindings"
+
+      attr_reader :vfs, :path
+
+      def initialize(vfs:, path: DEFAULT_PATH)
+        @vfs = vfs
+        @path = String(path)
+      end
+
+      def load
+        lines = vfs.read_file(path).lines(chomp: true)
+        return [] unless lines.shift == HEADER
+
+        lines.filter_map do |line|
+          name, code, mods, extra = line.split("\t", -1)
+          next if name.to_s.empty? || code.to_s.empty? || mods.to_s.empty? || extra
+
+          { name: decode(name), code: Integer(code, 10), mods: Integer(mods, 10) }
+        rescue ArgumentError
+          nil
+        end
+      rescue FS::NotFound
+        []
+      end
+
+      def save(bindings)
+        rows = Array(bindings).map do |binding|
+          [encode(binding.name), Integer(binding.code), Integer(binding.mods)].join("\t")
+        end
+        vfs.write_file(path, ([HEADER] + rows).join("\n") + "\n")
+        rows.length
+      end
+
+      def clear
+        vfs.unlink(path)
+        true
+      rescue FS::NotFound
+        false
+      end
+
+      private
+
+      def encode(value)
+        String(value).gsub("%", "%25").gsub("\t", "%09").gsub("\n", "%0A")
+      end
+
+      def decode(value)
+        String(value).gsub("%0A", "\n").gsub("%09", "\t").gsub("%25", "%")
+      end
+    end
+
     class Application
       attr_reader :kernel
 
