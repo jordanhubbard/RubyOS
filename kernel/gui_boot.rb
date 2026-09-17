@@ -122,10 +122,24 @@ module RubyOS
       client.call("debug.event.inject", { kind: 5, x: drag_x + 20, y: drag_y + 20, button: 1 })
       desktop.events.each { |event| compositor.handle(event) }
       expected_terminal_position = [initial_terminal_position.fetch(0) + 20,
-                                    initial_terminal_position.fetch(1) + 20]
+                                    [initial_terminal_position.fetch(1) + 20,
+                                     compositor.height - GUI::Compositor::DOCK_HEIGHT - terminal_window.height].min]
       RubyOS.invariant([compositor.focused_window.x, compositor.focused_window.y] == expected_terminal_position,
                        "window title drag did not move Terminal")
       clock_window = applications.fetch("Clock").launch(compositor)
+      initial_clock_size = [clock_window.width, clock_window.height]
+      resize_x = clock_window.x + clock_window.width - 3
+      resize_y = clock_window.y + clock_window.height - 3
+      client.call("debug.event.inject", { kind: 4, x: resize_x, y: resize_y, button: 1 })
+      client.call("debug.event.inject", { kind: 3, x: resize_x + 30, y: resize_y + 20 })
+      client.call("debug.event.inject", { kind: 5, x: resize_x + 30, y: resize_y + 20, button: 1 })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant([clock_window.width, clock_window.height] ==
+                       [initial_clock_size.fetch(0) + 30, initial_clock_size.fetch(1) + 20],
+                       "window resize grip did not update geometry")
+      compositor.draw(desktop.surface, uptime: "anchored resize")
+      desktop.present
+      desktop.capture("/tmp/rubyos-resized-window.bmp")
       settings_window = settings.launch(compositor)
       client.call("debug.event.inject", { kind: 4, x: 145, y: 137, button: 1 })
       desktop.events.each { |event| compositor.handle(event) }

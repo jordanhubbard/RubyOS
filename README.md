@@ -83,6 +83,9 @@ F3 opens Terminal, and F4 opens Files; Ctrl-W closes the focused window.
 The editor's File menu uses a shared, keyboard-and-mouse navigable VFS dialog
 for Open and Save As. Its multiline Ruby buffer supports caret placement,
 vertical/page navigation, and wheel scrolling.
+Windows resize from their lower-right grip. Anchored Ruby views stretch or
+track an edge declaratively, which keeps Files, Terminal, Editor, dialogs,
+the application catalog, and Ruby demos usable as their windows change size.
 
 These commands select the host CPU by default: ARM64 on ARM hosts, x86_64 on
 Intel/AMD hosts. Use `make run-gui TARGET_ARCH=x86_64` or `TARGET_ARCH=arm64`

@@ -28,10 +28,13 @@ module RubyOS
         list = window.add(GUI::ListView.new(items:, x: 8, y: 30,
                                             width: content_width, height: list_height,
                                             background: 0x1d2535,
-                                            on_activate: method(:launch_entry)))
+                                            on_activate: method(:launch_entry)),
+                          anchors: [:left, :right, :top, :bottom],
+                          minimum_width: 80, minimum_height: 30)
         @status = window.add(GUI::Label.new("#{items.length} entries | arrows + Enter", x: 8,
                                             y: 40 + list_height,
-                                            width: content_width, color: 0xa8d8ff))
+                                            width: content_width, color: 0xa8d8ff),
+                              anchors: [:left, :right, :bottom], minimum_width: 80)
         window.focus_child(list)
         window
       end
@@ -70,14 +73,17 @@ module RubyOS
         @window.add(GUI::Label.new("RUBY PIPELINE", x: 8, y: 4, width: 160,
                                    color: 0x8f7cff))
         @operation = @window.add(GUI::Label.new("", x: 8, y: 34, width: content_width,
-                                                 color: 0xffd866))
+                                                 color: 0xffd866),
+                                  anchors: [:left, :right, :top], minimum_width: 80)
         @input = @window.add(GUI::Label.new("", x: 8, y: 64, width: content_width,
-                                             height: 38, wrap: true, color: 0xa8d8ff))
+                                             height: 38, wrap: true, color: 0xa8d8ff),
+                              anchors: [:left, :right, :top], minimum_width: 80)
         @result = @window.add(GUI::Label.new("", x: 8, y: 106, width: content_width,
-                                              height: 38, wrap: true, color: 0xc3e88d))
+                                              height: 38, wrap: true, color: 0xc3e88d),
+                               anchors: [:left, :right, :top], minimum_width: 80)
         @window.add(GUI::Button.new("Next stage", x: 8, y: window_height - 72,
                                     width: 112, height: 26,
-                                    action: method(:advance)))
+                                    action: method(:advance)), anchors: [:left, :bottom])
         render_step
         @window
       end
@@ -116,12 +122,14 @@ module RubyOS
         @window.add(GUI::Label.new("COOPERATIVE EXECUTION", x: 8, y: 4,
                                    width: 220, color: 0x8f7cff))
         @trace = @window.add(GUI::Label.new("", x: 8, y: 38, width: content_width,
-                                             height: 70, wrap: true, color: 0x78dce8))
+                                             height: 70, wrap: true, color: 0x78dce8),
+                              anchors: [:left, :right, :top], minimum_width: 80)
         @state = @window.add(GUI::Label.new("", x: 8, y: 116, width: content_width,
-                                             color: 0xc3e88d))
+                                             color: 0xc3e88d),
+                              anchors: [:left, :right, :top], minimum_width: 80)
         @window.add(GUI::Button.new("Resume", x: 8, y: window_height - 72,
                                     width: 88, height: 26,
-                                    action: method(:resume)))
+                                    action: method(:resume)), anchors: [:left, :bottom])
         reset
         @window
       end
@@ -179,12 +187,14 @@ module RubyOS
         @window.add(GUI::Label.new("CASE / IN", x: 8, y: 4, width: 120,
                                    color: 0x8f7cff))
         @event = @window.add(GUI::Label.new("", x: 8, y: 36, width: content_width,
-                                             height: 42, wrap: true, color: 0xffd866))
+                                             height: 42, wrap: true, color: 0xffd866),
+                              anchors: [:left, :right, :top], minimum_width: 80)
         @match = @window.add(GUI::Label.new("", x: 8, y: 88, width: content_width,
-                                             height: 42, wrap: true, color: 0xc3e88d))
+                                             height: 42, wrap: true, color: 0xc3e88d),
+                              anchors: [:left, :right, :top], minimum_width: 80)
         @window.add(GUI::Button.new("Next value", x: 8, y: window_height - 68,
                                     width: 104, height: 26,
-                                    action: method(:advance)))
+                                    action: method(:advance)), anchors: [:left, :bottom])
         render_match
         @window
       end

@@ -32,21 +32,25 @@ module RubyOS
                                   background: 0x151c29)
         @path_label = @window.add(GUI::Label.new(path, x: 8, y: 6,
                                                  width: content_width - 120,
-                                                 color: 0xffffff))
+                                                 color: 0xffffff),
+                                  anchors: [:left, :right, :top], minimum_width: 48)
         @window.add(GUI::Button.new("Up", x: content_width - 104, y: 0,
                                     width: 48, height: 24,
-                                    action: ->(*) { go_up }))
+                                    action: ->(*) { go_up }), anchors: [:right, :top])
         @window.add(GUI::Button.new("Home", x: content_width - 50, y: 0,
                                     width: 56, height: 24,
-                                    action: ->(*) { navigate("/home") }))
+                                    action: ->(*) { navigate("/home") }), anchors: [:right, :top])
         @list = @window.add(GUI::ListView.new(x: 8, y: 34, width: content_width,
                                               height: list_height,
                                               background: 0x1d2535,
                                               on_activate: method(:activate_entry),
-                                              on_back: method(:go_up)))
+                                              on_back: method(:go_up)),
+                            anchors: [:left, :right, :top, :bottom],
+                            minimum_width: 80, minimum_height: 30)
         @status = @window.add(GUI::Label.new("", x: 8, y: 44 + list_height,
                                              width: content_width,
-                                             height: 22, color: 0xa8d8ff))
+                                             height: 22, color: 0xa8d8ff),
+                              anchors: [:left, :right, :bottom], minimum_width: 80)
         refresh
         @window.focus_child(@list)
         @window
@@ -145,13 +149,16 @@ module RubyOS
           @result_label = window.add(GUI::Label.new(@transcript.join("\n"), x: 8, y: 8,
                                                      width: content_width,
                                                      height: transcript_height,
-                                                     wrap: true, color: 0xc3e88d))
+                                                     wrap: true, color: 0xc3e88d),
+                                      anchors: [:left, :right, :top, :bottom],
+                                      minimum_width: 80, minimum_height: 24)
           window.add(GUI::Label.new("rubyos>", x: 8, y: prompt_y, width: 64,
-                                    color: 0xffd866))
+                                    color: 0xffd866), anchors: [:left, :bottom])
           @input = window.add(GUI::TextInput.new(x: 72, y: prompt_y - 6,
                                                  width: window_width - 100, height: 28,
                                                  background: 0x211a29,
-                                                 on_submit: method(:evaluate)))
+                                                 on_submit: method(:evaluate)),
+                              anchors: [:left, :right, :bottom], minimum_width: 56)
         end
       end
 
@@ -254,11 +261,14 @@ module RubyOS
         @list = window.add(GUI::ListView.new(items: binding_items, x: 8, y: 30,
                                              width: content_width, height: list_height,
                                              background: 0x1d2535,
-                                             on_activate: method(:capture)))
+                                             on_activate: method(:capture)),
+                           anchors: [:left, :right, :top, :bottom],
+                           minimum_width: 80, minimum_height: 30)
         @status = window.add(GUI::Label.new("Choose a shortcut, then press its replacement",
                                             x: 8, y: 40 + list_height,
                                             width: content_width,
-                                            color: 0xa8d8ff))
+                                            color: 0xa8d8ff),
+                              anchors: [:left, :right, :bottom], minimum_width: 80)
         window.focus_child(@list)
         window
       end
@@ -388,18 +398,22 @@ module RubyOS
           @input = window.add(GUI::TextInput.new(text: content, x: 0, y: 0,
                                                   width: 326, height: 108,
                                                   background: 0x11151e, multiline: true,
-                                                  on_change: method(:save)))
+                                                  on_change: method(:save)),
+                              anchors: [:left, :right, :top, :bottom],
+                              minimum_width: 100, minimum_height: 40)
           @input.move_cursor(0)
           if @runtime
             window.add(GUI::Button.new("Reload Ruby", x: 0, y: 112, width: 104,
                                        height: 24, background: 0x553184,
-                                       action: method(:reload)))
+                                       action: method(:reload)), anchors: [:left, :bottom])
             @status = window.add(GUI::Label.new("Transactional reload ready",
                                                 x: 112, y: 116, width: 212,
-                                                color: 0xa8d8ff))
+                                                color: 0xa8d8ff),
+                                 anchors: [:left, :right, :bottom], minimum_width: 40)
           else
             @status = window.add(GUI::Label.new("Autosave enabled", x: 0, y: 116,
-                                                width: 326, color: 0xa8d8ff))
+                                                width: 326, color: 0xa8d8ff),
+                                 anchors: [:left, :right, :bottom], minimum_width: 80)
           end
         end
       end

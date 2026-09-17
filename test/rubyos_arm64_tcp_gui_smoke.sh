@@ -10,11 +10,13 @@ service_output="$(mktemp /tmp/rubyos-tcp-gui-service.XXXXXX)"
 catalog_capture="/tmp/rubyos-catalog.bmp"
 menu_capture="/tmp/rubyos-menu.bmp"
 file_dialog_capture="/tmp/rubyos-file-dialog.bmp"
+resized_window_capture="/tmp/rubyos-resized-window.bmp"
 
 cleanup() {
     kill "${qemu_pid:-}" 2>/dev/null || true
     kill "${service_pid:-}" 2>/dev/null || true
-    rm -f "$output" "$service_output" "$catalog_capture" "$menu_capture" "$file_dialog_capture"
+    rm -f "$output" "$service_output" "$catalog_capture" "$menu_capture" \
+        "$file_dialog_capture" "$resized_window_capture"
 }
 trap cleanup EXIT
 
@@ -58,6 +60,9 @@ cp "$menu_capture" "$root/build/rubyos-menu.bmp"
 test -s "$file_dialog_capture"
 file "$file_dialog_capture" | grep -q '480 x 300'
 cp "$file_dialog_capture" "$root/build/rubyos-file-dialog.bmp"
+test -s "$resized_window_capture"
+file "$resized_window_capture" | grep -q '480 x 300'
+cp "$resized_window_capture" "$root/build/rubyos-resized-window.bmp"
 grep -q 'negotiated protocol v2 with client=rubyos' "$service_output"
 ! grep -q 'FATAL\|EXCEPTION\|ASSERT\|\[BUG\]' "$output"
 echo 'RubyOS bare-metal RemoteOS native TCP desktop: PASS'

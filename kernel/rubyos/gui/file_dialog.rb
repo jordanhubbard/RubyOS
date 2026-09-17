@@ -103,31 +103,39 @@ module RubyOS
         list_height = height - (mode == :save ? 142 : 112)
         @window = Window.new(title, x:, y:, width:, height:, background: 0x151c29)
         @path_label = window.add(Label.new(cwd, x: 8, y: 5,
-                                           width: content_width - 118, color: 0xffffff))
+                                           width: content_width - 118, color: 0xffffff),
+                                anchors: [:left, :right, :top], minimum_width: 40)
         window.add(Button.new("Up", x: content_width - 104, y: 0, width: 48, height: 24,
-                              action: method(:go_up)))
+                              action: method(:go_up)), anchors: [:right, :top])
         window.add(Button.new("Home", x: content_width - 50, y: 0, width: 56, height: 24,
-                              action: ->(*) { navigate("/home") }))
+                              action: ->(*) { navigate("/home") }), anchors: [:right, :top])
         @list = window.add(ListView.new(x: 8, y: 34, width: content_width,
                                         height: list_height, background: 0x1d2535,
                                         on_activate: method(:activate),
-                                        on_back: method(:go_up), on_cancel: method(:cancel)))
+                                        on_back: method(:go_up), on_cancel: method(:cancel)),
+                           anchors: [:left, :right, :top, :bottom],
+                           minimum_width: 80, minimum_height: 28)
         controls_y = 44 + list_height
         if mode == :save
-          window.add(Label.new("Name", x: 8, y: controls_y + 5, width: 40, color: 0xffd866))
+          window.add(Label.new("Name", x: 8, y: controls_y + 5, width: 40, color: 0xffd866),
+                     anchors: [:left, :bottom])
           @filename = window.add(TextInput.new(text: filename, x: 52, y: controls_y,
                                                width: content_width - 52, height: 26,
                                                background: 0x211a29,
-                                               on_submit: ->(*) { accept }))
+                                               on_submit: ->(*) { accept }),
+                                 anchors: [:left, :right, :bottom], minimum_width: 60)
           controls_y += 34
         end
         @status = window.add(Label.new("", x: 8, y: controls_y + 5,
-                                       width: content_width - 150, color: 0xa8d8ff))
+                                       width: content_width - 150, color: 0xa8d8ff),
+                             anchors: [:left, :right, :bottom], minimum_width: 30)
         action_label = mode == :save ? "Save" : "Open"
         window.add(Button.new(action_label, x: content_width - 138, y: controls_y,
-                              width: 62, height: 26, action: ->(*) { accept }))
+                              width: 62, height: 26, action: ->(*) { accept }),
+                   anchors: [:right, :bottom])
         window.add(Button.new("Cancel", x: content_width - 70, y: controls_y,
-                              width: 70, height: 26, action: method(:cancel)))
+                              width: 70, height: 26, action: method(:cancel)),
+                   anchors: [:right, :bottom])
         window.focus_child(@list)
       end
 

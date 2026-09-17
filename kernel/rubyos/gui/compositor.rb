@@ -19,18 +19,25 @@ module RubyOS
     end
 
     class Window < Container
+      Layout = Data.define(:anchors, :right_gap, :bottom_gap, :minimum_width, :minimum_height)
       TITLE_HEIGHT = 24
       BORDER = 2
+      RESIZE_GRIP = 12
 
       attr_accessor :title, :application
       attr_reader :focused_child
-      attr_accessor :focused, :minimized
+      attr_accessor :focused, :minimized, :resizable
+      attr_reader :minimum_width, :minimum_height
 
-      def initialize(title, **options)
+      def initialize(title, resizable: true, minimum_width: nil, minimum_height: nil, **options)
         super(**options)
         @title = String(title)
         @focused = false
         @minimized = false
+        @resizable = resizable
+        @minimum_width = Integer(minimum_width || [width / 2, 140].max)
+        @minimum_height = Integer(minimum_height || [height / 2, 80].max)
+        @layouts = {}
       end
 
       def draw(surface)
@@ -48,12 +55,33 @@ module RubyOS
                           height - TITLE_HEIGHT - BORDER, background || 0x201a28)
         translated = TranslatedSurface.new(surface, x + 10, body_y + 9)
         children.each { |child| child.draw(translated) if child.visible }
+        draw_resize_grip(surface) if resizable
       end
 
-      def add(child)
-        result = super
+      def add(child, anchors: [:left, :top], minimum_width: 1, minimum_height: 1)
+        result = super(child)
+        @layouts[child] = Layout.new(
+          anchors: Array(anchors).map(&:to_sym).freeze,
+          right_gap: content_width - child.x - child.width,
+          bottom_gap: content_height - child.y - child.height,
+          minimum_width: Integer(minimum_width), minimum_height: Integer(minimum_height)
+        ).freeze
         focus_child(child) if focused_child.nil? && child.focusable?
         result
+      end
+
+      def resize_to(new_width, new_height, maximum_width: nil, maximum_height: nil)
+        target_width = [Integer(new_width), minimum_width].max
+        target_height = [Integer(new_height), minimum_height].max
+        target_width = [target_width, Integer(maximum_width)].min if maximum_width
+        target_height = [target_height, Integer(maximum_height)].min if maximum_height
+        old_content_width = content_width
+        old_content_height = content_height
+        @width = target_width
+        @height = target_height
+        relayout(old_content_width, old_content_height)
+        invalidate
+        self
       end
 
       def close_hit?(point_x, point_y)
@@ -67,6 +95,11 @@ module RubyOS
 
       def title_hit?(point_x, point_y)
         contains?(point_x, point_y) && point_y < y + TITLE_HEIGHT
+      end
+
+      def resize_hit?(point_x, point_y)
+        resizable && contains?(point_x, point_y) &&
+          point_x >= x + width - RESIZE_GRIP && point_y >= y + height - RESIZE_GRIP
       end
 
       def handle(event)
@@ -107,6 +140,34 @@ module RubyOS
 
       private
 
+      def content_width = [width - 20, 1].max
+      def content_height = [height - TITLE_HEIGHT - 18, 1].max
+
+      def relayout(_old_width, _old_height)
+        children.each do |child|
+          layout = @layouts.fetch(child)
+          anchors = layout.anchors
+          if anchors.include?(:left) && anchors.include?(:right)
+            child.width = [content_width - child.x - layout.right_gap, layout.minimum_width].max
+          elsif anchors.include?(:right) && !anchors.include?(:left)
+            child.x = content_width - layout.right_gap - child.width
+          end
+          if anchors.include?(:top) && anchors.include?(:bottom)
+            child.height = [content_height - child.y - layout.bottom_gap, layout.minimum_height].max
+          elsif anchors.include?(:bottom) && !anchors.include?(:top)
+            child.y = content_height - layout.bottom_gap - child.height
+          end
+        end
+      end
+
+      def draw_resize_grip(surface)
+        color = focused ? 0xb792ff : 0x806774
+        3.times do |index|
+          size = 3 + index * 3
+          surface.fill_rect(x + width - size, y + height - 2, size, 2, color)
+        end
+      end
+
       def cycle_focus
         candidates = children.select { |child| child.visible && child.enabled && child.focusable? }
         return if candidates.empty?
@@ -131,6 +192,7 @@ module RubyOS
         @dock_items = []
         @shortcuts = []
         @dragging = nil
+        @resizing = nil
         @system_menus = []
         @menu_bar = MenuBar.new(width:, height:)
         @keybindings = {}
@@ -257,14 +319,29 @@ module RubyOS
           window = window_at(event.fetch("x", 0), event.fetch("y", 0))
           return window&.handle(event) || false
         end
-        if kind == 3 && @dragging
-          window, offset_x, offset_y = @dragging
-          window.x = [[event.fetch("x") - offset_x, 0].max, width - window.width].min
-          window.y = [[event.fetch("y") - offset_y, MENU_HEIGHT].max,
-                      height - DOCK_HEIGHT - Window::TITLE_HEIGHT].min
+        if kind == Input::POINTER_MOVE && @resizing
+          window, start_x, start_y, start_width, start_height = @resizing
+          window.resize_to(
+            start_width + event.fetch("x") - start_x,
+            start_height + event.fetch("y") - start_y,
+            maximum_width: width - window.x,
+            maximum_height: height - DOCK_HEIGHT - window.y
+          )
           return true
         end
-        if kind == 5 && @dragging
+        if kind == Input::POINTER_MOVE && @dragging
+          window, offset_x, offset_y = @dragging
+          window.x = [[event.fetch("x") - offset_x, 0].max, width - window.width].min
+          maximum_y = [height - DOCK_HEIGHT - window.height, MENU_HEIGHT].max
+          window.y = [[event.fetch("y") - offset_y, MENU_HEIGHT].max,
+                      maximum_y].min
+          return true
+        end
+        if kind == Input::POINTER_UP && @resizing
+          @resizing = nil
+          return true
+        end
+        if kind == Input::POINTER_UP && @dragging
           @dragging = nil
           return true
         end
@@ -289,6 +366,9 @@ module RubyOS
           close(window)
         elsif window.minimize_hit?(point_x, point_y)
           minimize(window)
+        elsif window.resize_hit?(point_x, point_y)
+          focus(window)
+          @resizing = [window, point_x, point_y, window.width, window.height]
         else
           focus(window)
           @dragging = [window, point_x - window.x, point_y - window.y] if window.title_hit?(point_x, point_y)

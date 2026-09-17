@@ -356,6 +356,21 @@ desktop.handle("kind" => 4, "button" => 1, "x" => 90, "y" => 70)
 desktop.handle("kind" => 3, "x" => 110, "y" => 90)
 desktop.handle("kind" => 5, "button" => 1, "x" => 110, "y" => 90)
 assert([movable.x, movable.y] == [100, 80], "title drag moves window")
+stretch = movable.add(RubyOS::GUI::View.new(x: 5, y: 5, width: 90, height: 50),
+                      anchors: [:left, :right, :top, :bottom],
+                      minimum_width: 20, minimum_height: 20)
+resize_x = movable.x + movable.width - 2
+resize_y = movable.y + movable.height - 2
+desktop.handle("kind" => RubyOS::Input::POINTER_DOWN, "button" => 1,
+               "x" => resize_x, "y" => resize_y)
+desktop.handle("kind" => RubyOS::Input::POINTER_MOVE,
+               "x" => resize_x + 30, "y" => resize_y + 20)
+desktop.handle("kind" => RubyOS::Input::POINTER_UP, "button" => 1,
+               "x" => resize_x + 30, "y" => resize_y + 20)
+assert([movable.width, movable.height] == [150, 110],
+       "bottom-right window resize changes its bounded geometry")
+assert([stretch.width, stretch.height] == [120, 70],
+       "four-edge anchors stretch child views with their window")
 desktop.handle("kind" => 4, "button" => 1,
                "x" => movable.x + movable.width - 34, "y" => movable.y + 8)
 assert(movable.minimized, "window minimize control")
