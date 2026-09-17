@@ -82,6 +82,11 @@ native `Complex`, Spirograph through range mapping, a pointer-driven
 Ruby Paint canvas, and an immutable-`Data` lazy starfield. Revision-tracked
 Ruby bitmaps upload only when they change and composite as ordinary window
 content rather than becoming thousands of bridge calls per frame.
+Enumerable Plasma animates bounded sine lookup tables, while Event Scope uses
+structural pattern matching to visualize key-down, key-up, modifier, and pointer
+events. The five playable games are Invaders, Snake, Maze, Raiders, and
+Defender; each owns a Ruby state model, receives focused input, advances from
+window ticks, and renders through the same revision-cached bitmap path.
 The desktop menu bar is registry-driven and gains commands from the focused
 Ruby application. F1 opens the live-rebindable keymap, F2 opens Applications,
 F3 opens Terminal, and F4 opens Files; Ctrl-W closes the focused window.

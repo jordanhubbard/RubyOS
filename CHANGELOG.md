@@ -15,6 +15,11 @@ All notable RubyOS changes are documented here.
   Terminal scrollback and command history, a tick-driven live System Monitor,
   and a navigable Ruby Inspector for fibers, drivers, heap leaders, object
   graphs, ancestors, methods, and constants.
+- Reach the PythonOS catalog breadth count with ten Ruby demos and five games:
+  add Enumerable Plasma, pattern-matched Event Scope, Hash/Data Maze, Data
+  Raiders, and a circular-world Ruby Defender with radar, abduction, rescue,
+  projectiles, and smart bombs. Arcade canvases are now focusable, tick-driven,
+  status-bearing, and revision-cached rather than static pixel showcases.
 
 ## [0.3.1] - 2026-09-16
 

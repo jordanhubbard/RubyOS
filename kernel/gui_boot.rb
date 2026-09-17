@@ -67,8 +67,8 @@ module RubyOS
       compositor.focus(terminal_window)
       HAL.serial_write("[RubyOS] desktop smoke: dynamic dock checked\n")
       RubyOS.invariant(applications.entries(category: :app).length == 13 &&
-                       applications.entries(category: :demo).length == 8 &&
-                       applications.entries(category: :game).length == 2,
+                       applications.entries(category: :demo).length == 10 &&
+                       applications.entries(category: :game).length == 5,
                        "categorized application catalog is incomplete")
       launcher_window = applications.fetch("Launcher").launch(compositor)
       compositor.draw(desktop.surface, uptime: "catalog")
@@ -86,6 +86,9 @@ module RubyOS
         if entry.name == "Life"
           desktop.present
           desktop.capture("/tmp/rubyos-graphical-demo.bmp")
+        elsif entry.name == "Plasma"
+          desktop.present
+          desktop.capture("/tmp/rubyos-plasma.bmp")
         end
         compositor.close(demo_window)
         HAL.serial_write("[RubyOS] desktop smoke: completed demo #{entry.name} at " \
@@ -94,7 +97,9 @@ module RubyOS
       RubyOS.invariant(applications.fetch("Life").generation.positive? &&
                        applications.fetch("Complex Plane").center.is_a?(Complex) &&
                        applications.fetch("Spirograph").bitmap.revision.positive? &&
-                       applications.fetch("Lazy Starfield").frame.positive?,
+                       applications.fetch("Lazy Starfield").frame.positive? &&
+                       applications.fetch("Plasma").phase.positive? &&
+                       applications.fetch("Event Scope").events.any?,
                        "Ruby graphical demos did not execute their language-native models")
       HAL.serial_write("[RubyOS] desktop smoke: Ruby demos checked\n")
       invaders = applications.fetch("Invaders")
@@ -111,6 +116,42 @@ module RubyOS
       RubyOS.invariant(snake.game.score == 10 && snake.game.body.length == 4,
                        "Snake growth and scoring failed")
       compositor.close(snake_window)
+      maze = applications.fetch("Maze")
+      maze_window = maze.launch(compositor)
+      maze_score = maze.game.score
+      maze.advance
+      RubyOS.invariant(maze.game.score > maze_score,
+                       "Maze movement did not collect its first Hash-backed gem")
+      compositor.close(maze_window)
+      raiders = applications.fetch("Raiders")
+      raiders_window = raiders.launch(compositor)
+      raiders.game.enemies.replace([
+        Games::Raiders::Raider.new(x: raiders.game.player_x, y: 15,
+                                   home_x: raiders.game.player_x, home_y: 15, diving: true)
+      ])
+      raiders.game.fire
+      raiders.advance
+      RubyOS.invariant(raiders.game.score == 200,
+                       "Raiders shot did not score against a diving Data enemy")
+      compositor.close(raiders_window)
+      defender = applications.fetch("Defender")
+      defender_window = defender.launch(compositor)
+      defender.game.landers.replace([
+        Games::Defender::Lander.new(x: defender.game.player_x + 4,
+                                    y: defender.game.player_y, carrying: nil, kind: :lander),
+        Games::Defender::Lander.new(x: defender.game.player_x - 10,
+                                    y: 6, carrying: nil, kind: :mutant),
+        Games::Defender::Lander.new(x: defender.game.player_x + 12,
+                                    y: 14, carrying: nil, kind: :lander)
+      ])
+      defender.game.fire
+      defender.advance
+      RubyOS.invariant(defender.game.score == 150,
+                       "Defender circular-world shot did not destroy a lander")
+      compositor.draw(desktop.surface, uptime: "Ruby arcade")
+      desktop.present
+      desktop.capture("/tmp/rubyos-arcade.bmp")
+      compositor.close(defender_window)
       HAL.serial_write("[RubyOS] desktop smoke: games checked\n")
       client.call("debug.event.inject", { kind: 4, x: 10, y: 200, button: 3 })
       desktop.events.each { |event| compositor.handle(event) }

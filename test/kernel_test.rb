@@ -424,8 +424,8 @@ assert(shell_output.string.include?("enumerable_pipeline") &&
 
 catalog = RubyOS::Apps::Catalog.build(kernel: RubyOS::Kernel)
 assert(catalog.entries(category: :app).length == 11 &&
-       catalog.entries(category: :demo).length == 8 &&
-       catalog.entries(category: :game).length == 2,
+       catalog.entries(category: :demo).length == 10 &&
+       catalog.entries(category: :game).length == 5,
        "application catalog preserves app, demo, and game categories")
 
 graphics_surface = Class.new do
@@ -486,6 +486,89 @@ assert(starfield.frame == 1 && starfield.stars != initial_stars &&
        starfield.stars.all? { |star| star.is_a?(RubyOS::Apps::LazyStarfieldDemo::Star) },
        "starfield advances immutable Data records through Enumerator.produce")
 graphics_desktop.close(starfield_window)
+
+plasma = catalog.fetch("Plasma")
+plasma_window = plasma.launch(graphics_desktop)
+plasma_revision = plasma.bitmap.revision
+plasma.advance
+assert(plasma.phase == 1 && plasma.bitmap.revision > plasma_revision,
+       "Plasma animates a bounded Enumerable palette field")
+graphics_desktop.close(plasma_window)
+
+event_scope = catalog.fetch("Event Scope")
+event_window = event_scope.launch(graphics_desktop)
+graphics_desktop.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 120,
+                        "mods" => RubyOS::Input::MOD_SHIFT, "text" => "X")
+assert(event_scope.pressed.key?(120), "Event Scope pattern-matches key-down state")
+graphics_desktop.handle("kind" => RubyOS::Input::KEY_UP, "code" => 120,
+                        "mods" => RubyOS::Input::MOD_SHIFT)
+assert(!event_scope.pressed.key?(120) && event_scope.events.length == 2,
+       "Event Scope pattern-matches key-up state")
+graphics_desktop.close(event_window)
+
+maze = catalog.fetch("Maze")
+maze_window = maze.launch(graphics_desktop)
+maze_score = maze.game.score
+5.times { maze_window.tick }
+assert(maze_window.focused_child.focusable? && maze.game.score > maze_score,
+       "Maze is keyboard-focusable and advances from compositor ticks")
+graphics_desktop.close(maze_window)
+
+raiders = catalog.fetch("Raiders")
+raiders_window = raiders.launch(graphics_desktop)
+raiders.game.enemies.replace([
+  RubyOS::Games::Raiders::Raider.new(x: raiders.game.player_x, y: 15,
+                                     home_x: raiders.game.player_x, home_y: 15, diving: true)
+])
+raiders.game.fire.tick
+assert(raiders.game.score == 200, "Raiders scores immutable Data dive targets")
+raiders.game.enemies.replace([
+  RubyOS::Games::Raiders::Raider.new(x: 8, y: 18, home_x: 6, home_y: 4, diving: true)
+])
+raiders.game.tick
+assert(!raiders.game.enemies.first.diving &&
+       [raiders.game.enemies.first.x, raiders.game.enemies.first.y] == [6, 4],
+       "Raiders returns a completed dive to its immutable formation home")
+graphics_desktop.close(raiders_window)
+
+defender = catalog.fetch("Defender")
+defender_window = defender.launch(graphics_desktop)
+assert(defender_window.width >= 280 && defender_window.height >= 220,
+       "arcade viewport is large enough for a usable desktop game")
+defender.game.landers.replace([
+  RubyOS::Games::Defender::Lander.new(x: defender.game.player_x + 4,
+                                      y: defender.game.player_y, carrying: nil, kind: :lander)
+])
+defender.game.fire.tick
+assert(defender.game.score == 150 && defender.game.humans.all? { |human| human.is_a?(RubyOS::Games::Defender::Human) },
+       "Defender combines circular-world combat with immutable Data humans")
+defender.game.landers.clear
+defender.game.humans.replace([
+  RubyOS::Games::Defender::Human.new(x: defender.game.player_x,
+                                     y: defender.game.player_y, state: :falling)
+])
+score_before_rescue = defender.game.score
+defender.game.tick
+assert(defender.game.score == score_before_rescue + 250 &&
+       defender.game.humans.first.state == :aboard,
+       "Defender catches a falling immutable human into the rescue state")
+defender.game.humans.replace([
+  RubyOS::Games::Defender::Human.new(x: defender.game.player_x + 2,
+                                     y: 8, state: :carried)
+])
+defender.game.landers.replace([
+  RubyOS::Games::Defender::Lander.new(x: defender.game.player_x + 2,
+                                      y: 7, carrying: 0, kind: :lander)
+])
+bombs_before = defender.game.bombs
+defender.game.smart_bomb
+assert(defender.game.bombs == bombs_before - 1 && defender.game.landers.empty? &&
+       defender.game.humans.first.state == :falling,
+       "Defender smart bomb releases a carried human into a recoverable fall")
+graphics_desktop.draw(graphics_surface)
+assert(graphics_surface.operations.count { |operation| operation.first == :draw_bitmap } >= 2,
+       "arcade games use revision-cached bitmap composition")
+graphics_desktop.close(defender_window)
 
 enumerable_entry = catalog.entry("Enumerable Lab")
 catalog.replace("Enumerable Lab", RubyOS::Apps::EnumerableLab.new)

@@ -135,6 +135,12 @@ module RubyOS
         registry.register("Lazy Starfield", LazyStarfieldDemo.new(kernel:), category: :demo,
                           description: "Animate immutable Data stars through a lazy Enumerator stream",
                           dock_label: "Stars")
+        registry.register("Plasma", PalettePlasmaDemo.new(kernel:), category: :demo,
+                          description: "Animate palette fields with Enumerable lookup tables",
+                          dock_label: "Plasm")
+        registry.register("Event Scope", EventScopeDemo.new(kernel:), category: :demo,
+                          description: "Pattern-match live keyboard and pointer events",
+                          dock_label: "Event")
       end
 
       def register_games(registry, kernel)
@@ -144,6 +150,15 @@ module RubyOS
         registry.register("Snake", Snake.new(kernel:), category: :game,
                           description: "Enumerable grid state and keyboard steering",
                           dock_label: "Snake")
+        registry.register("Maze", Maze.new(kernel:), category: :game,
+                          description: "Hash-backed gems and immutable Data ghosts",
+                          dock_label: "Maze")
+        registry.register("Raiders", Raiders.new(kernel:), category: :game,
+                          description: "Immutable Data formations and diving raiders",
+                          dock_label: "Raid")
+        registry.register("Defender", Defender.new(kernel:), category: :game,
+                          description: "Circular Ruby world with rescue, abduction, radar, and bombs",
+                          dock_label: "Def")
       end
     end
   end

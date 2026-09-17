@@ -5,12 +5,13 @@ module RubyOS
     class DemoCanvas < GUI::View
       attr_reader :bitmap, :scale
 
-      def initialize(bitmap:, scale: 1, on_key: nil, on_pointer: nil, **options)
+      def initialize(bitmap:, scale: 1, on_key: nil, on_event: nil, on_pointer: nil, **options)
         @bitmap = bitmap
         @scale = Integer(scale)
         raise ArgumentError, "canvas scale must be positive" unless @scale.positive?
 
         @on_key = on_key
+        @on_event = on_event
         @on_pointer = on_pointer
         @pointer_captured = false
         super(width: bitmap.width * @scale, height: bitmap.height * @scale, **options)
@@ -22,7 +23,13 @@ module RubyOS
       end
 
       def handle(event)
-        return false unless focused && event.fetch("kind", 0) == Input::KEY_DOWN && @on_key
+        return false unless focused
+
+        kind = event.fetch("kind", 0)
+        if @on_event && [Input::KEY_DOWN, Input::KEY_UP].include?(kind)
+          return !!@on_event.call(event)
+        end
+        return false unless kind == Input::KEY_DOWN && @on_key
 
         !!@on_key.call(event)
       end
@@ -55,14 +62,14 @@ module RubyOS
       private
 
       def build_demo_window(title, instructions:, scale: SCALE,
-                            on_key: nil, on_pointer: nil, &tick)
+                            on_key: nil, on_event: nil, on_pointer: nil, &tick)
         window_x, window_y = spacious_desktop? ? [148, 72] : [66, 30]
         @window = GUI::Window.new(title, x: window_x, y: window_y,
                                   width: 344, height: 222, resizable: false,
                                   background: 0x111827)
         @canvas = @window.add(DemoCanvas.new(
           bitmap: @bitmap, scale:, x: 0, y: 0,
-          on_key:, on_pointer:
+          on_key:, on_event:, on_pointer:
         ))
         @status = @window.add(GUI::Label.new(instructions, x: 0, y: 150,
                                               width: 320, color: 0xa8d8ff))
@@ -519,6 +526,196 @@ module RubyOS
 
       def update_status
         show_status("Frame #{frame} | #{stars.length} immutable Data stars | #{@paused ? 'PAUSED' : 'RUNNING'}")
+      end
+    end
+
+    class PalettePlasmaDemo < GraphicalDemo
+      BITMAP_WIDTH = 80
+      BITMAP_HEIGHT = 36
+      SCALE = 4
+      TABLE_SIZE = 64
+      SINE = Array.new(TABLE_SIZE) do |index|
+        ((Math.sin(index * Math::PI * 2.0 / TABLE_SIZE) + 1.0) * 31.5).round
+      end.freeze
+      PALETTES = [
+        [0x13051f, 0x39245f, 0x7451b9, 0x51d6c5, 0xffd866, 0xff668a],
+        [0x061826, 0x0b5269, 0x34a0a4, 0x76c893, 0xd9ed92, 0xffffff],
+        [0x160b21, 0x5c1a6f, 0xa83279, 0xe95d74, 0xf6bd60, 0xf7ede2]
+      ].map(&:freeze).freeze
+
+      attr_reader :phase, :palette_index
+
+      def initialize(**options)
+        super
+        @phase = 0
+        @palette_index = 0
+        @paused = false
+        @tick_count = 0
+      end
+
+      def build_window
+        @bitmap ||= Media::Bitmap.new(BITMAP_WIDTH, BITMAP_HEIGHT)
+        render
+        build_demo_window("Enumerable Plasma", instructions: "Space pause | C palette | R reset",
+                          scale: SCALE, on_key: method(:handle_key)) { tick }
+      end
+
+      def advance(*)
+        @phase = (phase + 1) % TABLE_SIZE
+        render
+        true
+      end
+
+      def cycle_palette(*)
+        @palette_index = (palette_index + 1) % PALETTES.length
+        render
+        true
+      end
+
+      def reset(*)
+        @phase = 0
+        render
+        true
+      end
+
+      def toggle_pause(*)
+        @paused = !@paused
+        update_status
+        true
+      end
+
+      def menus(compositor)
+        [GUI::Menu.new(title: "Plasma", items: [
+          GUI::MenuItem.command("Pause / Resume", shortcut: "Space") { toggle_pause },
+          GUI::MenuItem.command("Cycle palette", shortcut: "C") { cycle_palette },
+          GUI::MenuItem.command("Reset", shortcut: "R") { reset }
+        ]), *super]
+      end
+
+      private
+
+      def handle_key(event)
+        case event.fetch("code", 0)
+        when 32 then toggle_pause
+        when 99, 67 then cycle_palette
+        when 114, 82 then reset
+        else false
+        end
+      end
+
+      def tick
+        @tick_count += 1
+        advance if !@paused && (@tick_count % 3).zero?
+      end
+
+      def render
+        palette = PALETTES.fetch(palette_index)
+        BITMAP_HEIGHT.times do |y|
+          BITMAP_WIDTH.times do |x|
+            value = SINE.fetch((x * 2 + phase) % TABLE_SIZE) +
+                    SINE.fetch((y * 3 + phase * 2) % TABLE_SIZE) +
+                    SINE.fetch((x + y + phase * 3) % TABLE_SIZE)
+            @bitmap.put(x, y, palette.fetch(value * palette.length / (TABLE_SIZE * 3)))
+          end
+        end
+        update_status
+      end
+
+      def update_status
+        show_status("Phase #{phase} | palette #{palette_index + 1} | #{@paused ? 'PAUSED' : 'RUNNING'}")
+      end
+    end
+
+    class EventScopeDemo < GraphicalDemo
+      KEY_CELLS = (97..122).each_with_index.to_h do |code, index|
+        [code, [5 + (index % 13) * 11, 8 + (index / 13) * 18]]
+      end.freeze
+      SPECIAL_CELLS = {
+        GUI::TextInput::LEFT_KEY => [52, 50], GUI::TextInput::RIGHT_KEY => [74, 50],
+        GUI::TextInput::UP_KEY => [63, 41], GUI::TextInput::DOWN_KEY => [63, 59],
+        32 => [12, 50], 13 => [118, 50]
+      }.freeze
+
+      attr_reader :events, :pressed, :pointer
+
+      def initialize(**options)
+        super
+        @events = []
+        @pressed = {}
+        @pointer = [80, 36]
+        @last_summary = "Press keys or move the pointer"
+      end
+
+      def build_window
+        @bitmap ||= Media::Bitmap.new(BITMAP_WIDTH, BITMAP_HEIGHT)
+        render
+        build_demo_window("Pattern Event Scope", instructions: @last_summary,
+                          on_event: method(:handle_event), on_pointer: method(:handle_pointer))
+      end
+
+      def advance(*)
+        handle_event("kind" => Input::KEY_DOWN, "code" => 114, "mods" => 0, "text" => "r")
+      end
+
+      def clear(*)
+        @events.clear
+        @pressed.clear
+        @last_summary = "Event stream cleared"
+        render
+        true
+      end
+
+      def menus(compositor)
+        [GUI::Menu.new(title: "Events", items: [
+          GUI::MenuItem.command("Clear stream") { clear }
+        ]), *super]
+      end
+
+      private
+
+      def handle_event(event)
+        case [event.fetch("kind", 0), event.fetch("code", 0)]
+        in [Input::KEY_DOWN, code]
+          pressed[code] = true
+          record(:down, code, event.fetch("mods", 0))
+        in [Input::KEY_UP, code]
+          pressed.delete(code)
+          record(:up, code, event.fetch("mods", 0))
+        else
+          return false
+        end
+        render
+        true
+      end
+
+      def handle_pointer(kind, x, y, event)
+        @pointer = [x, y]
+        label = { Input::POINTER_DOWN => :down, Input::POINTER_MOVE => :move,
+                  Input::POINTER_UP => :up }.fetch(kind, :pointer)
+        @events << [label, x, y, event.fetch("button", 0)]
+        @events = @events.last(24)
+        @last_summary = "POINTER #{label.to_s.upcase}  x=#{x} y=#{y}  events=#{events.length}"
+        render
+        true
+      end
+
+      def record(kind, code, mods)
+        @events << [kind, code, mods]
+        @events = @events.last(24)
+        label = code.between?(32, 126) ? code.chr.upcase : code
+        @last_summary = "KEY #{kind.to_s.upcase}  #{label}  mods=#{mods}  events=#{events.length}"
+      end
+
+      def render
+        @bitmap.clear(0x0a0f19)
+        KEY_CELLS.merge(SPECIAL_CELLS).each do |code, (x, y)|
+          color = pressed.key?(code) ? 0xffd866 : 0x34435e
+          @bitmap.rect(x, y, code == 32 ? 34 : 9, 12, color:)
+        end
+        px, py = pointer
+        @bitmap.line(px - 4, py, px + 4, py, color: 0xff668a)
+        @bitmap.line(px, py - 4, px, py + 4, color: 0xff668a)
+        show_status(@last_summary)
       end
     end
   end
