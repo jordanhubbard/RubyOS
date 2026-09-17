@@ -447,18 +447,28 @@ assert(RubyOS::Examples.run("enumerable_pipeline") == [1, 9, 25, 49, 81],
        "canonical Enumerable example executes from the embedded catalog")
 assert(RubyOS::Examples.run("pattern_matching") == "virtio-net is ready",
        "canonical pattern matching example destructures kernel-shaped data")
-assert(state.fetch(:vfs).read_file("/examples/fiber_stream.rb").include?("Fiber.yield"),
-       "canonical Ruby examples are present in the live VFS")
+assert(RubyOS::Examples.run("start_here/prime_enumerator").last == 47,
+       "start-here curriculum executes a lazy Ruby prime Enumerator")
+assert(RubyOS::Examples.run("concurrency/fiber_mailbox") ==
+       %w[message-1 message-2 message-3],
+       "concurrency curriculum executes cooperative Ruby producer/consumer tasks")
+assert(RubyOS::Examples.tracks.length == 11 && RubyOS::Examples::LESSONS.length == 17,
+       "Ruby curriculum preserves broad track and runnable-lesson depth")
+assert(state.fetch(:vfs).read_file("/examples/language/fiber_stream.rb").include?("Fiber.yield") &&
+       state.fetch(:vfs).read_file("/examples/concurrency/README.txt").include?("native_workers"),
+       "categorized Ruby sources and guides are present in the live VFS")
 
 shell_output = StringIO.new
 shell = RubyOS::Shell.new(output: shell_output)
 shell.execute_line("examples")
-shell.execute_line("example fiber_stream")
+shell.execute_line("examples language")
+shell.execute_line("example concurrency/fiber_mailbox")
 shell.execute_line("apps")
-assert(shell_output.string.include?("enumerable_pipeline") &&
-       shell_output.string.include?("[1, 2, 4, 8, 16, 32]") &&
+assert(shell_output.string.include?("start_here") &&
+       shell_output.string.include?("enumerable_pipeline") &&
+       shell_output.string.include?('["message-1", "message-2", "message-3"]') &&
        shell_output.string.include?("Enumerable Lab"),
-       "shell discovers and runs examples and lists categorized applications")
+       "shell discovers learning tracks, runs a categorized lesson, and lists applications")
 
 catalog = RubyOS::Apps::Catalog.build(kernel: RubyOS::Kernel)
 assert(catalog.entries(category: :app).length == 11 &&

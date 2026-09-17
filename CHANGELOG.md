@@ -29,6 +29,10 @@ All notable RubyOS changes are documented here.
   idiomatic `EditorInput` command object: Ctrl-X save/close composition,
   character/line/word/sentence/paragraph/page/buffer navigation, indentation,
   kill-line, recentering, bound menus, and frozen-guest persistence checks.
+- Turn the flat embedded examples into an immutable Ruby curriculum: eleven
+  discoverable tracks, seventeen runnable lessons, generated VFS guides and
+  readable sources, track-aware shell commands, start-here algorithms,
+  cooperative/native concurrency, and host plus ARM64/x86_64 frozen execution.
 
 ## [0.3.1] - 2026-09-16
 

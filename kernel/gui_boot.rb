@@ -70,6 +70,13 @@ module RubyOS
                        applications.entries(category: :demo).length == 13 &&
                        applications.entries(category: :game).length == 5,
                        "categorized application catalog is incomplete")
+      RubyOS.invariant(Examples.run("start_here/prime_enumerator").last == 47 &&
+                       Examples.run("concurrency/fiber_mailbox") ==
+                         %w[message-1 message-2 message-3] &&
+                       state.fetch(:vfs).read_file(
+                         "/examples/concurrency/README.txt"
+                       ).include?("native_workers"),
+                       "frozen categorized Ruby curriculum is not executable and readable")
       launcher_window = applications.fetch("Launcher").launch(compositor)
       compositor.draw(desktop.surface, uptime: "catalog")
       desktop.present
@@ -444,6 +451,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS] core desktop apps: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] live Terminal, Monitor, and Inspector: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] categorized Ruby demo catalog: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] categorized Ruby curriculum: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] interactive Ruby graphical demos: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] menus and global shortcuts: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] persistent shortcut keymap: PASS\n")

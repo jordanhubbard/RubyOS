@@ -6,8 +6,8 @@ module RubyOS
       "help" => "show RubyOS shell commands",
       "ruby" => "show the interactive Ruby runtime",
       "apps" => "list desktop applications, Ruby demos, and games",
-      "examples" => "list canonical Ruby examples",
-      "example" => "run a canonical Ruby example: example name",
+      "examples" => "list learning tracks: examples [track]",
+      "example" => "run a Ruby lesson: example [track/]name",
       "version" => "show the running Ruby implementation",
       "devices" => "list devices and bound drivers",
       "tasks" => "list scheduler tasks and states",
@@ -68,10 +68,28 @@ module RubyOS
         end
         @output.puts "Start the graphical catalog with make run-gui, then open Apps."
       when "examples"
-        Examples.each do |lesson|
-          @output.puts format("%-22s %s", lesson.name, lesson.summary)
+        if arguments.empty?
+          @output.puts "RubyOS learning tracks in /examples:"
+          Examples.tracks.each do |track|
+            count = Examples.lessons_for(track.name).length
+            suffix = count.positive? ? " (#{count})" : ""
+            @output.puts format("  %-13s %s%s", track.name, track.summary, suffix)
+          end
+          @output.puts "Start:  example start_here/hello_kernel"
+          @output.puts "Browse: examples language  or  cat /examples/README.txt"
+        else
+          track = Examples.fetch_track(arguments.fetch(0))
+          lessons = Examples.lessons_for(track.name)
+          @output.puts "Examples in /examples/#{track.name}:"
+          if lessons.empty?
+            @output.puts "  Open the #{track.name} category from Apps."
+          else
+            lessons.each do |lesson|
+              @output.puts format("  %-22s %s", lesson.name, lesson.summary)
+            end
+            @output.puts "Guide: cat /examples/#{track.name}/README.txt"
+          end
         end
-        @output.puts "Run one with: example NAME"
       when "example"
         name = arguments.fetch(0)
         result = Examples.run(name, context: @context)

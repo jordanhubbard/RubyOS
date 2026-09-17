@@ -31,7 +31,7 @@ claims, not certification for arbitrary physical hardware.
 | Concurrency | ARM64/x86 SMP, pthread substrate, no-GIL workers | ARM64 PSCI and x86 INIT/SIPI AP bring-up with C-safe native worker mailboxes exposed through Ruby while CRuby remains GVL-safe on the BSP | Complete |
 | Debug/automation | QMP/native debug, captures, performance metrics, desktop golden coverage | serial/QMP/GDB-remote, captures, object graphs, class/Fiber/driver reflection, guest timing and shared-service telemetry; broad desktop golden coverage is missing | In progress |
 | Web serving | Python network services | Rack-shaped request environment/router/response served by RubyOS's bare-metal TCP stack | Foundation complete |
-| Teaching examples | categorized start-here, concurrency, storage, networking, graphics/chipset/SDL, audio, and internals lessons | executable subsystem lessons plus six kernel-embedded canonical Ruby examples covering Enumerable, pattern matching, Fibers, mixins, Method objects, and Data records | In progress |
+| Teaching examples | categorized start-here, concurrency, storage, networking, graphics/chipset/SDL, audio, and internals lessons | eleven metadata-driven tracks and seventeen frozen, VFS-readable Ruby lessons cover start-here, modern language idioms, cooperative/native concurrency, storage, typed networking, graphics, audio, Rack-shaped web composition, internals, demos, and games; the host runs every lesson and ARM64/x86_64 frozen guests prove public discovery, execution, and guide access | Complete |
 
 ## Breadth gaps
 
@@ -41,8 +41,8 @@ not by itself establish equal depth. The largest remaining gaps are:
 - richer in-guest drag workflows and broader source-opening workflows; host
   clipboard synchronization would be a shared-protocol extension beyond the
   current PythonOS baseline;
-- categorized start-here and concurrency curricula, broader graphical/media
-  examples, and independent frozen-image/QEMU reachability checks;
+- the remaining graphical/media catalog scenarios and deeper app-source
+  browsing/editing workflows;
 - desktop visual regression baselines and interaction tests covering every
   catalog entry on both guest architectures.
 

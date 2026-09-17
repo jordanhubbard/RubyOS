@@ -72,7 +72,10 @@ make help         # show the small public command set
 ```
 
 At any `rubyos>` prompt, `apps` lists the categorized desktop catalog,
-`examples` lists kernel-embedded Ruby lessons, and `example NAME` executes one.
+`examples` lists eleven kernel-embedded learning tracks, `examples TRACK`
+browses one, and `example TRACK/NAME` executes a lesson. Seventeen readable
+sources and per-track guides are mounted under `/examples`; short unique lesson
+names remain accepted for compatibility.
 The graphical **Apps** launcher exposes full applications, Ruby-focused demos,
 and games without pinning every demo to the dock. Current language labs cover
 Enumerable pipelines, Fiber yield/resume choreography, and structural pattern
@@ -180,12 +183,15 @@ in `platform/PYTHONOS-LICENSE`.
 
 ## Learn by changing Ruby
 
-`make teaching-examples` runs focused lessons in `examples/` for VFS and file
-descriptors, typed network packets, compositor drawing, PCM synthesis, device
-binding, Fiber scheduling, live class replacement, bounded object graphs, and
-Rack-shaped web apps. They use the private source-built Ruby and the
-same classes embedded into the bare-metal kernel, so each example is a small
-starting point rather than a parallel mock API.
+`make teaching-examples` runs every frozen curriculum lesson plus focused
+integration lessons in `examples/` for VFS and file descriptors, typed network
+packets, compositor drawing, PCM synthesis, device binding, Fiber scheduling,
+native worker boundaries, live class replacement, bounded object graphs, and
+Rack-shaped web apps. They use the private source-built Ruby and the same
+classes embedded into the bare-metal kernel, so each example is a small
+starting point rather than a parallel mock API. ARM64 and x86_64 frozen desktop
+gates independently execute start-here and concurrency lessons and read their
+mounted guide.
 
 ## SDL remote desktop
 
