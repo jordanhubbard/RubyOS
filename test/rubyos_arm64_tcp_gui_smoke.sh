@@ -16,6 +16,7 @@ editor_selection_capture="/tmp/rubyos-editor-selection.bmp"
 persistent_keymap_capture="/tmp/rubyos-persistent-keymap.bmp"
 context_menu_capture="/tmp/rubyos-context-menu.bmp"
 dock_menu_capture="/tmp/rubyos-dock-menu.bmp"
+graphical_demo_capture="/tmp/rubyos-graphical-demo.bmp"
 
 cleanup() {
     kill "${qemu_pid:-}" 2>/dev/null || true
@@ -26,6 +27,7 @@ cleanup() {
     rm -f "$persistent_keymap_capture"
     rm -f "$context_menu_capture"
     rm -f "$dock_menu_capture"
+    rm -f "$graphical_demo_capture"
     rm -rf "$export_dir"
 }
 trap cleanup EXIT
@@ -60,6 +62,7 @@ grep -q 'RemoteOS TCP ready on 10.0.2.15:5001' "$output"
 grep -q 'RemoteOS over native TCP: PASS' "$output"
 grep -q 'remote SDL desktop: PASS' "$output"
 grep -q 'categorized Ruby demo catalog: PASS' "$output"
+grep -q 'interactive Ruby graphical demos: PASS' "$output"
 grep -q 'menus and global shortcuts: PASS' "$output"
 grep -q 'shared open/save dialog: PASS' "$output"
 grep -q 'host file transfer: PASS' "$output"
@@ -93,6 +96,9 @@ cp "$context_menu_capture" "$root/build/rubyos-context-menu.bmp"
 test -s "$dock_menu_capture"
 file "$dock_menu_capture" | grep -q '480 x 300'
 cp "$dock_menu_capture" "$root/build/rubyos-dock-menu.bmp"
+test -s "$graphical_demo_capture"
+file "$graphical_demo_capture" | grep -q '480 x 300'
+cp "$graphical_demo_capture" "$root/build/rubyos-graphical-demo.bmp"
 grep -q 'negotiated protocol v2 with client=rubyos' "$service_output"
 ! grep -q 'FATAL\|EXCEPTION\|ASSERT\|\[BUG\]' "$output"
 echo 'RubyOS bare-metal RemoteOS native TCP desktop: PASS'

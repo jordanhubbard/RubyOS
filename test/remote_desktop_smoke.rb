@@ -72,6 +72,12 @@ begin
   raise "invalid SDL_ttf measurement" unless measured.all?(&:positive?)
   rendered_text = font.render("Ruby", color: 0xffd866)
   rendered_text.blit_to(desktop.surface, x: 390, y: 270)
+  bitmap = RubyOS::Media::Bitmap.new(8, 8, background: 0x102030)
+  bitmap.line(0, 0, 7, 7, color: 0xffd866)
+  desktop.surface.draw_bitmap(20, 250, bitmap, scale: 2)
+  desktop.surface.draw_bitmap(20, 250, bitmap, scale: 2)
+  bitmap.put(7, 0, 0xff668a)
+  desktop.surface.draw_bitmap(20, 250, bitmap, scale: 2)
   audio = RubyOS::Sound::BridgeOutput.new(client)
   audio.play(RubyOS::Sound::Waveform.sine(440, duration_ms: 10))
   raise "audio queue status invalid" unless audio.queued_bytes >= 0
@@ -89,6 +95,8 @@ begin
   host_present = performance.fetch(:host_service).fetch("ops").fetch("frame.commit")
   raise "guest bridge timing missing" unless guest_present.fetch(:count).positive?
   raise "host bridge timing missing" unless host_present.fetch("count").positive?
+  bitmap_uploads = performance.fetch(:guest_round_trip).fetch("surface.upload_scaled")
+  raise "bitmap revision cache did not suppress unchanged uploads" unless bitmap_uploads.fetch(:count) == 2
   image.destroy
   decoded.destroy
   decoded_jpeg.destroy

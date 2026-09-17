@@ -16,6 +16,15 @@ module RubyOS
       def draw_text(x, y, text, **options)
         @surface.draw_text(x + @offset_x, y + @offset_y, text, **options)
       end
+
+      def line(x0, y0, x1, y1, color)
+        @surface.line(x0 + @offset_x, y0 + @offset_y,
+                      x1 + @offset_x, y1 + @offset_y, color)
+      end
+
+      def draw_bitmap(x, y, bitmap, scale: 1)
+        @surface.draw_bitmap(x + @offset_x, y + @offset_y, bitmap, scale:)
+      end
     end
 
     class Window < Container
@@ -39,10 +48,21 @@ module RubyOS
         @minimum_height = Integer(minimum_height || [height / 2, 80].max)
         @layouts = {}
         @file_drop_handler = nil
+        @tick_handler = nil
       end
 
       def on_file_drop(&handler)
         @file_drop_handler = handler
+        self
+      end
+
+      def on_tick(&handler)
+        @tick_handler = handler
+        self
+      end
+
+      def tick
+        @tick_handler&.call
         self
       end
 
@@ -486,7 +506,10 @@ module RubyOS
       def draw(surface, uptime: nil)
         surface.fill_rect(0, 0, width, height, 0x171321)
         draw_wallpaper(surface)
-        windows.each { |window| window.draw(surface) }
+        windows.each do |window|
+          window.tick unless window.minimized
+          window.draw(surface)
+        end
         draw_dock(surface)
         @menu_bar.draw(surface, active_title: focused_window&.title,
                        status: uptime || "Ruby 4")

@@ -382,9 +382,69 @@ assert(shell_output.string.include?("enumerable_pipeline") &&
 
 catalog = RubyOS::Apps::Catalog.build(kernel: RubyOS::Kernel)
 assert(catalog.entries(category: :app).length == 11 &&
-       catalog.entries(category: :demo).length == 3 &&
+       catalog.entries(category: :demo).length == 8 &&
        catalog.entries(category: :game).length == 2,
        "application catalog preserves app, demo, and game categories")
+
+graphics_surface = Class.new do
+  attr_reader :operations
+  def initialize = (@operations = [])
+  def fill_rect(*arguments) = operations << [:fill_rect, *arguments]
+  def draw_text(*arguments, **options) = operations << [:draw_text, *arguments, options]
+  def line(*arguments) = operations << [:line, *arguments]
+  def draw_bitmap(*arguments, **options) = operations << [:draw_bitmap, *arguments, options]
+end.new
+graphics_desktop = RubyOS::GUI::Compositor.new(width: 480, height: 300)
+life = catalog.fetch("Life")
+life_window = life.launch(graphics_desktop)
+initial_life_cells = life.cells.keys.sort
+life.step
+assert(life.generation == 1 && life.cells.keys.sort != initial_life_cells,
+       "Life evolves Hash#tally neighbor counts")
+graphics_desktop.draw(graphics_surface)
+assert(graphics_surface.operations.any? { |operation| operation.first == :draw_bitmap },
+       "graphical demos render revision-tracked Ruby bitmaps through the compositor")
+graphics_desktop.close(life_window)
+
+mandelbrot = catalog.fetch("Complex Plane")
+mandelbrot_window = mandelbrot.launch(graphics_desktop)
+initial_span = mandelbrot.span
+mandelbrot.zoom_at(32, 16)
+assert(mandelbrot.center.is_a?(Complex) && mandelbrot.span == initial_span / 2,
+       "Mandelbrot explorer zooms through native Complex arithmetic")
+graphics_desktop.close(mandelbrot_window)
+
+spirograph = catalog.fetch("Spirograph")
+spirograph_window = spirograph.launch(graphics_desktop)
+initial_curve_revision = spirograph.bitmap.revision
+spirograph.next_curve
+assert(spirograph.curve_index == 1 && spirograph.bitmap.revision > initial_curve_revision,
+       "Spirograph redraws a Ruby-mapped parametric curve")
+graphics_desktop.close(spirograph_window)
+
+paint = catalog.fetch("Paint")
+paint_window = paint.launch(graphics_desktop)
+paint_x = paint_window.x + 10 + 20
+paint_y = paint_window.y + RubyOS::GUI::Window::TITLE_HEIGHT + 9 + 20
+graphics_desktop.handle("kind" => RubyOS::Input::POINTER_DOWN, "button" => 1,
+                        "x" => paint_x, "y" => paint_y)
+graphics_desktop.handle("kind" => RubyOS::Input::POINTER_MOVE,
+                        "x" => paint_x + 20, "y" => paint_y + 10)
+graphics_desktop.handle("kind" => RubyOS::Input::POINTER_UP, "button" => 1,
+                        "x" => paint_x + 20, "y" => paint_y + 10)
+assert(paint.bitmap.raster.any? { |pixel| pixel == RubyOS::Apps::PaintDemo::COLORS.first },
+       "Paint turns a compositor pointer drag into Bitmap line work")
+graphics_desktop.close(paint_window)
+
+starfield = catalog.fetch("Lazy Starfield")
+starfield_window = starfield.launch(graphics_desktop)
+initial_stars = starfield.stars
+starfield.advance
+assert(starfield.frame == 1 && starfield.stars != initial_stars &&
+       starfield.stars.all? { |star| star.is_a?(RubyOS::Apps::LazyStarfieldDemo::Star) },
+       "starfield advances immutable Data records through Enumerator.produce")
+graphics_desktop.close(starfield_window)
+
 enumerable_entry = catalog.entry("Enumerable Lab")
 catalog.replace("Enumerable Lab", RubyOS::Apps::EnumerableLab.new)
 assert(catalog.entry("Enumerable Lab").description == enumerable_entry.description &&

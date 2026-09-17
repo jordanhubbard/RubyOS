@@ -17,22 +17,119 @@ module RubyOS
 
     # A plain image, not an emulated display chipset. Useful for game artwork.
     class Bitmap
-      attr_reader :width, :height
+      attr_reader :width, :height, :revision
       def initialize(width, height, background: 0)
         @width, @height = Integer(width), Integer(height)
         raise ArgumentError, "invalid bitmap dimensions" unless [@width, @height].all? { |n| (1..2048).cover?(n) }
         @pixels = Array.new(@width * @height, Integer(background))
+        @revision = 0
       end
       def put(x, y, color)
-        @pixels[y * width + x] = Integer(color) if x.between?(0, width - 1) && y.between?(0, height - 1)
+        if x.between?(0, width - 1) && y.between?(0, height - 1)
+          index = y * width + x
+          value = Integer(color)
+          if @pixels[index] != value
+            @pixels[index] = value
+            @revision += 1
+          end
+        end
+        self
+      end
+      def get(x, y)
+        return nil unless x.between?(0, width - 1) && y.between?(0, height - 1)
+
+        @pixels[y * width + x]
+      end
+      def clear(color = 0)
+        value = Integer(color)
+        return self if @pixels.all? { |pixel| pixel == value }
+
+        @pixels.fill(value)
+        @revision += 1
         self
       end
       def rect(x, y, width, height, color:)
         height.times { |row| width.times { |column| put(x + column, y + row, color) } }
         self
       end
+      def line(x0, y0, x1, y1, color:)
+        x0, y0, x1, y1 = [x0, y0, x1, y1].map { |value| Integer(value) }
+        clipped = clip_line(x0, y0, x1, y1)
+        return self unless clipped
+
+        x0, y0, x1, y1 = clipped
+        dx = (x1 - x0).abs
+        sx = x0 < x1 ? 1 : -1
+        dy = -(y1 - y0).abs
+        sy = y0 < y1 ? 1 : -1
+        error = dx + dy
+        loop do
+          put(x0, y0, color)
+          break if x0 == x1 && y0 == y1
+
+          doubled = error * 2
+          if doubled >= dy
+            error += dy
+            x0 += sx
+          end
+          if doubled <= dx
+            error += dx
+            y0 += sy
+          end
+        end
+        self
+      end
+      def each_pixel
+        return enum_for(:each_pixel) unless block_given?
+
+        height.times do |y|
+          width.times { |x| yield x, y, @pixels[y * width + x] }
+        end
+        self
+      end
       def raster = @pixels.dup
       def bytes = @pixels.pack("L<*")
+
+      private
+
+      def clip_line(x0, y0, x1, y1)
+        8.times do
+          code0 = outcode(x0, y0)
+          code1 = outcode(x1, y1)
+          return [x0, y0, x1, y1] if (code0 | code1).zero?
+          return nil unless (code0 & code1).zero?
+
+          code = code0.zero? ? code1 : code0
+          if (code & 8).positive?
+            x = x0 + (x1 - x0) * (height - 1 - y0) / (y1 - y0)
+            y = height - 1
+          elsif (code & 4).positive?
+            x = x0 + (x1 - x0) * -y0 / (y1 - y0)
+            y = 0
+          elsif (code & 2).positive?
+            y = y0 + (y1 - y0) * (width - 1 - x0) / (x1 - x0)
+            x = width - 1
+          else
+            y = y0 + (y1 - y0) * -x0 / (x1 - x0)
+            x = 0
+          end
+          if code == code0
+            x0, y0 = x, y
+          else
+            x1, y1 = x, y
+          end
+        end
+        nil
+      end
+
+      def outcode(x, y)
+        code = 0
+        code |= 1 if x.negative?
+        code |= 2 if x >= width
+        code |= 4 if y.negative?
+        code |= 8 if y >= height
+        code
+      end
     end
 
     class Timeline

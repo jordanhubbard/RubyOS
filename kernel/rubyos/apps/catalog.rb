@@ -120,6 +120,21 @@ module RubyOS
         registry.register("Pattern Lab", PatternLab.new(kernel:), category: :demo,
                           description: "Destructure input and device events with case/in",
                           dock_label: "Match")
+        registry.register("Life", LifeDemo.new(kernel:), category: :demo,
+                          description: "Evolve cellular neighbors with flat_map and Hash#tally",
+                          dock_label: "Life")
+        registry.register("Complex Plane", MandelbrotDemo.new(kernel:), category: :demo,
+                          description: "Explore Mandelbrot iteration with Ruby Complex values",
+                          dock_label: "Cmplx")
+        registry.register("Spirograph", SpirographDemo.new(kernel:), category: :demo,
+                          description: "Draw parametric curves with Range#map and each_with_index",
+                          dock_label: "Spiro")
+        registry.register("Paint", PaintDemo.new(kernel:), category: :demo,
+                          description: "Paint interactively with pointer capture and mutable Bitmap lines",
+                          dock_label: "Paint")
+        registry.register("Lazy Starfield", LazyStarfieldDemo.new(kernel:), category: :demo,
+                          description: "Animate immutable Data stars through a lazy Enumerator stream",
+                          dock_label: "Stars")
       end
 
       def register_games(registry, kernel)

@@ -15,6 +15,7 @@ required = %w[
   kernel/rubyos/gui/file_dialog.rb
   kernel/rubyos/bridge/file_transfer.rb
   kernel/rubyos/apps/ruby_demos.rb
+  kernel/rubyos/apps/graphical_demos.rb
   kernel/rubyos/apps/catalog.rb
 ]
 missing = required - manifest

@@ -7,6 +7,10 @@ All notable RubyOS changes are documented here.
 - Add bounded host-to-VFS file drops and VFS-to-host exports to Files and the
   shared Open/Save dialogs, with collision-safe names, partial-import cleanup,
   host-policy export paths, and ARM64/x86_64 frozen-guest acceptance.
+- Add five interactive Ruby-native graphical demos: Hash-tallied Life,
+  Complex Mandelbrot exploration, range-mapped Spirograph, pointer-driven Paint,
+  and an immutable-Data lazy starfield, backed by revision-cached bitmaps and
+  per-window animation ticks.
 
 ## [0.3.1] - 2026-09-16
 

@@ -74,6 +74,11 @@ module RubyOS
         self
       end
 
+      def line(x0, y0, x1, y1, color)
+        client.cast("surface.line", { handle:, x0:, y0:, x1:, y1:, rgb: Integer(color) })
+        self
+      end
+
       def draw_text(x, y, text, color: 0xffffff, background: nil)
         parameters = { handle:, x:, y:, text: String(text), fg: Integer(color) }
         parameters[:bg] = Integer(background) unless background.nil?
@@ -86,6 +91,37 @@ module RubyOS
         pixels = String(pixels).b
         raise ArgumentError, "pixel buffer must contain width*height*4 bytes" unless pixels.bytesize == width * height * 4
         client.call("surface.upload", { handle: }, payload: pixels)
+        self
+      end
+
+      def draw_bitmap(x, y, bitmap, scale: 1)
+        scale = Integer(scale)
+        raise ArgumentError, "bitmap scale must be positive" unless scale.positive?
+
+        @bitmap_cache ||= {}
+        key = [bitmap.object_id, scale]
+        cached = @bitmap_cache[key]
+        unless cached
+          cached = {
+            surface: Surface.create(client, width: bitmap.width * scale,
+                                    height: bitmap.height * scale),
+            revision: nil
+          }
+          @bitmap_cache[key] = cached
+        end
+        if cached[:revision] != bitmap.revision
+          target = cached.fetch(:surface)
+          if scale == 1
+            target.upload(bitmap.bytes)
+          else
+            client.call("surface.upload_scaled", {
+              handle: target.handle, src_w: bitmap.width, src_h: bitmap.height,
+              scale:, encoding: "raw"
+            }, payload: bitmap.bytes)
+          end
+          cached[:revision] = bitmap.revision
+        end
+        cached.fetch(:surface).blit_to(self, x:, y:)
         self
       end
 

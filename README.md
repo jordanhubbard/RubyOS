@@ -76,7 +76,12 @@ At any `rubyos>` prompt, `apps` lists the categorized desktop catalog,
 The graphical **Apps** launcher exposes full applications, Ruby-focused demos,
 and games without pinning every demo to the dock. Current language labs cover
 Enumerable pipelines, Fiber yield/resume choreography, and structural pattern
-matching; their underlying examples are readable in `/examples`.
+matching; their underlying examples are readable in `/examples`. Five
+interactive graphical demos add Life through `Hash#tally`, Mandelbrot through
+native `Complex`, Spirograph through range mapping, a pointer-driven
+Ruby Paint canvas, and an immutable-`Data` lazy starfield. Revision-tracked
+Ruby bitmaps upload only when they change and composite as ordinary window
+content rather than becoming thousands of bridge calls per frame.
 The desktop menu bar is registry-driven and gains commands from the focused
 Ruby application. F1 opens the live-rebindable keymap, F2 opens Applications,
 F3 opens Terminal, and F4 opens Files; Ctrl-W closes the focused window.

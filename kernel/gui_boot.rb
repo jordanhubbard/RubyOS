@@ -67,7 +67,7 @@ module RubyOS
       compositor.focus(terminal_window)
       HAL.serial_write("[RubyOS] desktop smoke: dynamic dock checked\n")
       RubyOS.invariant(applications.entries(category: :app).length == 13 &&
-                       applications.entries(category: :demo).length == 3 &&
+                       applications.entries(category: :demo).length == 8 &&
                        applications.entries(category: :game).length == 2,
                        "categorized application catalog is incomplete")
       launcher_window = applications.fetch("Launcher").launch(compositor)
@@ -76,13 +76,26 @@ module RubyOS
       desktop.capture("/tmp/rubyos-catalog.bmp")
       compositor.close(launcher_window)
       applications.entries(category: :demo).each do |entry|
+        HAL.serial_write("[RubyOS] desktop smoke: launching demo #{entry.name} at " \
+                         "#{state.fetch(:clock).milliseconds} ms\n")
         demo = entry.application
         demo_window = demo.launch(compositor)
         demo.advance if demo.respond_to?(:advance)
         demo.resume if demo.respond_to?(:resume)
         compositor.draw(desktop.surface, uptime: entry.name)
+        if entry.name == "Life"
+          desktop.present
+          desktop.capture("/tmp/rubyos-graphical-demo.bmp")
+        end
         compositor.close(demo_window)
+        HAL.serial_write("[RubyOS] desktop smoke: completed demo #{entry.name} at " \
+                         "#{state.fetch(:clock).milliseconds} ms\n")
       end
+      RubyOS.invariant(applications.fetch("Life").generation.positive? &&
+                       applications.fetch("Complex Plane").center.is_a?(Complex) &&
+                       applications.fetch("Spirograph").bitmap.revision.positive? &&
+                       applications.fetch("Lazy Starfield").frame.positive?,
+                       "Ruby graphical demos did not execute their language-native models")
       HAL.serial_write("[RubyOS] desktop smoke: Ruby demos checked\n")
       invaders = applications.fetch("Invaders")
       game_window = invaders.launch(compositor)
@@ -311,6 +324,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS] keyboard Terminal input: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] core desktop apps: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] categorized Ruby demo catalog: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] interactive Ruby graphical demos: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] menus and global shortcuts: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] persistent shortcut keymap: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] desktop/window/text context menus: PASS\n")
