@@ -87,6 +87,12 @@ module RubyOS
         end
         self
       end
+      def blit(source, x, y, key: nil)
+        source.each_pixel do |source_x, source_y, color|
+          put(x + source_x, y + source_y, color) unless !key.nil? && color == key
+        end
+        self
+      end
       def raster = @pixels.dup
       def bytes = @pixels.pack("L<*")
 

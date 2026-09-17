@@ -87,6 +87,12 @@ structural pattern matching to visualize key-down, key-up, modifier, and pointer
 events. The five playable games are Invaders, Snake, Maze, Raiders, and
 Defender; each owns a Ruby state model, receives focused input, advances from
 window ticks, and renders through the same revision-cached bitmap path.
+Data Rain uses immutable records and `filter_map` splashes; Sprite Layers
+composes color-keyed Ruby bitmaps; Tone Lab generates sine, square, triangle,
+and chord PCM with live pitch and waveform controls. The Image Viewer opens
+BMP, PNG, and JPEG files from the VFS through the shared chooser, supports
+arrow/wheel panning, and releases decoded bridge surfaces when its window
+closes. Files routes recognized image extensions directly to that viewer.
 The desktop menu bar is registry-driven and gains commands from the focused
 Ruby application. F1 opens the live-rebindable keymap, F2 opens Applications,
 F3 opens Terminal, and F4 opens Files; Ctrl-W closes the focused window.

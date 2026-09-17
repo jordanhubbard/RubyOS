@@ -141,6 +141,15 @@ module RubyOS
         registry.register("Event Scope", EventScopeDemo.new(kernel:), category: :demo,
                           description: "Pattern-match live keyboard and pointer events",
                           dock_label: "Event")
+        registry.register("Data Rain", DataRainDemo.new(kernel:), category: :demo,
+                          description: "Animate immutable Data drops and filter_map splashes",
+                          dock_label: "Rain")
+        registry.register("Sprite Layers", SpriteLayersDemo.new(kernel:), category: :demo,
+                          description: "Compose transparent Bitmap layers from immutable sprites",
+                          dock_label: "Sprite")
+        registry.register("Tone Lab", ToneLabDemo.new(kernel:), category: :demo,
+                          description: "Explore Ruby sine, square, triangle, and chord PCM",
+                          dock_label: "Tone")
       end
 
       def register_games(registry, kernel)

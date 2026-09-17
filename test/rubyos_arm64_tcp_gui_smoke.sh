@@ -21,6 +21,8 @@ inspector_capture="/tmp/rubyos-inspector.bmp"
 terminal_capture="/tmp/rubyos-terminal.bmp"
 arcade_capture="/tmp/rubyos-arcade.bmp"
 plasma_capture="/tmp/rubyos-plasma.bmp"
+sprites_capture="/tmp/rubyos-sprites.bmp"
+image_viewer_capture="/tmp/rubyos-image-viewer.bmp"
 
 cleanup() {
     kill "${qemu_pid:-}" 2>/dev/null || true
@@ -36,6 +38,7 @@ cleanup() {
     rm -f "$terminal_capture"
     rm -f "$arcade_capture"
     rm -f "$plasma_capture"
+    rm -f "$sprites_capture" "$image_viewer_capture"
     rm -rf "$export_dir"
 }
 trap cleanup EXIT
@@ -120,6 +123,12 @@ cp "$arcade_capture" "$root/build/rubyos-arcade.bmp"
 test -s "$plasma_capture"
 file "$plasma_capture" | grep -q '480 x 300'
 cp "$plasma_capture" "$root/build/rubyos-plasma.bmp"
+test -s "$sprites_capture"
+file "$sprites_capture" | grep -q '480 x 300'
+cp "$sprites_capture" "$root/build/rubyos-sprites.bmp"
+test -s "$image_viewer_capture"
+file "$image_viewer_capture" | grep -q '480 x 300'
+cp "$image_viewer_capture" "$root/build/rubyos-image-viewer.bmp"
 grep -q 'negotiated protocol v2 with client=rubyos' "$service_output"
 ! grep -q 'FATAL\|EXCEPTION\|ASSERT\|\[BUG\]' "$output"
 echo 'RubyOS bare-metal RemoteOS native TCP desktop: PASS'

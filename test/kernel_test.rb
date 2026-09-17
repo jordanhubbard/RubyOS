@@ -424,7 +424,7 @@ assert(shell_output.string.include?("enumerable_pipeline") &&
 
 catalog = RubyOS::Apps::Catalog.build(kernel: RubyOS::Kernel)
 assert(catalog.entries(category: :app).length == 11 &&
-       catalog.entries(category: :demo).length == 10 &&
+       catalog.entries(category: :demo).length == 13 &&
        catalog.entries(category: :game).length == 5,
        "application catalog preserves app, demo, and game categories")
 
@@ -435,6 +435,7 @@ graphics_surface = Class.new do
   def draw_text(*arguments, **options) = operations << [:draw_text, *arguments, options]
   def line(*arguments) = operations << [:line, *arguments]
   def draw_bitmap(*arguments, **options) = operations << [:draw_bitmap, *arguments, options]
+  def draw_surface(*arguments, **options) = operations << [:draw_surface, *arguments, options]
 end.new
 graphics_desktop = RubyOS::GUI::Compositor.new(width: 480, height: 300)
 life = catalog.fetch("Life")
@@ -505,6 +506,56 @@ graphics_desktop.handle("kind" => RubyOS::Input::KEY_UP, "code" => 120,
 assert(!event_scope.pressed.key?(120) && event_scope.events.length == 2,
        "Event Scope pattern-matches key-up state")
 graphics_desktop.close(event_window)
+
+rain = catalog.fetch("Data Rain")
+rain_window = rain.launch(graphics_desktop)
+initial_drops = rain.drops
+rain.advance
+assert(rain.frame == 1 && rain.drops != initial_drops &&
+       rain.drops.all? { |drop| drop.is_a?(RubyOS::Apps::DataRainDemo::Drop) },
+       "Data Rain maps immutable drops into the next frame")
+graphics_desktop.close(rain_window)
+
+sprites = catalog.fetch("Sprite Layers")
+sprites_window = sprites.launch(graphics_desktop)
+initial_sprite_positions = sprites.sprites.map { |sprite| [sprite.x, sprite.y] }
+sprites.fire
+sprites.advance
+assert(sprites.frame == 1 && sprites.missiles.any? &&
+       sprites.sprites.map { |sprite| [sprite.x, sprite.y] } != initial_sprite_positions,
+       "Sprite Layers animates transparent immutable sprite records")
+graphics_desktop.close(sprites_window)
+
+tone = catalog.fetch("Tone Lab")
+tone_window = tone.launch(graphics_desktop)
+initial_tone_revision = tone.bitmap.revision
+tone.change_note(1)
+tone.cycle_waveform
+assert(tone.frequency == 523 && tone.waveform == :square &&
+       tone.bitmap.revision > initial_tone_revision,
+       "Tone Lab redraws Ruby-generated waveforms as pitch and shape change")
+graphics_desktop.close(tone_window)
+
+fake_image_class = Class.new do
+  attr_reader :width, :height
+  def initialize = (@width, @height, @destroyed = 500, 220, false)
+  def destroy = (@destroyed = true; self)
+  def destroyed? = @destroyed
+end
+fake_image = fake_image_class.new
+viewer = RubyOS::Apps::ImageViewer.new(
+  path: "/home/welcome.txt", surface_loader: ->(_bytes) { fake_image }
+)
+viewer_window = viewer.launch(graphics_desktop)
+initial_pan = viewer.canvas.pan_x
+graphics_desktop.handle("kind" => RubyOS::Input::KEY_DOWN,
+                        "code" => RubyOS::GUI::TextInput::RIGHT_KEY)
+graphics_desktop.draw(graphics_surface)
+assert(viewer.surface.equal?(fake_image) && viewer.canvas.pan_x > initial_pan &&
+       graphics_surface.operations.any? { |operation| operation.first == :draw_surface },
+       "Image Viewer loads a VFS image surface and pans it from focused input")
+graphics_desktop.close(viewer_window)
+assert(fake_image.destroyed?, "closing Image Viewer releases its decoded surface")
 
 maze = catalog.fetch("Maze")
 maze_window = maze.launch(graphics_desktop)

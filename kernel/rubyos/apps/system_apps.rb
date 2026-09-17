@@ -90,7 +90,11 @@ module RubyOS
         @status.text = "Opening #{item.fetch(:label)}  -  #{stat.size} bytes"
         @status.color = 0xc3e88d
         @status.invalidate
-        Editor.new(path: item.fetch(:path)).launch(@compositor)
+        if ImageViewer.image_path?(item.fetch(:path))
+          ImageViewer.new(path: item.fetch(:path)).launch(@compositor)
+        else
+          Editor.new(path: item.fetch(:path)).launch(@compositor)
+        end
         true
       end
 
@@ -817,6 +821,77 @@ module RubyOS
       end
     end
 
+    class ImageCanvas < GUI::View
+      attr_reader :source, :pan_x, :pan_y
+
+      def initialize(on_change: nil, **options)
+        super(**options)
+        @source = nil
+        @pan_x = @pan_y = 0
+        @on_change = on_change
+      end
+
+      def source=(value)
+        @source = value
+        center
+        invalidate
+      end
+
+      def center(*)
+        @pan_x = [((source&.width || width) - width) / 2, 0].max
+        @pan_y = [((source&.height || height) - height) / 2, 0].max
+        changed
+        true
+      end
+
+      def draw(surface)
+        super
+        return unless source
+
+        offset_x = source.width < width ? (width - source.width) / 2 : -pan_x
+        offset_y = source.height < height ? (height - source.height) / 2 : -pan_y
+        surface.draw_surface(x + offset_x, y + offset_y, source)
+      end
+
+      def handle(event)
+        return false unless focused && event.respond_to?(:fetch)
+
+        if event.fetch("kind", 0) == Input::POINTER_WHEEL
+          delta = event.fetch("dy", 0)
+          return pan(0, delta.positive? ? -16 : 16)
+        end
+        return false unless event.fetch("kind", 0) == Input::KEY_DOWN
+
+        case event.fetch("code", 0)
+        when GUI::TextInput::LEFT_KEY then pan(-16, 0)
+        when GUI::TextInput::RIGHT_KEY then pan(16, 0)
+        when GUI::TextInput::UP_KEY then pan(0, -16)
+        when GUI::TextInput::DOWN_KEY then pan(0, 16)
+        when GUI::TextInput::HOME_KEY then center
+        else false
+        end
+      end
+
+      def focusable? = true
+
+      private
+
+      def pan(dx, dy)
+        return false unless source
+
+        previous = [pan_x, pan_y]
+        @pan_x = [[pan_x + dx, 0].max, [source.width - width, 0].max].min
+        @pan_y = [[pan_y + dy, 0].max, [source.height - height, 0].max].min
+        changed if previous != [pan_x, pan_y]
+        previous != [pan_x, pan_y]
+      end
+
+      def changed
+        @on_change&.call(self)
+        invalidate
+      end
+    end
+
     class PixelArt < GUI::View
       def draw(surface)
         super
@@ -831,12 +906,108 @@ module RubyOS
     end
 
     class ImageViewer < Application
+      EXTENSIONS = %w[.bmp .png .jpg .jpeg].freeze
+      MAX_BYTES = 16 * 1024 * 1024
+
+      attr_reader :path, :surface, :file_dialog, :canvas, :last_error
+
+      def self.image_path?(path)
+        EXTENSIONS.include?(File.extname(String(path)).downcase)
+      end
+
+      def initialize(path: nil, surface_loader: nil, **options)
+        super(**options)
+        @path = path
+        @surface_loader = surface_loader
+      end
+
       def build_window
-        GUI::Window.new("Image Viewer", x: 116, y: 48, width: 220, height: 150,
-                        background: 0x10151f).tap do |window|
-          window.add(PixelArt.new(x: 10, y: 4, width: 160, height: 70))
-          window.add(GUI::Label.new("Ruby-generated pixels", x: 10, y: 84, color: 0xe8dff5))
+        @window = GUI::Window.new("Image Viewer", x: 42, y: 32, width: 396, height: 232,
+                                  minimum_width: 280, minimum_height: 180,
+                                  background: 0x10151f).tap do |window|
+          @canvas = window.add(ImageCanvas.new(
+            x: 4, y: 4, width: 352, height: 150, background: 0x080b12,
+            on_change: method(:update_status)
+          ), anchors: [:left, :right, :top, :bottom],
+             minimum_width: 180, minimum_height: 80)
+          @status = window.add(GUI::Label.new("Open a BMP, PNG, or JPEG from the Ruby VFS",
+                                               x: 4, y: 164, width: 260,
+                                               height: 24, background: 0x151c29,
+                                               color: 0xa8d8ff),
+                               anchors: [:left, :right, :bottom], minimum_width: 100)
+          window.add(GUI::Button.new("Open...", x: 276, y: 158, width: 80, height: 26,
+                                     action: method(:open_dialog)), anchors: [:right, :bottom])
+          window.focus_child(@canvas)
+          window.on_close { release_surface }
         end
+        load_path(path) if path
+        @window
+      end
+
+      def open_dialog(*)
+        @file_dialog = GUI::FileDialog.new(
+          compositor: @compositor, vfs: kernel.state.fetch(:vfs), mode: :open,
+          path: path || "/home", title: "Open Image", extensions: EXTENSIONS,
+          on_accept: method(:load_path)
+        )
+      end
+
+      def load_path(new_path)
+        raise RubyOS::Error, "image decoding requires the RemoteOS desktop" unless image_client || @surface_loader
+
+        stat = kernel.state.fetch(:vfs).stat(new_path)
+        raise FS::IsDirectory, new_path unless stat.type == :file
+        raise RubyOS::Error, "image exceeds #{MAX_BYTES} byte limit" if stat.size > MAX_BYTES
+
+        bytes = kernel.state.fetch(:vfs).read_file(new_path)
+        loaded = @surface_loader ? @surface_loader.call(bytes) :
+                                   Bridge::Surface.load_image(image_client, bytes)
+        release_surface
+        @surface = loaded
+        @path = String(new_path)
+        @canvas.source = loaded
+        @window.title = "Image - #{File.basename(path)}"
+        @last_error = nil
+        update_status
+        true
+      rescue StandardError => error
+        @last_error = error
+        @status.text = "#{error.class}: #{error.message}"[0, 50] if @status
+        @status.color = 0xff668a if @status
+        @status&.invalidate
+        false
+      end
+
+      def center(*)
+        canvas.center
+      end
+
+      def menus(compositor)
+        [GUI::Menu.new(title: "Image", items: [
+          GUI::MenuItem.command("Open...") { open_dialog },
+          GUI::MenuItem.command("Center", shortcut: "Home", enabled: !surface.nil?) { center }
+        ]), *super]
+      end
+
+      private
+
+      def image_client = @compositor&.file_transfer&.client
+
+      def release_surface
+        @surface&.destroy
+        @surface = nil
+        @canvas.source = nil if @canvas
+        true
+      end
+
+      def update_status(*)
+        return unless @status
+
+        if surface
+          @status.text = "#{surface.width}x#{surface.height}  |  pan #{canvas.pan_x},#{canvas.pan_y}"
+          @status.color = 0xc3e88d
+        end
+        @status.invalidate
       end
     end
 

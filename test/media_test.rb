@@ -11,6 +11,15 @@ assert(8.times.all? { |x| clipped.get(x, 2) == 0xabcdef })
 revision = clipped.revision
 clipped.line(-1_000_000, -1_000_000, -2, -2, color: 0xffffff)
 assert(clipped.revision == revision)
+stamp = media::Bitmap.new(2, 2)
+stamp.put(0, 0, 0xff0000).put(1, 1, 0x00ff00)
+canvas = media::Bitmap.new(4, 4, background: 0x010203)
+canvas.blit(stamp, 1, 1, key: 0)
+assert(canvas.get(1, 1) == 0xff0000 && canvas.get(2, 2) == 0x00ff00 &&
+       canvas.get(2, 1) == 0x010203)
+square = RubyOS::Sound::Waveform.square(100, duration_ms: 20, rate: 1_000)
+triangle = RubyOS::Sound::Waveform.triangle(100, duration_ms: 20, rate: 1_000)
+assert(square.samples.uniq.length == 2 && triangle.samples.uniq.length > 2)
 shape = media::Shape.new(x: 0, y: 0)
 timeline = media::Timeline.new
 timeline.animate(shape, :x, from: 0, to: 10, duration: 1, easing: :linear)

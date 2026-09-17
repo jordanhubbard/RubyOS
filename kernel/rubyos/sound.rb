@@ -25,10 +25,31 @@ module RubyOS
       module_function
 
       def sine(frequency, duration_ms:, amplitude: 0.25, rate: SAMPLE_RATE)
+        build(frequency, duration_ms:, amplitude:, rate:) { |phase| Math.sin(phase * 2.0 * Math::PI) }
+      end
+
+      def square(frequency, duration_ms:, amplitude: 0.25, rate: SAMPLE_RATE)
+        build(frequency, duration_ms:, amplitude:, rate:) { |phase| phase < 0.5 ? 1.0 : -1.0 }
+      end
+
+      def triangle(frequency, duration_ms:, amplitude: 0.25, rate: SAMPLE_RATE)
+        build(frequency, duration_ms:, amplitude:, rate:) { |phase| 1.0 - 4.0 * (phase - 0.5).abs }
+      end
+
+      def build(frequency, duration_ms:, amplitude:, rate: SAMPLE_RATE)
+        frequency = Float(frequency)
+        rate = Integer(rate)
+        raise ArgumentError, "invalid frequency" unless frequency.finite? && frequency.positive? && frequency <= rate / 2.0
+        duration_ms = Float(duration_ms)
+        amplitude = Float(amplitude)
+        raise ArgumentError, "invalid duration" unless duration_ms.finite? && duration_ms.positive? && duration_ms <= 10_000
+        raise ArgumentError, "invalid amplitude" unless amplitude.finite? && (0.0..1.0).cover?(amplitude)
+
         count = (rate * duration_ms / 1000.0).round
-        scale = 32_767 * Float(amplitude)
+        scale = 32_767 * amplitude
         samples = count.times.map do |index|
-          (Math.sin(2.0 * Math::PI * Float(frequency) * index / rate) * scale).round
+          phase = (frequency * index / rate) % 1.0
+          (yield(phase) * scale).round
         end
         PCM.new(samples, rate:)
       end
@@ -53,6 +74,7 @@ module RubyOS
         @client = client
         result = client.call("audio.open", { rate: })
         @rate = result.fetch("rate")
+        @closed = false
       end
 
       def play(pcm)
@@ -66,7 +88,10 @@ module RubyOS
       end
 
       def close
+        return self if @closed
+
         @client.call("audio.close")
+        @closed = true
         self
       end
     end

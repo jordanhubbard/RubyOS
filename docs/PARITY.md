@@ -21,10 +21,10 @@ claims, not certification for arbitrary physical hardware.
 | Storage | VFS, tmpfs, ext2, mounted persistent `/home` | Ruby VFS/tmpfs plus writable ext2 over bare-metal VirtIO block, with sparse files, arbitrary truncate, double-indirect traversal, create, unlink, and rmdir | Complete |
 | Network | VirtIO net, Ethernet, ARP, IPv4, ICMP, UDP, TCP, DHCP, DNS | bare-metal Ruby VirtIO net, DHCP, ARP, IPv4/ICMP, UDP, DNS, TCP client/server, concurrent REPL sessions | Complete |
 | Remote display | RemoteOS-SDL v2 over bare-metal TCP/UART | shared service over hosted TCP, VirtIO console, and RubyOS-native bare-metal TCP | Complete |
-| GUI API | SDL-compatible surfaces, events, images, fonts, menus, scrolling, resizing, drag/drop, clipboard | Ruby `Surface`, owned SDL_ttf `Font`, focusable widgets, bounded labels, scrollable text views, caret-aware multiline editing with keyboard/pointer selection and a shared guest clipboard, wheel-scrollable lists and text, declarative edge anchors, resizable windows, meters, app menus, keyboard/pointer dispatch, routed host-file drop events, revision-tracked bitmap composition, and per-window animation ticks | In progress |
+| GUI API | SDL-compatible surfaces, events, images, fonts, menus, scrolling, resizing, drag/drop, clipboard | Ruby `Surface`, owned SDL_ttf `Font`, focusable widgets, bounded labels, scrollable text views, caret-aware multiline editing with keyboard/pointer selection and a shared guest clipboard, wheel-scrollable lists and text, declarative edge anchors, resizable windows, close hooks, meters, app menus, keyboard/pointer dispatch, routed host-file drop events, decoded-surface composition, revision-tracked bitmaps, and per-window animation ticks | In progress |
 | Desktop | compositor, windows, app-aware menu bar, dynamic dock, wallpaper, shortcuts, context menus | Ruby compositor with focus/z-order, close/minimize/drag/resize, responsive anchored windows, app-aware menus, desktop/window/text context menus, versioned VFS-persistent shortcuts and dock pins, transient running-app dock entries, wallpaper, status bar, and catalog launcher | In progress |
-| Apps | terminal, live editor, files, image viewer, monitor, clock, settings, keybindings, polished shared choosers | About, history/scrollback Terminal, transactional Live Editor with shared VFS Open/Save As dialog, navigable Files, Image Viewer, live System Monitor, Clock, Settings, Keybindings, drill-down Ruby Inspector, Media, and metadata-driven Launcher; Files and dialogs stream bounded host imports/exports | In progress |
-| Demos and games | fifteen graphical/audio demos and arcade games | Ten Ruby-centric demos span Enumerable, Fiber, pattern matching, Life, Complex/Mandelbrot, Spirograph, Paint, immutable-Data starfield, Plasma, and Event Scope; five tick-driven games cover Invaders, Snake, Maze, Raiders, and Defender | In progress (10 demos, 5 games) |
+| Apps | terminal, live editor, files, image viewer, monitor, clock, settings, keybindings, polished shared choosers | About, history/scrollback Terminal, transactional Live Editor with shared VFS Open/Save As dialog, navigable Files, VFS-backed BMP/PNG/JPEG Image Viewer, live System Monitor, Clock, Settings, Keybindings, drill-down Ruby Inspector, Media, and metadata-driven Launcher; Files and dialogs stream bounded host imports/exports | In progress |
+| Demos and games | fifteen graphical/audio demos and arcade games | Thirteen Ruby-centric demos span Enumerable, Fiber, pattern matching, Life, Complex/Mandelbrot, Spirograph, Paint, immutable-Data starfield and rain, Plasma, Event Scope, Sprite Layers, and Tone Lab; five tick-driven games cover Invaders, Snake, Maze, Raiders, and Defender | In progress (13 demos, 5 games) |
 | Input | PS/2 and VirtIO input, canonical event queue, configurable persistent desktop shortcuts | bounded canonical Ruby event queue fed by SDL, native x86 PS/2 keyboard/mouse, ARM64 VirtIO keyboard/mouse, normalized SDL modifiers/function keys, and a live-rebindable keymap persisted through the VFS | Complete |
 | Audio | Intel HDA/VirtIO/bridge mixer and sound API | Ruby PCM/waveform mixer, bare-metal SDL bridge, native ARM64 VirtIO Sound, and native x86_64 Intel HDA DMA | Complete |
 | Images | PNG/JPEG decoding and viewer | Ruby remote surfaces, raw upload, bare-metal PNG/JPEG decode/blit, and Image Viewer | Complete |
@@ -41,11 +41,7 @@ not by itself establish equal depth. The largest remaining gaps are:
 - richer in-guest drag workflows and broader source-opening workflows; host
   clipboard synchronization would be a shared-protocol extension beyond the
   current PythonOS baseline;
-- remaining specific PythonOS media scenarios such as rainfall, sprite-layer
-  animation, and an interactive audio tone control; RubyOS has matched the
-  catalog count with Ruby-specific labs and games, but should cover those
-  primitives directly rather than transliterate Python modules;
-- richer editor commands and menus plus image navigation;
+- richer editor commands and menus;
 - categorized start-here and concurrency curricula, broader graphical/media
   examples, and independent frozen-image/QEMU reachability checks;
 - desktop visual regression baselines and interaction tests covering every

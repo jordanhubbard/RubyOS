@@ -125,6 +125,11 @@ module RubyOS
         self
       end
 
+      def draw_surface(x, y, source, source_rect: nil)
+        source.blit_to(self, x:, y:, source_rect:)
+        self
+      end
+
       def blit_to(destination, x:, y:, source_rect: nil)
         parameters = { src: handle, dst: destination.handle,
                        dst_rect: { x:, y:, w: width, h: height } }

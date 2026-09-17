@@ -718,5 +718,329 @@ module RubyOS
         show_status(@last_summary)
       end
     end
+
+    class DataRainDemo < GraphicalDemo
+      Drop = Data.define(:x, :y, :length, :speed, :color)
+      Splash = Data.define(:x, :ttl)
+      COLORS = [0x244f86, 0x3478c9, 0x55a8ff].freeze
+
+      attr_reader :drops, :splashes, :frame
+
+      def initialize(**options)
+        super
+        reset
+      end
+
+      def build_window
+        @bitmap ||= Media::Bitmap.new(BITMAP_WIDTH, BITMAP_HEIGHT)
+        render
+        build_demo_window("Immutable Data Rain", instructions: "Space pause | R reseed",
+                          on_key: method(:handle_key)) { tick }
+      end
+
+      def advance(*)
+        landed = []
+        @drops = drops.map do |drop|
+          y = drop.y + drop.speed
+          if y >= BITMAP_HEIGHT - 2
+            landed << drop.x
+            spawn(above: true)
+          else
+            Drop.new(x: drop.x, y:, length: drop.length, speed: drop.speed, color: drop.color)
+          end
+        end
+        @splashes = splashes.filter_map do |splash|
+          Splash.new(x: splash.x, ttl: splash.ttl - 1) if splash.ttl > 1
+        end + landed.map { |x| Splash.new(x:, ttl: 3) }
+        @frame += 1
+        render
+        true
+      end
+
+      def reset(*)
+        @random = Random.new(0x5241494e)
+        @drops = Array.new(64) { spawn(above: false) }
+        @splashes = []
+        @frame = 0
+        @paused = false
+        @tick_count = 0
+        render if @bitmap
+        true
+      end
+
+      def toggle_pause(*)
+        @paused = !@paused
+        update_status
+        true
+      end
+
+      private
+
+      def spawn(above:)
+        speed = @random.rand(2..6)
+        Drop.new(x: @random.rand(0...BITMAP_WIDTH),
+                 y: above ? -@random.rand(1..BITMAP_HEIGHT) : @random.rand(0...BITMAP_HEIGHT),
+                 length: @random.rand(4..12), speed:, color: COLORS.fetch([speed - 2, 2].min))
+      end
+
+      def handle_key(event)
+        case event.fetch("code", 0)
+        when 32 then toggle_pause
+        when 114, 82 then reset
+        else false
+        end
+      end
+
+      def tick
+        @tick_count += 1
+        advance if !@paused && (@tick_count % 2).zero?
+      end
+
+      def render
+        @bitmap.clear(0x070b13)
+        @bitmap.rect(0, BITMAP_HEIGHT - 2, BITMAP_WIDTH, 2, color: 0x182a3b)
+        drops.each do |drop|
+          top = [drop.y - drop.length, 0].max
+          @bitmap.line(drop.x, top, drop.x, [drop.y, BITMAP_HEIGHT - 3].min, color: drop.color) if drop.y.positive?
+        end
+        splashes.each { |splash| @bitmap.line(splash.x - 2, BITMAP_HEIGHT - 4, splash.x + 2, BITMAP_HEIGHT - 4, color: 0x55a8ff) }
+        update_status
+      end
+
+      def update_status
+        show_status("Frame #{frame} | #{drops.length} immutable drops | #{@paused ? 'PAUSED' : 'RUNNING'}")
+      end
+    end
+
+    class SpriteLayersDemo < GraphicalDemo
+      Sprite = Data.define(:bitmap, :x, :y, :dx, :dy, :role)
+
+      attr_reader :sprites, :missiles, :frame, :score
+
+      def initialize(**options)
+        super
+        @ship_art = art(["001100", "011110", "111111", "011110"], 0x51d6c5)
+        @enemy_art = art(["011110", "110011", "111111", "010010"], 0xff668a)
+        @missile_art = art(["1", "1", "1"], 0xffd866)
+        reset
+      end
+
+      def build_window
+        @bitmap ||= Media::Bitmap.new(BITMAP_WIDTH, BITMAP_HEIGHT)
+        render
+        build_demo_window("Data Sprite Layers", instructions: "Arrows/WASD move | Space fire | R reset",
+                          on_key: method(:handle_key)) { tick }
+      end
+
+      def advance(*)
+        @frame += 1
+        @sprites = sprites.map do |sprite|
+          next sprite if sprite.role == :ship
+
+          x = sprite.x + sprite.dx
+          dx = sprite.dx
+          if x.negative? || x + sprite.bitmap.width >= BITMAP_WIDTH
+            dx = -dx
+            x = sprite.x + dx
+          end
+          Sprite.new(bitmap: sprite.bitmap, x:, y: sprite.y + sprite.dy,
+                     dx:, dy: sprite.dy, role: sprite.role)
+        end
+        @missiles = missiles.filter_map do |missile|
+          y = missile.y - 3
+          Sprite.new(bitmap: missile.bitmap, x: missile.x, y:, dx: 0, dy: -3,
+                     role: :missile) if y + missile.bitmap.height >= 0
+        end
+        collide
+        render
+        true
+      end
+
+      def reset(*)
+        @sprites = [Sprite.new(bitmap: @ship_art, x: 77, y: 62, dx: 0, dy: 0, role: :ship)] +
+                   5.times.map do |index|
+                     Sprite.new(bitmap: @enemy_art, x: 12 + index * 29, y: 8 + index % 2 * 10,
+                                dx: index.even? ? 1 : -1, dy: 0, role: :enemy)
+                   end
+        @missiles = []
+        @score = 0
+        @frame = 0
+        @tick_count = 0
+        render if @bitmap
+        true
+      end
+
+      def fire(*)
+        ship = sprites.find { |sprite| sprite.role == :ship }
+        missiles << Sprite.new(bitmap: @missile_art, x: ship.x + 3, y: ship.y - 4,
+                               dx: 0, dy: -3, role: :missile)
+        render
+        true
+      end
+
+      private
+
+      def art(rows, color)
+        bitmap = Media::Bitmap.new(rows.map(&:length).max, rows.length)
+        rows.each_with_index do |row, y|
+          row.each_char.with_index { |pixel, x| bitmap.put(x, y, color) if pixel == "1" }
+        end
+        bitmap
+      end
+
+      def handle_key(event)
+        code = event.fetch("code", 0)
+        direction = {
+          97 => [-3, 0], 100 => [3, 0], 119 => [0, -3], 115 => [0, 3],
+          GUI::TextInput::LEFT_KEY => [-3, 0], GUI::TextInput::RIGHT_KEY => [3, 0],
+          GUI::TextInput::UP_KEY => [0, -3], GUI::TextInput::DOWN_KEY => [0, 3]
+        }[code]
+        return fire if code == 32
+        return reset if [114, 82].include?(code)
+        return false unless direction
+
+        @sprites = sprites.map do |sprite|
+          next sprite unless sprite.role == :ship
+
+          Sprite.new(bitmap: sprite.bitmap,
+                     x: [[sprite.x + direction[0], 0].max, BITMAP_WIDTH - sprite.bitmap.width].min,
+                     y: [[sprite.y + direction[1], 25].max, BITMAP_HEIGHT - sprite.bitmap.height].min,
+                     dx: 0, dy: 0, role: :ship)
+        end
+        render
+        true
+      end
+
+      def tick
+        @tick_count += 1
+        advance if (@tick_count % 3).zero?
+      end
+
+      def collide
+        hit_enemies = []
+        missiles.each do |missile|
+          enemy = sprites.find do |sprite|
+            sprite.role == :enemy && missile.x.between?(sprite.x, sprite.x + sprite.bitmap.width - 1) &&
+              missile.y.between?(sprite.y, sprite.y + sprite.bitmap.height - 1)
+          end
+          hit_enemies << enemy if enemy
+        end
+        return if hit_enemies.empty?
+
+        @sprites = sprites.reject { |sprite| hit_enemies.include?(sprite) }
+        @missiles = missiles.reject do |missile|
+          hit_enemies.any? { |enemy| missile.x.between?(enemy.x, enemy.x + enemy.bitmap.width - 1) &&
+            missile.y.between?(enemy.y, enemy.y + enemy.bitmap.height - 1) }
+        end
+        @score += hit_enemies.uniq.length * 100
+      end
+
+      def render
+        @bitmap.clear(0x030817)
+        36.times { |index| @bitmap.put((index * 47 + frame) % BITMAP_WIDTH, 4 + index * 19 % 56, 0x304968) }
+        sprites.each { |sprite| @bitmap.blit(sprite.bitmap, sprite.x, sprite.y, key: 0) }
+        missiles.each { |sprite| @bitmap.blit(sprite.bitmap, sprite.x, sprite.y, key: 0) }
+        show_status("Frame #{frame} | #{sprites.length} immutable sprites | Score #{score}")
+      end
+    end
+
+    class ToneLabDemo < GraphicalDemo
+      NOTES = [220, 262, 330, 392, 440, 523, 659, 784].freeze
+      WAVEFORMS = %i[sine square triangle].freeze
+
+      attr_reader :note_index, :waveform_index, :plays, :last_queued
+
+      def initialize(**options)
+        super
+        @note_index = 4
+        @waveform_index = 0
+        @chord = false
+        @plays = 0
+        @last_queued = 0
+      end
+
+      def build_window
+        @bitmap ||= Media::Bitmap.new(BITMAP_WIDTH, BITMAP_HEIGHT)
+        render
+        build_demo_window("Ruby Tone Lab", instructions: "Up/Down pitch | W wave | C chord | Space play",
+                          on_key: method(:handle_key))
+      end
+
+      def frequency = NOTES.fetch(note_index)
+      def waveform = WAVEFORMS.fetch(waveform_index)
+
+      def change_note(delta)
+        @note_index = [[note_index + Integer(delta), 0].max, NOTES.length - 1].min
+        render
+        true
+      end
+
+      def cycle_waveform(*)
+        @waveform_index = (waveform_index + 1) % WAVEFORMS.length
+        render
+        true
+      end
+
+      def toggle_chord(*)
+        @chord = !@chord
+        render
+        true
+      end
+
+      def play(*)
+        client = @compositor&.file_transfer&.client
+        unless client&.features&.include?("audio.pcm")
+          show_status("Audio bridge unavailable | #{frequency} Hz #{waveform}")
+          return false
+        end
+
+        output = Sound::BridgeOutput.new(client)
+        voice = Sound::Waveform.public_send(waveform, frequency, duration_ms: 180, amplitude: 0.18)
+        if @chord
+          harmony = Sound::Waveform.public_send(waveform, frequency * 1.5,
+                                                duration_ms: 180, amplitude: 0.12)
+          voice = Sound::Mixer.new.mix(voice, harmony)
+        end
+        output.play(voice)
+        @last_queued = output.queued_bytes
+        @plays += 1
+        output.close
+        render
+        true
+      ensure
+        output&.close rescue nil
+      end
+      alias advance play
+
+      private
+
+      def handle_key(event)
+        case event.fetch("code", 0)
+        when GUI::TextInput::UP_KEY then change_note(1)
+        when GUI::TextInput::DOWN_KEY then change_note(-1)
+        when 119, 87 then cycle_waveform
+        when 99, 67 then toggle_chord
+        when 32 then play
+        else false
+        end
+      end
+
+      def render
+        @bitmap.clear(0x080b14)
+        preview = Sound::Waveform.public_send(waveform, frequency, duration_ms: 20,
+                                             amplitude: 0.8, rate: 8_000)
+        samples = preview.samples
+        BITMAP_WIDTH.times do |x|
+          sample = samples.fetch(x * samples.length / BITMAP_WIDTH)
+          y = 36 - (sample * 28 / 32_767)
+          @bitmap.line(x - 1, @last_y || y, x, y, color: 0x51d6c5) if x.positive?
+          @last_y = y
+        end
+        mode = @chord ? "chord" : "single"
+        show_status("#{frequency} Hz | #{waveform} | #{mode} | played #{plays}")
+      ensure
+        @last_y = nil
+      end
+    end
   end
 end

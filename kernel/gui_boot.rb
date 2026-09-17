@@ -67,7 +67,7 @@ module RubyOS
       compositor.focus(terminal_window)
       HAL.serial_write("[RubyOS] desktop smoke: dynamic dock checked\n")
       RubyOS.invariant(applications.entries(category: :app).length == 13 &&
-                       applications.entries(category: :demo).length == 10 &&
+                       applications.entries(category: :demo).length == 13 &&
                        applications.entries(category: :game).length == 5,
                        "categorized application catalog is incomplete")
       launcher_window = applications.fetch("Launcher").launch(compositor)
@@ -89,6 +89,9 @@ module RubyOS
         elsif entry.name == "Plasma"
           desktop.present
           desktop.capture("/tmp/rubyos-plasma.bmp")
+        elsif entry.name == "Sprite Layers"
+          desktop.present
+          desktop.capture("/tmp/rubyos-sprites.bmp")
         end
         compositor.close(demo_window)
         HAL.serial_write("[RubyOS] desktop smoke: completed demo #{entry.name} at " \
@@ -99,7 +102,10 @@ module RubyOS
                        applications.fetch("Spirograph").bitmap.revision.positive? &&
                        applications.fetch("Lazy Starfield").frame.positive? &&
                        applications.fetch("Plasma").phase.positive? &&
-                       applications.fetch("Event Scope").events.any?,
+                       applications.fetch("Event Scope").events.any? &&
+                       applications.fetch("Data Rain").frame.positive? &&
+                       applications.fetch("Sprite Layers").frame.positive? &&
+                       applications.fetch("Tone Lab").plays.positive?,
                        "Ruby graphical demos did not execute their language-native models")
       HAL.serial_write("[RubyOS] desktop smoke: Ruby demos checked\n")
       invaders = applications.fetch("Invaders")
@@ -193,6 +199,33 @@ module RubyOS
       RubyOS.invariant(monitor.refresh_count > samples,
                        "System Monitor did not refresh from window ticks")
       compositor.close(monitor_window)
+      image_width = 400
+      image_height = 180
+      row = +"".b
+      image_width.times do |x|
+        row << [40 + x * 180 / image_width, 90, 220 - x * 160 / image_width].pack("C3")
+      end
+      pixels = row * image_height
+      bitmap_file = "BM" + [54 + pixels.bytesize, 0, 0, 54].pack("VvvV") +
+                    [40, image_width, image_height, 1, 24, 0, pixels.bytesize,
+                     2_835, 2_835, 0, 0].pack("Vl<l<vvVVl<l<VV") + pixels
+      state.fetch(:vfs).write_file("/home/rubyos-gradient.bmp", bitmap_file)
+      image_viewer = applications.fetch("Image")
+      image_window = image_viewer.launch(compositor)
+      RubyOS.invariant(image_viewer.load_path("/home/rubyos-gradient.bmp") &&
+                       [image_viewer.surface.width, image_viewer.surface.height] ==
+                         [image_width, image_height],
+                       "Image Viewer did not decode the VFS BMP")
+      initial_pan = image_viewer.canvas.pan_x
+      client.call("debug.event.inject", { kind: 1, code: GUI::TextInput::RIGHT_KEY })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(image_viewer.canvas.pan_x > initial_pan,
+                       "Image Viewer did not pan the decoded image")
+      compositor.draw(desktop.surface, uptime: "VFS image")
+      desktop.present
+      desktop.capture("/tmp/rubyos-image-viewer.bmp")
+      compositor.close(image_window)
+      RubyOS.invariant(image_viewer.surface.nil?, "Image Viewer did not release its surface")
       HAL.serial_write("[RubyOS] desktop smoke: live tools checked\n")
       client.call("debug.event.inject", { kind: 1, code: Input::KEY_F1 })
       desktop.events.each { |event| compositor.handle(event) }

@@ -25,6 +25,10 @@ module RubyOS
       def draw_bitmap(x, y, bitmap, scale: 1)
         @surface.draw_bitmap(x + @offset_x, y + @offset_y, bitmap, scale:)
       end
+
+      def draw_surface(x, y, source, source_rect: nil)
+        @surface.draw_surface(x + @offset_x, y + @offset_y, source, source_rect:)
+      end
     end
 
     class Window < Container
@@ -49,6 +53,7 @@ module RubyOS
         @layouts = {}
         @file_drop_handler = nil
         @tick_handler = nil
+        @close_handler = nil
       end
 
       def on_file_drop(&handler)
@@ -58,6 +63,17 @@ module RubyOS
 
       def on_tick(&handler)
         @tick_handler = handler
+        self
+      end
+
+      def on_close(&handler)
+        @close_handler = handler
+        self
+      end
+
+      def closed
+        handler, @close_handler = @close_handler, nil
+        handler&.call
         self
       end
 
@@ -268,6 +284,9 @@ module RubyOS
 
       def close(window)
         return unless window
+        return unless windows.include?(window)
+
+        window.closed
         windows.delete(window)
         focus(windows.last) if windows.any?
         refresh_menus

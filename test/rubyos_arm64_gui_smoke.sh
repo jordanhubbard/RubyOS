@@ -11,11 +11,14 @@ inspector_capture="/tmp/rubyos-inspector.bmp"
 terminal_capture="/tmp/rubyos-terminal.bmp"
 arcade_capture="/tmp/rubyos-arcade.bmp"
 plasma_capture="/tmp/rubyos-plasma.bmp"
+sprites_capture="/tmp/rubyos-sprites.bmp"
+image_viewer_capture="/tmp/rubyos-image-viewer.bmp"
 export_dir="$(mktemp -d /tmp/rubyos-gui-export.XXXXXX)"
 port="$($root/build/host-ruby/bin/ruby -rsocket -e 'server = TCPServer.new("127.0.0.1", 0); puts server.local_address.ip_port; server.close')"
 
 rm -f "$serial_log" "$bridge_log" "$capture" "$graphical_demo_capture" "$inspector_capture" \
-    "$terminal_capture" "$arcade_capture" "$plasma_capture"
+    "$terminal_capture" "$arcade_capture" "$plasma_capture" "$sprites_capture" \
+    "$image_viewer_capture"
 REMOTEOS_SDL_MODE=headless SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
     REMOTEOS_SDL_EXPORT_DIR="$export_dir" \
     "${REMOTEOS_SDL_BIN:-$root/services/remoteos-sdl/remoteos-sdl}" --listen-tcp "127.0.0.1:$port" \
@@ -79,6 +82,10 @@ test -s "$arcade_capture"
 file "$arcade_capture" | grep -q '480 x 300'
 test -s "$plasma_capture"
 file "$plasma_capture" | grep -q '480 x 300'
+test -s "$sprites_capture"
+file "$sprites_capture" | grep -q '480 x 300'
+test -s "$image_viewer_capture"
+file "$image_viewer_capture" | grep -q '480 x 300'
 test "$(cat "$export_dir/rubyos-host-export.txt")" = \
     'RubyOS host export from the bare-metal VFS.'
 echo 'RubyOS bare-metal CRuby SDL remote desktop smoke: PASS'

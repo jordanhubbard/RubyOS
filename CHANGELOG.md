@@ -20,6 +20,11 @@ All notable RubyOS changes are documented here.
   Raiders, and a circular-world Ruby Defender with radar, abduction, rescue,
   projectiles, and smart bombs. Arcade canvases are now focusable, tick-driven,
   status-bearing, and revision-cached rather than static pixel showcases.
+- Cover the remaining media scenarios with immutable-Data Rain, transparent
+  Bitmap Sprite Layers, and an interactive Tone Lab for bounded Ruby sine,
+  square, triangle, and chord PCM. Replace the placeholder Image Viewer with
+  VFS-backed BMP/PNG/JPEG decoding, keyboard/wheel panning, shared Open dialog,
+  file-manager routing, and close-safe remote surface ownership.
 
 ## [0.3.1] - 2026-09-16
 
