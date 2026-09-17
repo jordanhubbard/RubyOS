@@ -189,7 +189,10 @@ module RubyOS
       def menus(compositor)
         [GUI::Menu.new(title: "Terminal", items: [
           GUI::MenuItem.command("Clear") { clear },
-          GUI::MenuItem.command("Show commands") { evaluate("help") }
+          GUI::MenuItem.command("Show commands") { evaluate("help") },
+          GUI::MenuItem.separator,
+          GUI::MenuItem.command("Paste", shortcut: "Ctrl+V") { @input.paste },
+          GUI::MenuItem.command("Select input", shortcut: "Ctrl+A") { @input.select_all }
         ]), *super]
       end
     end
@@ -427,7 +430,15 @@ module RubyOS
           GUI::MenuItem.command("Autosave enabled", enabled: false)
         ]
         items << GUI::MenuItem.command("Reload Ruby") { reload } if @runtime
-        [GUI::Menu.new(title: "File", items:), *super]
+        edit_items = [
+          GUI::MenuItem.command("Cut", shortcut: "Ctrl+X") { @input.cut },
+          GUI::MenuItem.command("Copy", shortcut: "Ctrl+C") { @input.copy },
+          GUI::MenuItem.command("Paste", shortcut: "Ctrl+V") { @input.paste },
+          GUI::MenuItem.separator,
+          GUI::MenuItem.command("Select All", shortcut: "Ctrl+A") { @input.select_all }
+        ]
+        [GUI::Menu.new(title: "File", items:),
+         GUI::Menu.new(title: "Edit", items: edit_items), *super]
       end
 
       private

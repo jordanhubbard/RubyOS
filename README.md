@@ -82,7 +82,8 @@ Ruby application. F1 opens the live-rebindable keymap, F2 opens Applications,
 F3 opens Terminal, and F4 opens Files; Ctrl-W closes the focused window.
 The editor's File menu uses a shared, keyboard-and-mouse navigable VFS dialog
 for Open and Save As. Its multiline Ruby buffer supports caret placement,
-vertical/page navigation, and wheel scrolling.
+Shift/drag selection, vertical/page navigation, wheel scrolling, and guest
+clipboard cut/copy/paste through the standard Ctrl+A/C/X/V chords.
 Windows resize from their lower-right grip. Anchored Ruby views stretch or
 track an edge declaratively, which keeps Files, Terminal, Editor, dialogs,
 the application catalog, and Ruby demos usable as their windows change size.

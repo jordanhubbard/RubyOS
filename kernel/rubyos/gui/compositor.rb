@@ -103,7 +103,15 @@ module RubyOS
       end
 
       def handle(event)
-        if event.fetch("kind", 0) == 4 && event.fetch("button", 0) == 1
+        kind = event.fetch("kind", 0)
+        if [Input::POINTER_MOVE, Input::POINTER_UP].include?(kind) &&
+           focused_child&.enabled && focused_child.pointer_capture? &&
+           focused_child.respond_to?(:handle_pointer)
+          local_x = event.fetch("x") - x - 10
+          local_y = event.fetch("y") - y - TITLE_HEIGHT - 9
+          return focused_child.handle_pointer(local_x, local_y, event)
+        end
+        if kind == Input::POINTER_DOWN && event.fetch("button", 0) == 1
           local_x = event.fetch("x") - x - 10
           local_y = event.fetch("y") - y - TITLE_HEIGHT - 9
           child = children.reverse.find { |candidate| candidate.contains?(local_x, local_y) }
@@ -113,11 +121,11 @@ module RubyOS
             return child.handle(:click) if child.is_a?(Button)
           end
         end
-        if event.fetch("kind", 0) == 1 && event.fetch("code", 0) == 9
+        if kind == Input::KEY_DOWN && event.fetch("code", 0) == 9
           cycle_focus
           return true
         end
-        if event.fetch("kind", 0) == Input::POINTER_WHEEL
+        if kind == Input::POINTER_WHEEL
           local_x = event.fetch("x", 0) - x - 10
           local_y = event.fetch("y", 0) - y - TITLE_HEIGHT - 9
           child = children.reverse.find { |candidate| candidate.contains?(local_x, local_y) }
@@ -344,6 +352,9 @@ module RubyOS
         if kind == Input::POINTER_UP && @dragging
           @dragging = nil
           return true
+        end
+        if [Input::POINTER_MOVE, Input::POINTER_UP].include?(kind)
+          return focused_window&.handle(event) || false
         end
         return false unless kind == 4 && event.fetch("button", 0) == 1
         point_x = event.fetch("x")

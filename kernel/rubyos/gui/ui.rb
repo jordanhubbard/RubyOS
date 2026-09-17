@@ -18,6 +18,7 @@ module RubyOS
       end
 
       def focusable? = false
+      def pointer_capture? = false
     end
 
     class View < Element
@@ -135,6 +136,28 @@ module RubyOS
       def focusable? = true
     end
 
+    class Clipboard
+      def self.default = (@default ||= new)
+
+      def initialize
+        @text = +""
+      end
+
+      def read = @text.dup
+
+      def write(value)
+        @text = String(value).dup
+        self
+      end
+
+      def clear
+        @text.clear
+        self
+      end
+
+      def empty? = @text.empty?
+    end
+
     class TextInput < View
       LEFT_KEY = 1_073_741_904
       RIGHT_KEY = 1_073_741_903
@@ -145,10 +168,10 @@ module RubyOS
       PAGE_UP_KEY = 1_073_741_899
       PAGE_DOWN_KEY = 1_073_741_900
 
-      attr_reader :text, :cursor, :scroll_line, :scroll_column
+      attr_reader :text, :cursor, :scroll_line, :scroll_column, :clipboard
 
       def initialize(text: "", color: 0xffffff, multiline: false,
-                     on_change: nil, on_submit: nil, **options)
+                     on_change: nil, on_submit: nil, clipboard: Clipboard.default, **options)
         super(**options)
         @text = String(text).dup
         @cursor = @text.each_char.count
@@ -156,6 +179,9 @@ module RubyOS
         @multiline = multiline
         @on_change = on_change
         @on_submit = on_submit
+        @clipboard = clipboard
+        @selection_anchor = nil
+        @pointer_selecting = false
         @scroll_line = 0
         @scroll_column = 0
         ensure_cursor_visible
@@ -164,6 +190,7 @@ module RubyOS
       def draw(surface)
         super
         lines = visible_lines
+        draw_selection(surface)
         lines.each_with_index { |line, index| surface.draw_text(x + 4, y + 4 + index * 20, line, color: @color) }
         if focused
           line, column = cursor_position
@@ -184,34 +211,34 @@ module RubyOS
         end
         return false unless event.fetch("kind", 0) == Input::KEY_DOWN
         code = event.fetch("code", 0)
+        mods = event.fetch("mods", 0)
         typed = event.fetch("text", "")
+        if (mods & Input::MOD_CTRL) != 0
+          return handle_clipboard_key(code)
+        end
+        extend_selection = (mods & Input::MOD_SHIFT) != 0
         if code == 8
-          characters = text.each_char.to_a
-          if cursor.positive?
-            characters.delete_at(cursor - 1)
-            @cursor -= 1
-            replace(characters.join)
-          end
+          delete_backward
         elsif code == 127
-          characters = text.each_char.to_a
-          characters.delete_at(cursor) if cursor < characters.length
-          replace(characters.join)
+          delete_forward
         elsif code == LEFT_KEY
-          @cursor = [cursor - 1, 0].max
+          move_cursor(cursor - 1, extend: extend_selection)
         elsif code == RIGHT_KEY
-          @cursor = [cursor + 1, text.each_char.count].min
+          move_cursor(cursor + 1, extend: extend_selection)
         elsif @multiline && code == UP_KEY
-          move_vertical(-1)
+          move_cursor(vertical_target(-1), extend: extend_selection)
         elsif @multiline && code == DOWN_KEY
-          move_vertical(1)
+          move_cursor(vertical_target(1), extend: extend_selection)
         elsif @multiline && code == PAGE_UP_KEY
-          move_vertical(-row_count)
+          move_cursor(vertical_target(-row_count), extend: extend_selection)
         elsif @multiline && code == PAGE_DOWN_KEY
-          move_vertical(row_count)
+          move_cursor(vertical_target(row_count), extend: extend_selection)
         elsif code == HOME_KEY
-          @cursor = @multiline ? line_start(cursor_position.first) : 0
+          target = @multiline ? line_start(cursor_position.first) : 0
+          move_cursor(target, extend: extend_selection)
         elsif code == END_KEY
-          @cursor = @multiline ? line_end(cursor_position.first) : text.each_char.count
+          target = @multiline ? line_end(cursor_position.first) : text.each_char.count
+          move_cursor(target, extend: extend_selection)
         elsif code == 13
           @multiline ? insert("\n") : @on_submit&.call(text)
         elsif !typed.empty?
@@ -224,18 +251,57 @@ module RubyOS
         true
       end
 
-      def handle_pointer(local_x, local_y, _event)
-        return false unless contains?(local_x, local_y)
+      def selection_range
+        return nil unless @selection_anchor && @selection_anchor != cursor
 
-        if @multiline
-          lines = logical_lines
-          line = [[scroll_line + (local_y - y - 4) / 20, 0].max, lines.length - 1].min
-          column = [[scroll_column + (local_x - x - 4) / 8, 0].max,
-                    lines.fetch(line).each_char.count].min
-          @cursor = line_start(line) + column
-        else
-          @cursor = [[scroll_column + (local_x - x - 4) / 8, 0].max,
-                    text.each_char.count].min
+        [@selection_anchor, cursor].minmax
+      end
+
+      def selected_text
+        range = selection_range
+        range ? text.each_char.to_a.slice(range.first...range.last).join : ""
+      end
+
+      def select_all
+        @selection_anchor = 0
+        @cursor = text.each_char.count
+        ensure_cursor_visible
+        invalidate
+        self
+      end
+
+      def copy
+        clipboard.write(selected_text) if selection_range
+        self
+      end
+
+      def cut
+        copy
+        delete_selection
+        self
+      end
+
+      def paste
+        insert(clipboard.read)
+        self
+      end
+
+      def handle_pointer(local_x, local_y, event)
+        kind = event.fetch("kind", Input::POINTER_DOWN)
+        return false if kind == Input::POINTER_DOWN && !contains?(local_x, local_y)
+        return false if kind != Input::POINTER_DOWN && !pointer_capture?
+
+        position = cursor_at(local_x, local_y)
+        if kind == Input::POINTER_DOWN
+          @cursor = position
+          @selection_anchor = position
+          @pointer_selecting = true
+        elsif kind == Input::POINTER_MOVE
+          @cursor = position
+        elsif kind == Input::POINTER_UP
+          @cursor = position
+          @pointer_selecting = false
+          @selection_anchor = nil if @selection_anchor == cursor
         end
         ensure_cursor_visible
         invalidate
@@ -245,12 +311,15 @@ module RubyOS
       def replace(value, notify: true)
         @text = String(value)
         @cursor = [cursor, @text.each_char.count].min
+        @selection_anchor = nil
         ensure_cursor_visible
         @on_change&.call(@text) if notify
         self
       end
 
-      def move_cursor(position)
+      def move_cursor(position, extend: false)
+        previous = cursor
+        @selection_anchor = extend ? (@selection_anchor || previous) : nil
         @cursor = [[Integer(position), 0].max, text.each_char.count].min
         ensure_cursor_visible
         invalidate
@@ -258,6 +327,7 @@ module RubyOS
       end
 
       def focusable? = true
+      def pointer_capture? = @pointer_selecting
 
       private
 
@@ -269,6 +339,27 @@ module RubyOS
       def visible_lines
         lines = @multiline ? logical_lines.slice(scroll_line, row_count).to_a : [text]
         lines.map { |line| line.each_char.drop(scroll_column).first(columns).join }
+      end
+
+      def draw_selection(surface)
+        range = selection_range
+        return unless range
+
+        visible_lines.each_index do |row|
+          line = @multiline ? scroll_line + row : 0
+          start_at = line_start(line)
+          length = logical_lines.fetch(line).each_char.count
+          from = [range.first - start_at, 0].max
+          to = [range.last - start_at, length].min
+          next unless to > from
+
+          visible_from = [from - scroll_column, 0].max
+          visible_to = [to - scroll_column, columns].min
+          next unless visible_to > visible_from
+
+          surface.fill_rect(x + 4 + visible_from * 8, y + 4 + row * 20,
+                            (visible_to - visible_from) * 8, 16, 0x553184)
+        end
       end
 
       def cursor_position
@@ -285,10 +376,74 @@ module RubyOS
         line_start(line) + logical_lines.fetch(line).each_char.count
       end
 
-      def move_vertical(delta)
+      def vertical_target(delta)
         line, column = cursor_position
         target = [[line + delta, 0].max, logical_lines.length - 1].min
-        @cursor = line_start(target) + [column, logical_lines.fetch(target).each_char.count].min
+        line_start(target) + [column, logical_lines.fetch(target).each_char.count].min
+      end
+
+      def cursor_at(local_x, local_y)
+        if @multiline
+          lines = logical_lines
+          row = (local_y - y - 4) / 20
+          line = [[scroll_line + row, 0].max, lines.length - 1].min
+          column = [[scroll_column + (local_x - x - 4) / 8, 0].max,
+                    lines.fetch(line).each_char.count].min
+          line_start(line) + column
+        else
+          [[scroll_column + (local_x - x - 4) / 8, 0].max,
+           text.each_char.count].min
+        end
+      end
+
+      def handle_clipboard_key(code)
+        case code
+        when 97, 65
+          select_all
+        when 99, 67
+          copy
+        when 120, 88
+          cut
+        when 118, 86
+          paste
+        else
+          return false
+        end
+        invalidate
+        true
+      end
+
+      def delete_backward
+        return true if delete_selection
+        return true unless cursor.positive?
+
+        characters = text.each_char.to_a
+        characters.delete_at(cursor - 1)
+        @cursor -= 1
+        replace(characters.join)
+        true
+      end
+
+      def delete_forward
+        return true if delete_selection
+        return true unless cursor < text.each_char.count
+
+        characters = text.each_char.to_a
+        characters.delete_at(cursor)
+        replace(characters.join)
+        true
+      end
+
+      def delete_selection
+        range = selection_range
+        return false unless range
+
+        characters = text.each_char.to_a
+        characters.slice!(range.first...range.last)
+        @cursor = range.first
+        @selection_anchor = nil
+        replace(characters.join)
+        true
       end
 
       def ensure_cursor_visible
@@ -315,9 +470,14 @@ module RubyOS
 
       def insert(value)
         characters = text.each_char.to_a
+        if (range = selection_range)
+          characters.slice!(range.first...range.last)
+          @cursor = range.first
+        end
         inserted = String(value).each_char.to_a
         characters.insert(cursor, *inserted)
         @cursor += inserted.length
+        @selection_anchor = nil
         replace(characters.join)
       end
     end

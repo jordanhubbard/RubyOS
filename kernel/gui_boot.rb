@@ -101,8 +101,22 @@ module RubyOS
       desktop.events.each { |event| compositor.handle(event) }
       RubyOS.invariant(editor.file_dialog.done? && compositor.focused_window == editor_window,
                        "Escape did not cancel the shared file dialog")
+      original_editor_content = editor.content.dup
+      4.times do
+        client.call("debug.event.inject", { kind: 1, code: GUI::TextInput::RIGHT_KEY, mod: 0x0001 })
+      end
+      desktop.events.each { |event| compositor.handle(event) }
+      compositor.draw(desktop.surface, uptime: "selection + clipboard")
+      desktop.present
+      desktop.capture("/tmp/rubyos-editor-selection.bmp")
+      client.call("debug.event.inject", { kind: 1, code: 99, mod: 0x0040 })
+      client.call("debug.event.inject", { kind: 1, code: 118, mod: 0x0040 })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(GUI::Clipboard.default.read == "clas" &&
+                       editor.content == original_editor_content,
+                       "Editor selection copy/paste did not preserve the Ruby source")
       compositor.close(editor_window)
-      HAL.serial_write("[RubyOS] desktop smoke: file dialog checked\n")
+      HAL.serial_write("[RubyOS] desktop smoke: file dialog and clipboard checked\n")
       client.call("debug.event.inject", { kind: 4, x: 126, y: 10, button: 1 })
       desktop.events.each { |event| compositor.handle(event) }
       compositor.draw(desktop.surface, uptime: "menus")
@@ -232,6 +246,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS] categorized Ruby demo catalog: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] menus and global shortcuts: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] shared open/save dialog: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] text selection and guest clipboard: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] compositor desktop mechanics: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] SDL_ttf Ruby Font: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] PNG/JPEG image surfaces: PASS\n")

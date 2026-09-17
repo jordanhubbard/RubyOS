@@ -11,12 +11,14 @@ catalog_capture="/tmp/rubyos-catalog.bmp"
 menu_capture="/tmp/rubyos-menu.bmp"
 file_dialog_capture="/tmp/rubyos-file-dialog.bmp"
 resized_window_capture="/tmp/rubyos-resized-window.bmp"
+editor_selection_capture="/tmp/rubyos-editor-selection.bmp"
 
 cleanup() {
     kill "${qemu_pid:-}" 2>/dev/null || true
     kill "${service_pid:-}" 2>/dev/null || true
     rm -f "$output" "$service_output" "$catalog_capture" "$menu_capture" \
         "$file_dialog_capture" "$resized_window_capture"
+    rm -f "$editor_selection_capture"
 }
 trap cleanup EXIT
 
@@ -51,6 +53,7 @@ grep -q 'remote SDL desktop: PASS' "$output"
 grep -q 'categorized Ruby demo catalog: PASS' "$output"
 grep -q 'menus and global shortcuts: PASS' "$output"
 grep -q 'shared open/save dialog: PASS' "$output"
+grep -q 'text selection and guest clipboard: PASS' "$output"
 test -s "$catalog_capture"
 file "$catalog_capture" | grep -q '480 x 300'
 cp "$catalog_capture" "$root/build/rubyos-catalog.bmp"
@@ -63,6 +66,9 @@ cp "$file_dialog_capture" "$root/build/rubyos-file-dialog.bmp"
 test -s "$resized_window_capture"
 file "$resized_window_capture" | grep -q '480 x 300'
 cp "$resized_window_capture" "$root/build/rubyos-resized-window.bmp"
+test -s "$editor_selection_capture"
+file "$editor_selection_capture" | grep -q '480 x 300'
+cp "$editor_selection_capture" "$root/build/rubyos-editor-selection.bmp"
 grep -q 'negotiated protocol v2 with client=rubyos' "$service_output"
 ! grep -q 'FATAL\|EXCEPTION\|ASSERT\|\[BUG\]' "$output"
 echo 'RubyOS bare-metal RemoteOS native TCP desktop: PASS'

@@ -50,18 +50,24 @@ module RubyOS
 
       def draw(surface, active_title: nil, status: nil)
         surface.fill_rect(0, 0, @width, HEIGHT, 0x251b31)
-        title_rects.each_with_index do |(x, width), index|
+        rectangles = title_rects
+        rectangles.each_with_index do |(x, width), index|
           surface.fill_rect(x, 0, width, HEIGHT, 0x553184) if index == open_index
           surface.draw_text(x + PADDING, 6, menus.fetch(index).title,
                             color: index == open_index ? 0xffffff : 0xe8dff5)
         end
-        menu_end = title_rects.last&.then { |x, width| x + width } || PADDING
+        menu_end = rectangles.last&.then { |x, width| x + width } || PADDING
         if active_title && menu_end + 16 < @width - 112
           available = [(@width - 120 - menu_end - 16) / GLYPH_WIDTH, 0].max
           surface.draw_text(menu_end + 16, 6, active_title.each_char.first(available).join,
                             color: 0x91869f)
         end
-        surface.draw_text(@width - 104, 6, status || "Ruby 4", color: 0xd8cae5)
+        status_x = [[@width - 104, menu_end + 8].max, @width].min
+        status_columns = [(@width - status_x - 4) / GLYPH_WIDTH, 0].max
+        if status_columns.positive?
+          display_status = String(status || "Ruby 4").each_char.first(status_columns).join
+          surface.draw_text(status_x, 6, display_status, color: 0xd8cae5)
+        end
         draw_popup(surface) if open?
         self
       end

@@ -220,6 +220,40 @@ input.handle("kind" => 1, "code" => 0, "text" => "y")
 input.handle("kind" => 1, "code" => 13)
 assert(submitted == "ruby", "text input insertion, backspace, and submit")
 
+clipboard = RubyOS::GUI::Clipboard.new
+editable = RubyOS::GUI::TextInput.new(text: "ruby blocks", width: 160, height: 24,
+                                       clipboard:)
+editable.focused = true
+editable.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 97,
+                "mods" => RubyOS::Input::MOD_CTRL)
+editable.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 99,
+                "mods" => RubyOS::Input::MOD_CTRL)
+assert(editable.selection_range == [0, 11] && clipboard.read == "ruby blocks",
+       "Ctrl+A and Ctrl+C copy a text selection to the guest clipboard")
+editable.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 120,
+                "mods" => RubyOS::Input::MOD_CTRL)
+assert(editable.text.empty?, "Ctrl+X cuts the selected text")
+editable.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 118,
+                "mods" => RubyOS::Input::MOD_CTRL)
+assert(editable.text == "ruby blocks", "Ctrl+V pastes guest clipboard text")
+editable.move_cursor(0)
+4.times do
+  editable.handle("kind" => RubyOS::Input::KEY_DOWN,
+                  "code" => RubyOS::GUI::TextInput::RIGHT_KEY,
+                  "mods" => RubyOS::Input::MOD_SHIFT)
+end
+assert(editable.selected_text == "ruby", "Shift+Arrow extends a keyboard selection")
+
+pointer_start_x = input_window.x + 10 + 4
+pointer_y = input_window.y + RubyOS::GUI::Window::TITLE_HEIGHT + 9 + 4
+compositor.handle("kind" => RubyOS::Input::POINTER_DOWN, "button" => 1,
+                  "x" => pointer_start_x, "y" => pointer_y)
+compositor.handle("kind" => RubyOS::Input::POINTER_MOVE,
+                  "x" => pointer_start_x + 32, "y" => pointer_y)
+compositor.handle("kind" => RubyOS::Input::POINTER_UP, "button" => 1,
+                  "x" => pointer_start_x + 32, "y" => pointer_y)
+assert(input.selected_text == "ruby", "pointer drag selects text through window capture")
+
 multiline = RubyOS::GUI::TextInput.new(text: "zero\none\ntwo\nthree\nfour",
                                         width: 120, height: 48, multiline: true)
 multiline.focused = true
@@ -242,6 +276,22 @@ assert(menu_bar.handle("kind" => RubyOS::Input::POINTER_DOWN,
        "menu title opens its command popup")
 menu_bar.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 13)
 assert(menu_action && !menu_bar.open?, "keyboard activates the highlighted menu command")
+compact_menu_surface = Class.new do
+  attr_reader :operations
+  def initialize = (@operations = [])
+  def fill_rect(*arguments) = operations << [:fill_rect, *arguments]
+  def draw_text(*arguments, **options) = operations << [:draw_text, *arguments, options]
+end.new
+compact_menus = 4.times.map do |index|
+  RubyOS::GUI::Menu.new(title: "Menu#{index}", items: [])
+end
+menu_bar.replace(compact_menus).draw(compact_menu_surface, status: "long status value")
+status_draw = compact_menu_surface.operations.reverse.find do |operation|
+  operation.first == :draw_text && operation.last[:color] == 0xd8cae5
+end
+assert(status_draw && status_draw.fetch(3) != "long status value" &&
+       status_draw.fetch(1) + status_draw.fetch(3).length * 8 <= 320,
+       "compact menu bar truncates status text instead of overlapping menus")
 
 scroll_items = 10.times.map { |index| { label: "item #{index}", kind: :file } }
 scroll_list = RubyOS::GUI::ListView.new(items: scroll_items, width: 160, height: 52)
