@@ -130,6 +130,29 @@ module RubyOS
       client.call("debug.event.inject", { kind: 1, code: 13 })
       desktop.events.each { |event| compositor.handle(event) }
       RubyOS.invariant(terminal.last_result == "=> 6", "keyboard input did not reach Terminal")
+      client.call("debug.event.inject", { kind: 1, code: GUI::TextInput::UP_KEY })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(terminal.current_command == "6", "Terminal history did not recall the command")
+      compositor.draw(desktop.surface, uptime: "Terminal history")
+      desktop.present
+      desktop.capture("/tmp/rubyos-terminal.bmp")
+      inspector = applications.fetch("Inspector")
+      inspector_window = inspector.launch(compositor)
+      inspector.show_section(key: :class, type: GUI::Window, label: "Window", kind: :file)
+      RubyOS.invariant(inspector.detail_view.text.include?("RubyOS::GUI::Window"),
+                       "Ruby Inspector did not drill into the GUI class model")
+      compositor.draw(desktop.surface, uptime: "live inspector")
+      desktop.present
+      desktop.capture("/tmp/rubyos-inspector.bmp")
+      compositor.close(inspector_window)
+      monitor = applications.fetch("Monitor")
+      monitor_window = monitor.launch(compositor)
+      samples = monitor.refresh_count
+      20.times { monitor_window.tick }
+      RubyOS.invariant(monitor.refresh_count > samples,
+                       "System Monitor did not refresh from window ticks")
+      compositor.close(monitor_window)
+      HAL.serial_write("[RubyOS] desktop smoke: live tools checked\n")
       client.call("debug.event.inject", { kind: 1, code: Input::KEY_F1 })
       desktop.events.each { |event| compositor.handle(event) }
       RubyOS.invariant(compositor.focused_window.title == "Keyboard Shortcuts",
@@ -323,6 +346,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS] SDL input routing: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] keyboard Terminal input: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] core desktop apps: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] live Terminal, Monitor, and Inspector: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] categorized Ruby demo catalog: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] interactive Ruby graphical demos: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] menus and global shortcuts: PASS\n")

@@ -334,6 +334,18 @@ assert(scroll_list.handle("kind" => RubyOS::Input::POINTER_WHEEL, "dy" => -1, "d
        "list view consumes wheel scrolling when more rows are available")
 assert(scroll_list.scroll_offset == 3, "wheel scrolling advances the list viewport")
 
+scroll_text = RubyOS::GUI::TextView.new(
+  text: 12.times.map { |index| "line #{index}" }.join("\n"),
+  width: 160, height: 48, background: 0x101010
+)
+scroll_text.focused = true
+scroll_text.scroll_to_end
+assert(scroll_text.scroll_line.positive? && scroll_text.at_end?,
+       "text view retains scrollback and can follow its end")
+assert(scroll_text.handle("kind" => RubyOS::Input::POINTER_WHEEL, "dy" => 1, "dx" => 0) &&
+       !scroll_text.at_end?,
+       "text view supports focused wheel navigation")
+
 terminal = RubyOS::Apps::Terminal.new
 terminal_window = terminal.launch(compositor)
 "ruby".each_char do |character|
@@ -342,7 +354,37 @@ end
 compositor.handle("kind" => 1, "code" => 13, "text" => "\n")
 assert(terminal.last_result.include?("Ruby is already live here"),
        "desktop Terminal routes commands through the RubyOS shell")
+terminal.evaluate("1 + 1")
+terminal.evaluate("2 + 2")
+compositor.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => RubyOS::GUI::TextInput::UP_KEY)
+assert(terminal.current_command == "2 + 2", "Terminal Up recalls the previous command")
+compositor.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => RubyOS::GUI::TextInput::UP_KEY)
+assert(terminal.current_command == "1 + 1", "Terminal history walks backward")
+compositor.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => RubyOS::GUI::TextInput::DOWN_KEY)
+assert(terminal.current_command == "2 + 2" && terminal.transcript_view.at_end?,
+       "Terminal history walks forward while scrollback follows output")
 compositor.close(terminal_window)
+
+monitor = RubyOS::Apps::SystemMonitor.new
+monitor_window = monitor.launch(compositor)
+monitor_samples = monitor.refresh_count
+20.times { monitor_window.tick }
+assert(monitor.refresh_count > monitor_samples, "System Monitor refreshes from window ticks")
+compositor.close(monitor_window)
+
+inspector = RubyOS::Apps::RubyInspector.new
+inspector_window = inspector.launch(compositor)
+inspector.show_section(key: :class, type: RubyOS::GUI::Window, label: "Window", kind: :file)
+assert(inspector.detail_view.text.include?("RubyOS::GUI::Window") &&
+       inspector.detail_view.text.include?("Ancestors"),
+       "Ruby Inspector drills into classes instead of showing a fixed summary")
+inspector.show_section(key: :graph, label: "Object graph", kind: :file)
+assert(inspector.detail_view.text.include?("Kernel state object graph"),
+       "Ruby Inspector exposes the live kernel object graph")
+inspector_samples = inspector.refresh_count
+45.times { inspector_window.tick }
+assert(inspector.refresh_count > inspector_samples, "Ruby Inspector refreshes live runtime data")
+compositor.close(inspector_window)
 
 files = RubyOS::Apps::Files.new
 files_window = files.launch(compositor)

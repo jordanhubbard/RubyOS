@@ -11,6 +11,10 @@ All notable RubyOS changes are documented here.
   Complex Mandelbrot exploration, range-mapped Spirograph, pointer-driven Paint,
   and an immutable-Data lazy starfield, backed by revision-cached bitmaps and
   per-window animation ticks.
+- Replace static desktop diagnostics with a scrollable Ruby `TextView`, bounded
+  Terminal scrollback and command history, a tick-driven live System Monitor,
+  and a navigable Ruby Inspector for fibers, drivers, heap leaders, object
+  graphs, ancestors, methods, and constants.
 
 ## [0.3.1] - 2026-09-16
 

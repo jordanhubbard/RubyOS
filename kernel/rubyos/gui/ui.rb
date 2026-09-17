@@ -158,6 +158,131 @@ module RubyOS
       def empty? = @text.empty?
     end
 
+    class TextView < View
+      UP_KEY = 1_073_741_906
+      DOWN_KEY = 1_073_741_905
+      HOME_KEY = 1_073_741_898
+      END_KEY = 1_073_741_897
+      PAGE_UP_KEY = 1_073_741_899
+      PAGE_DOWN_KEY = 1_073_741_900
+
+      attr_reader :text, :scroll_line, :clipboard
+      attr_accessor :color
+
+      def initialize(text: "", color: 0xffffff, wrap: false,
+                     clipboard: Clipboard.default, **options)
+        super(**options)
+        @text = String(text).dup
+        @color = Integer(color)
+        @wrap = !!wrap
+        @clipboard = clipboard
+        @scroll_line = 0
+      end
+
+      def replace(value, scroll: nil)
+        @text = String(value).dup
+        clamp_scroll
+        scroll_to(0) if scroll == :start
+        scroll_to_end if scroll == :end
+        invalidate
+        self
+      end
+
+      def append(value)
+        following = at_end?
+        @text << String(value)
+        clamp_scroll
+        scroll_to_end if following
+        invalidate
+        self
+      end
+
+      def scroll_to_end
+        @scroll_line = maximum_scroll
+        invalidate
+        self
+      end
+
+      def scroll_to_start
+        scroll_to(0)
+        self
+      end
+
+      def at_end? = scroll_line >= maximum_scroll
+
+      def draw(surface)
+        super
+        lines = display_lines
+        lines.slice(scroll_line, row_count).to_a.each_with_index do |line, row|
+          surface.draw_text(x + 5, y + 4 + row * Label::LINE_HEIGHT, line, color:)
+        end
+        surface.draw_text(x + width - 13, y + 4, "^", color: 0x8f7cff) if scroll_line.positive?
+        if scroll_line < maximum_scroll
+          surface.draw_text(x + width - 13, y + height - 16, "v", color: 0x8f7cff)
+        end
+      end
+
+      def handle(event)
+        return false unless focused && event.respond_to?(:fetch)
+
+        kind = event.fetch("kind", 0)
+        if kind == Input::POINTER_WHEEL
+          delta = event.fetch("dy", 0)
+          delta = event.fetch("dx", 0) if delta.zero?
+          return scroll(delta.positive? ? -3 : 3)
+        end
+        return false unless kind == Input::KEY_DOWN
+
+        case event.fetch("code", 0)
+        when UP_KEY then scroll(-1)
+        when DOWN_KEY then scroll(1)
+        when PAGE_UP_KEY then scroll(-row_count)
+        when PAGE_DOWN_KEY then scroll(row_count)
+        when HOME_KEY then scroll_to(0)
+        when END_KEY then scroll_to(maximum_scroll)
+        else false
+        end
+      end
+
+      def context_menu_items
+        [MenuItem.command("Copy all", enabled: !text.empty?) { clipboard.write(text) },
+         MenuItem.command("Scroll to end", enabled: !at_end?) { scroll_to_end }]
+      end
+
+      def focusable? = true
+
+      private
+
+      def columns = [[(width - 18) / Label::CHARACTER_WIDTH, 1].max, 240].min
+      def row_count = [[(height - 8) / Label::LINE_HEIGHT, 1].max, 200].min
+
+      def display_lines
+        source = text.split("\n", -1)
+        return source unless @wrap
+
+        source.flat_map do |line|
+          line.empty? ? [""] : line.each_char.each_slice(columns).map(&:join)
+        end
+      end
+
+      def maximum_scroll = [display_lines.length - row_count, 0].max
+
+      def clamp_scroll
+        @scroll_line = [[scroll_line, 0].max, maximum_scroll].min
+      end
+
+      def scroll(delta)
+        scroll_to(scroll_line + Integer(delta))
+      end
+
+      def scroll_to(value)
+        previous = scroll_line
+        @scroll_line = [[Integer(value), 0].max, maximum_scroll].min
+        invalidate if previous != scroll_line
+        previous != scroll_line
+      end
+    end
+
     class TextInput < View
       LEFT_KEY = 1_073_741_904
       RIGHT_KEY = 1_073_741_903
@@ -171,7 +296,8 @@ module RubyOS
       attr_reader :text, :cursor, :scroll_line, :scroll_column, :clipboard
 
       def initialize(text: "", color: 0xffffff, multiline: false,
-                     on_change: nil, on_submit: nil, clipboard: Clipboard.default, **options)
+                     on_change: nil, on_submit: nil, on_history: nil,
+                     clipboard: Clipboard.default, **options)
         super(**options)
         @text = String(text).dup
         @cursor = @text.each_char.count
@@ -179,6 +305,7 @@ module RubyOS
         @multiline = multiline
         @on_change = on_change
         @on_submit = on_submit
+        @on_history = on_history
         @clipboard = clipboard
         @selection_anchor = nil
         @pointer_selecting = false
@@ -229,6 +356,12 @@ module RubyOS
           move_cursor(vertical_target(-1), extend: extend_selection)
         elsif @multiline && code == DOWN_KEY
           move_cursor(vertical_target(1), extend: extend_selection)
+        elsif !@multiline && @on_history && [UP_KEY, DOWN_KEY].include?(code)
+          replacement = @on_history.call(code == UP_KEY ? -1 : 1)
+          if replacement
+            replace(replacement, notify: false)
+            move_cursor(text.each_char.count)
+          end
         elsif @multiline && code == PAGE_UP_KEY
           move_cursor(vertical_target(-row_count), extend: extend_selection)
         elsif @multiline && code == PAGE_DOWN_KEY

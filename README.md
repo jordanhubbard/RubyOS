@@ -85,6 +85,11 @@ content rather than becoming thousands of bridge calls per frame.
 The desktop menu bar is registry-driven and gains commands from the focused
 Ruby application. F1 opens the live-rebindable keymap, F2 opens Applications,
 F3 opens Terminal, and F4 opens Files; Ctrl-W closes the focused window.
+Terminal retains bounded scrollback, supports wheel/Page navigation and Up/Down
+command history, and evaluates shell commands and Ruby expressions through the
+same prompt. System Monitor updates live from compositor ticks. Ruby Inspector
+offers navigable runtime, Fiber, driver, heap, object-graph, and class-model
+views instead of a fixed summary.
 Rebound shortcuts are stored in `/home/.rubyos-keybindings`, restored on the
 next desktop session, and can be reset to defaults from the Shortcuts menu.
 The editor's File menu uses a shared, keyboard-and-mouse navigable VFS dialog

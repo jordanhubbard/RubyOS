@@ -185,7 +185,10 @@ module RubyOS
     end
 
     class Terminal < Application
-      attr_reader :last_result
+      MAX_SCROLLBACK = 500
+      MAX_HISTORY = 100
+
+      attr_reader :last_result, :history, :transcript_view
 
       class OutputBuffer
         attr_reader :string
@@ -205,22 +208,26 @@ module RubyOS
         @output = OutputBuffer.new
         @shell = Shell.new(output: @output)
         @transcript = ["RubyOS console", "Commands and Ruby expressions share this prompt. Type help to begin."]
+        @history ||= []
+        @history_index = @history.length
         GUI::Window.new("Terminal", x: window_x, y: window_y,
                         width: window_width, height: window_height,
                         background: 0x10131a).tap do |window|
-          @result_label = window.add(GUI::Label.new(@transcript.join("\n"), x: 8, y: 8,
-                                                     width: content_width,
-                                                     height: transcript_height,
-                                                     wrap: true, color: 0xc3e88d),
-                                      anchors: [:left, :right, :top, :bottom],
-                                      minimum_width: 80, minimum_height: 24)
+          @transcript_view = window.add(GUI::TextView.new(
+            text: @transcript.join("\n"), x: 8, y: 8,
+            width: content_width, height: transcript_height,
+            wrap: true, background: 0x0b0e14, color: 0xc3e88d
+          ), anchors: [:left, :right, :top, :bottom],
+             minimum_width: 80, minimum_height: 24)
           window.add(GUI::Label.new("rubyos>", x: 8, y: prompt_y, width: 64,
                                     color: 0xffd866), anchors: [:left, :bottom])
           @input = window.add(GUI::TextInput.new(x: 72, y: prompt_y - 6,
                                                  width: window_width - 100, height: 28,
                                                  background: 0x211a29,
-                                                 on_submit: method(:evaluate)),
+                                                 on_submit: method(:evaluate),
+                                                 on_history: method(:navigate_history)),
                               anchors: [:left, :right, :bottom], minimum_width: 56)
+          window.focus_child(@input)
         end
       end
 
@@ -231,20 +238,40 @@ module RubyOS
         @output.clear
         @shell.execute_line(source)
         @last_result = @output.string.sub(/\n\z/, "")
+        @history << source unless @history.last == source
+        @history = @history.last(MAX_HISTORY)
+        @history_index = @history.length
         @transcript << "rubyos> #{source}"
         @transcript.concat(@last_result.split("\n")) unless @last_result.empty?
-        visible_rows = [(@result_label.height / GUI::Label::LINE_HEIGHT), 1].max
-        @transcript = @transcript.last(visible_rows)
-        @result_label.text = @transcript.join("\n")
+        @transcript = @transcript.last(MAX_SCROLLBACK)
+        @transcript_view.replace(@transcript.join("\n"), scroll: :end)
         @input.replace("")
-        @result_label.invalidate
         @last_result
+      end
+
+      def navigate_history(direction)
+        return "" if history.empty?
+
+        @history_index = [[@history_index + Integer(direction), 0].max, history.length].min
+        @history_index == history.length ? "" : history.fetch(@history_index)
+      end
+
+      def current_command = @input&.text.to_s
+
+      def recall(direction)
+        value = navigate_history(direction)
+        @input.replace(value, notify: false).move_cursor(value.each_char.count)
+        true
+      end
+
+      def copy_transcript
+        GUI::Clipboard.default.write(@transcript.join("\n"))
+        true
       end
 
       def clear
         @transcript = ["RubyOS console cleared"]
-        @result_label.text = @transcript.first
-        @result_label.invalidate
+        @transcript_view.replace(@transcript.first, scroll: :end)
         true
       end
 
@@ -252,6 +279,10 @@ module RubyOS
         [GUI::Menu.new(title: "Terminal", items: [
           GUI::MenuItem.command("Clear") { clear },
           GUI::MenuItem.command("Show commands") { evaluate("help") },
+          GUI::MenuItem.command("Copy transcript") { copy_transcript },
+          GUI::MenuItem.separator,
+          GUI::MenuItem.command("Previous command", shortcut: "Up") { recall(-1) },
+          GUI::MenuItem.command("Next command", shortcut: "Down") { recall(1) },
           GUI::MenuItem.separator,
           GUI::MenuItem.command("Paste", shortcut: "Ctrl+V") { @input.paste },
           GUI::MenuItem.command("Select input", shortcut: "Ctrl+A") { @input.select_all }
@@ -260,20 +291,69 @@ module RubyOS
     end
 
     class SystemMonitor < Application
+      attr_reader :refresh_count
+
       def build_window
+        @refresh_count = 0
+        @tick_count = 0
+        @paused = false
+        GUI::Window.new("System Monitor", x: 112, y: 38, width: 340, height: 198,
+                        background: 0x151827).tap do |window|
+          @summary = window.add(GUI::Label.new("", x: 8, y: 4, width: 292,
+                                                height: 40, color: 0xa8d8ff))
+          @task_meter = window.add(GUI::Meter.new(value: 0, maximum: 1,
+                                                   x: 8, y: 48, width: 300, height: 24,
+                                                   color: 0x51d6c5))
+          @heap_meter = window.add(GUI::Meter.new(value: 0, maximum: 1,
+                                                   x: 8, y: 80, width: 300, height: 24,
+                                                   color: 0x8f7cff))
+          @status = window.add(GUI::Label.new("", x: 8, y: 112, width: 190,
+                                               color: 0xc3e88d))
+          window.add(GUI::Button.new("Pause", x: 214, y: 108, width: 94, height: 26,
+                                     action: method(:toggle_pause)))
+          window.on_tick { tick }
+          refresh
+        end
+      end
+
+      def refresh(*)
         tasks = kernel.state.fetch(:scheduler).tasks
         uptime = kernel.state.fetch(:clock).milliseconds
         memory = kernel.state.fetch(:memory).snapshot
         cpus = Concurrency.stats
-        GUI::Window.new("System Monitor", x: 150, y: 36, width: 286, height: 132,
-                        background: 0x202336).tap do |window|
-          window.add(GUI::Label.new("Ruby tasks: #{tasks.length}", x: 0, y: 0, color: 0xf7c978))
-          window.add(GUI::Label.new("Uptime: #{uptime} ms", x: 0, y: 24, color: 0xa8d8ff))
-          window.add(GUI::Label.new("Scheduler: Fiber", x: 0, y: 48, color: 0xc3e88d))
-          window.add(GUI::Label.new("Heap: #{memory.used_bytes / 1024} / #{memory.total_bytes / 1024} KiB",
-                                    x: 0, y: 72, color: 0xe8b4ff))
-          window.add(GUI::Label.new("CPUs: #{cpus.online}/#{cpus.cpus}", x: 0, y: 96, color: 0x89ddff))
-        end
+        active = tasks.count { |task| task.fiber.alive? }
+        @summary.text = "Ruby scheduler  Fiber\nUptime #{uptime} ms   CPUs #{cpus.online}/#{cpus.cpus}"
+        @task_meter.maximum = [tasks.length, 1].max
+        @task_meter.value = active
+        @task_meter.label = "Tasks  #{active} alive / #{tasks.length} total"
+        @heap_meter.maximum = [memory.total_bytes, 1].max
+        @heap_meter.value = memory.used_bytes
+        @heap_meter.label = "Heap  #{memory.used_bytes / 1024} / #{memory.total_bytes / 1024} KiB"
+        @refresh_count += 1
+        @status.text = @paused ? "PAUSED" : "LIVE  sample #{@refresh_count}"
+        @window&.invalidate
+        true
+      end
+
+      def toggle_pause(*)
+        @paused = !@paused
+        @status.text = @paused ? "PAUSED" : "LIVE  sample #{@refresh_count}"
+        @window.invalidate
+        true
+      end
+
+      def menus(compositor)
+        [GUI::Menu.new(title: "Monitor", items: [
+          GUI::MenuItem.command("Refresh now") { refresh },
+          GUI::MenuItem.command(@paused ? "Resume" : "Pause") { toggle_pause }
+        ]), *super]
+      end
+
+      private
+
+      def tick
+        @tick_count += 1
+        refresh if !@paused && (@tick_count % 20).zero?
       end
     end
 
@@ -590,50 +670,150 @@ module RubyOS
     RUBY
 
     class RubyInspector < Application
+      INSPECTABLE_CLASSES = [
+        Object, Array, Hash, Fiber, GUI::View, GUI::Window, Application, Media::Bitmap
+      ].freeze
+
+      attr_reader :current_section, :refresh_count, :detail_view
+
       def build_window
-        @window = GUI::Window.new("Ruby Inspector", x: 94, y: 40, width: 452, height: 308,
-                                  background: 0x151522)
-        @window.add(GUI::Label.new("RUNTIME", x: 8, y: 4, width: 100, color: 0x8f7cff))
-        @fibers = @window.add(GUI::Label.new("", x: 8, y: 28, width: 196,
-                                             color: 0x78dce8))
-        @drivers = @window.add(GUI::Label.new("", x: 220, y: 28, width: 196,
-                                              color: 0xa9dc76))
-        @window.add(GUI::Label.new("OBJECT MODEL", x: 8, y: 62, width: 130,
+        spacious = spacious_desktop?
+        x, y = spacious ? [70, 38] : [20, 28]
+        width, height = spacious ? [560, 350] : [440, 236]
+        content_width = width - 36
+        pane_height = height - 92
+        sidebar_width = spacious ? 176 : 142
+        @window = GUI::Window.new("Ruby Inspector", x:, y:, width:, height:,
+                                  minimum_width: 390, minimum_height: 210,
+                                  background: 0x111522)
+        @window.add(GUI::Label.new("RUBY RUNTIME", x: 8, y: 2, width: 140,
                                    color: 0x8f7cff))
-        @ancestors = @window.add(GUI::Label.new("", x: 8, y: 86, width: 416,
-                                                height: 42, wrap: true, color: 0xffd866))
-        @window.add(GUI::Label.new("LIVE HEAP", x: 8, y: 136, width: 100,
-                                   color: 0x8f7cff))
-        @heap_meters = 3.times.map do |index|
-          @window.add(GUI::Meter.new(value: 0, maximum: 1, x: 8,
-                                     y: 160 + index * 28, width: 416, height: 22,
-                                     color: [0x7048a8, 0x536d9b, 0x3e8178].fetch(index)))
-        end
-        @window.add(GUI::Button.new("Refresh", x: 340, y: 250, width: 84, height: 24,
-                                    action: method(:refresh)))
+        @sections = section_items
+        @section_list = @window.add(GUI::ListView.new(
+          items: @sections, x: 8, y: 28, width: sidebar_width, height: pane_height,
+          background: 0x1a2030, on_activate: method(:show_section)
+        ), anchors: [:left, :top, :bottom], minimum_height: 80)
+        @detail_view = @window.add(GUI::TextView.new(
+          text: "", x: sidebar_width + 18, y: 28,
+          width: content_width - sidebar_width - 18, height: pane_height,
+          wrap: true, background: 0x0b1019, color: 0xc9e4ff
+        ), anchors: [:left, :right, :top, :bottom],
+           minimum_width: 160, minimum_height: 80)
+        @status = @window.add(GUI::Label.new("", x: 8, y: 38 + pane_height,
+                                             width: content_width - 98,
+                                             color: 0x78dce8),
+                              anchors: [:left, :right, :bottom], minimum_width: 100)
+        @window.add(GUI::Button.new("Refresh", x: content_width - 82,
+                                    y: 34 + pane_height, width: 82, height: 26,
+                                    action: method(:refresh)), anchors: [:right, :bottom])
+        @current_section = @sections.first
+        @refresh_count = 0
+        @tick_count = 0
         refresh
+        @window.on_tick { tick }
         @window
       end
 
       def refresh(*)
+        @heap = Introspection.heap_summary(limit: 8)
+        @refresh_count += 1
+        render_section
+        @status.text = "LIVE  sample #{@refresh_count}  |  arrows + Enter  |  wheel scrolls detail"
+        @window.invalidate
+        true
+      end
+
+      def show_section(item)
+        @current_section = item
+        render_section(reset_scroll: true)
+        true
+      end
+
+      def menus(compositor)
+        [GUI::Menu.new(title: "Inspect", items: [
+          GUI::MenuItem.command("Refresh now") { refresh },
+          GUI::MenuItem.command("Copy details") { GUI::Clipboard.default.write(@detail_view.text) },
+          GUI::MenuItem.command("Scroll details to end") { @detail_view.scroll_to_end }
+        ]), *super]
+      end
+
+      private
+
+      def section_items
+        system = [
+          { label: "Overview", key: :overview, kind: :file },
+          { label: "Fibers", key: :fibers, kind: :file },
+          { label: "Drivers", key: :drivers, kind: :file },
+          { label: "Heap", key: :heap, kind: :file },
+          { label: "Object graph", key: :graph, kind: :file }
+        ]
+        classes = INSPECTABLE_CLASSES.map do |type|
+          { label: type.name, key: :class, type:, kind: :file }
+        end
+        system + classes
+      end
+
+      def render_section(reset_scroll: false)
+        return unless @detail_view && current_section
+
+        lines = case current_section.fetch(:key)
+                when :overview then overview_lines
+                when :fibers then fiber_lines
+                when :drivers then driver_lines
+                when :heap then heap_lines
+                when :graph then graph_lines
+                when :class then class_lines(current_section.fetch(:type))
+                end
+        @detail_view.replace(Array(lines).join("\n"), scroll: reset_scroll ? :start : nil)
+      end
+
+      def overview_lines
         state = kernel.state
         fibers = Introspection.fibers(state.fetch(:scheduler))
         drivers = Introspection.drivers(state.fetch(:bus))
-        shape = Introspection.class_shape(GUI::View)
-        heap = Introspection.heap_summary(limit: 3)
-        states = fibers.map { |fiber| fiber[:state] }.tally.map { |name, count| "#{count} #{name}" }
-        @fibers.text = "Fibers  #{fibers.length}  (#{states.join(', ')})"
-        @drivers.text = "Drivers  #{drivers.count { |driver| driver[:bound] }} / #{drivers.length} bound"
-        @ancestors.text = shape[:ancestors].first(4).join("  <  ")
-        maximum = [heap.map(&:last).max || 1, 1].max
-        @heap_meters.each_with_index do |meter, index|
-          name, count = heap.fetch(index, ["-", 0])
-          meter.maximum = maximum
-          meter.value = count
-          meter.label = "#{name}   #{count}"
+        memory = state.fetch(:memory).snapshot
+        ["Ruby #{RUBY_VERSION} / #{RUBY_PLATFORM}", "", "Runtime",
+         "  Fibers: #{fibers.length}",
+         "  Drivers: #{drivers.count { |driver| driver[:bound] }}/#{drivers.length} bound",
+         "  Heap: #{memory.used_bytes / 1024}/#{memory.total_bytes / 1024} KiB", "",
+         "Heap leaders", *heap_lines.first(5).map { |line| "  #{line}" }]
+      end
+
+      def fiber_lines
+        ["Fibers", ""] + Introspection.fibers(kernel.state.fetch(:scheduler)).map do |fiber|
+          "##{fiber[:pid]} #{fiber[:name]}  #{fiber[:state]}  ticks=#{fiber[:ticks]}  id=#{fiber[:fiber_id]}"
         end
-        @window.invalidate
-        true
+      end
+
+      def driver_lines
+        ["Drivers", ""] + Introspection.drivers(kernel.state.fetch(:bus)).flat_map do |driver|
+          ["#{driver[:bound] ? '[bound]' : '[open]'} #{driver[:name]}",
+           "  #{driver[:driver] || 'no driver'}  #{driver[:resources].join(', ')}"]
+        end
+      end
+
+      def heap_lines
+        @heap.map.with_index(1) { |(name, count), index| "#{index.to_s.rjust(2)}. #{name.ljust(24)} #{count}" }
+      end
+
+      def graph_lines
+        graph = Introspection.object_graph(kernel.state, depth: 2, limit: 48)
+        ["Kernel state object graph", "#{graph[:nodes].length} nodes / #{graph[:edges].length} edges" , ""] +
+          graph[:nodes].first(32).map { |node| "#{node[:id]}  #{node[:class]}  #{node[:label]}" }
+      end
+
+      def class_lines(type)
+        shape = Introspection.class_shape(type)
+        [shape[:name], "", "Ancestors", *shape[:ancestors].map { |name| "  #{name}" }, "",
+         "Public methods (#{shape[:public_methods].length})",
+         *shape[:public_methods].first(32).map { |name| "  #{name}" }, "",
+         "Constants (#{shape[:constants].length})",
+         *shape[:constants].first(24).map { |name| "  #{name}" }]
+      end
+
+      def tick
+        @tick_count += 1
+        refresh if (@tick_count % 45).zero?
       end
     end
 

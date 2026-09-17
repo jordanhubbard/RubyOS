@@ -7,10 +7,13 @@ serial_log="$root/build/rubyos-arm64-gui-serial.log"
 bridge_log="$root/build/rubyos-arm64-gui-bridge.log"
 capture="/tmp/rubyos-baremetal-desktop.bmp"
 graphical_demo_capture="/tmp/rubyos-graphical-demo.bmp"
+inspector_capture="/tmp/rubyos-inspector.bmp"
+terminal_capture="/tmp/rubyos-terminal.bmp"
 export_dir="$(mktemp -d /tmp/rubyos-gui-export.XXXXXX)"
 port="$($root/build/host-ruby/bin/ruby -rsocket -e 'server = TCPServer.new("127.0.0.1", 0); puts server.local_address.ip_port; server.close')"
 
-rm -f "$serial_log" "$bridge_log" "$capture" "$graphical_demo_capture"
+rm -f "$serial_log" "$bridge_log" "$capture" "$graphical_demo_capture" "$inspector_capture" \
+    "$terminal_capture"
 REMOTEOS_SDL_MODE=headless SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
     REMOTEOS_SDL_EXPORT_DIR="$export_dir" \
     "${REMOTEOS_SDL_BIN:-$root/services/remoteos-sdl/remoteos-sdl}" --listen-tcp "127.0.0.1:$port" \
@@ -53,6 +56,7 @@ grep -q 'SDL input routing: PASS' "$serial_log"
 grep -q 'keyboard Terminal input: PASS' "$serial_log"
 grep -q 'core desktop apps: PASS' "$serial_log"
 grep -q 'interactive Ruby graphical demos: PASS' "$serial_log"
+grep -q 'live Terminal, Monitor, and Inspector: PASS' "$serial_log"
 grep -q 'host file transfer: PASS' "$serial_log"
 grep -q 'compositor desktop mechanics: PASS' "$serial_log"
 grep -q 'SDL_ttf Ruby Font: PASS' "$serial_log"
@@ -65,6 +69,10 @@ test -s "$capture"
 file "$capture" | grep -q '480 x 300'
 test -s "$graphical_demo_capture"
 file "$graphical_demo_capture" | grep -q '480 x 300'
+test -s "$inspector_capture"
+file "$inspector_capture" | grep -q '480 x 300'
+test -s "$terminal_capture"
+file "$terminal_capture" | grep -q '480 x 300'
 test "$(cat "$export_dir/rubyos-host-export.txt")" = \
     'RubyOS host export from the bare-metal VFS.'
 echo 'RubyOS bare-metal CRuby SDL remote desktop smoke: PASS'

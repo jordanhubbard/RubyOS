@@ -21,9 +21,9 @@ claims, not certification for arbitrary physical hardware.
 | Storage | VFS, tmpfs, ext2, mounted persistent `/home` | Ruby VFS/tmpfs plus writable ext2 over bare-metal VirtIO block, with sparse files, arbitrary truncate, double-indirect traversal, create, unlink, and rmdir | Complete |
 | Network | VirtIO net, Ethernet, ARP, IPv4, ICMP, UDP, TCP, DHCP, DNS | bare-metal Ruby VirtIO net, DHCP, ARP, IPv4/ICMP, UDP, DNS, TCP client/server, concurrent REPL sessions | Complete |
 | Remote display | RemoteOS-SDL v2 over bare-metal TCP/UART | shared service over hosted TCP, VirtIO console, and RubyOS-native bare-metal TCP | Complete |
-| GUI API | SDL-compatible surfaces, events, images, fonts, menus, scrolling, resizing, drag/drop, clipboard | Ruby `Surface`, owned SDL_ttf `Font`, focusable widgets, bounded labels, caret-aware multiline editing with keyboard/pointer selection and a shared guest clipboard, wheel-scrollable lists and text, declarative edge anchors, resizable windows, meters, app menus, keyboard/pointer dispatch, routed host-file drop events, revision-tracked bitmap composition, and per-window animation ticks | In progress |
+| GUI API | SDL-compatible surfaces, events, images, fonts, menus, scrolling, resizing, drag/drop, clipboard | Ruby `Surface`, owned SDL_ttf `Font`, focusable widgets, bounded labels, scrollable text views, caret-aware multiline editing with keyboard/pointer selection and a shared guest clipboard, wheel-scrollable lists and text, declarative edge anchors, resizable windows, meters, app menus, keyboard/pointer dispatch, routed host-file drop events, revision-tracked bitmap composition, and per-window animation ticks | In progress |
 | Desktop | compositor, windows, app-aware menu bar, dynamic dock, wallpaper, shortcuts, context menus | Ruby compositor with focus/z-order, close/minimize/drag/resize, responsive anchored windows, app-aware menus, desktop/window/text context menus, versioned VFS-persistent shortcuts and dock pins, transient running-app dock entries, wallpaper, status bar, and catalog launcher | In progress |
-| Apps | terminal, live editor, files, image viewer, monitor, clock, settings, keybindings, polished shared choosers | About, shell-backed Terminal, transactional Live Editor with shared VFS Open/Save As dialog, navigable Files, Image Viewer, Monitor, Clock, Settings, Keybindings, Ruby Inspector, Media, and metadata-driven Launcher; Files and dialogs stream bounded host imports/exports | In progress |
+| Apps | terminal, live editor, files, image viewer, monitor, clock, settings, keybindings, polished shared choosers | About, history/scrollback Terminal, transactional Live Editor with shared VFS Open/Save As dialog, navigable Files, Image Viewer, live System Monitor, Clock, Settings, Keybindings, drill-down Ruby Inspector, Media, and metadata-driven Launcher; Files and dialogs stream bounded host imports/exports | In progress |
 | Demos and games | fifteen graphical/audio demos and arcade games | Ruby-centric Enumerable, Fiber, pattern-matching, Life, Complex/Mandelbrot, Spirograph, Paint, and lazy-Data starfield demos plus Invaders and Snake; graphics/audio host lessons also exist | In progress (8 demos, 2 games) |
 | Input | PS/2 and VirtIO input, canonical event queue, configurable persistent desktop shortcuts | bounded canonical Ruby event queue fed by SDL, native x86 PS/2 keyboard/mouse, ARM64 VirtIO keyboard/mouse, normalized SDL modifiers/function keys, and a live-rebindable keymap persisted through the VFS | Complete |
 | Audio | Intel HDA/VirtIO/bridge mixer and sound API | Ruby PCM/waveform mixer, bare-metal SDL bridge, native ARM64 VirtIO Sound, and native x86_64 Intel HDA DMA | Complete |
@@ -45,8 +45,7 @@ not by itself establish equal depth. The largest remaining gaps are:
   visualization, audio tone, and its larger arcade set; RubyOS equivalents
   should teach Ruby objects and protocols rather than transliterate Python
   modules;
-- richer Terminal scrollback/history, editor commands and menus, live monitor
-  refresh, image navigation, and inspector drill-down;
+- richer editor commands and menus plus image navigation;
 - categorized start-here and concurrency curricula, broader graphical/media
   examples, and independent frozen-image/QEMU reachability checks;
 - desktop visual regression baselines and interaction tests covering every
