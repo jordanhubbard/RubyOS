@@ -7,11 +7,12 @@ source "$root/test/guest-command.sh"
 port="${RUBYOS_REMOTEOS_PORT:-17012}"
 output="$(mktemp /tmp/rubyos-tcp-gui.XXXXXX)"
 service_output="$(mktemp /tmp/rubyos-tcp-gui-service.XXXXXX)"
+catalog_capture="/tmp/rubyos-catalog.bmp"
 
 cleanup() {
     kill "${qemu_pid:-}" 2>/dev/null || true
     kill "${service_pid:-}" 2>/dev/null || true
-    rm -f "$output" "$service_output"
+    rm -f "$output" "$service_output" "$catalog_capture"
 }
 trap cleanup EXIT
 
@@ -43,6 +44,10 @@ cat "$service_output"
 grep -q 'RemoteOS TCP ready on 10.0.2.15:5001' "$output"
 grep -q 'RemoteOS over native TCP: PASS' "$output"
 grep -q 'remote SDL desktop: PASS' "$output"
+grep -q 'categorized Ruby demo catalog: PASS' "$output"
+test -s "$catalog_capture"
+file "$catalog_capture" | grep -q '480 x 300'
+cp "$catalog_capture" "$root/build/rubyos-catalog.bmp"
 grep -q 'negotiated protocol v2 with client=rubyos' "$service_output"
 ! grep -q 'FATAL\|EXCEPTION\|ASSERT\|\[BUG\]' "$output"
 echo 'RubyOS bare-metal RemoteOS native TCP desktop: PASS'

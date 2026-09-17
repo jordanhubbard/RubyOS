@@ -9,6 +9,7 @@ paths = %w[
   kernel/rubyos/input.rb
   kernel/rubyos/concurrency.rb
   kernel/rubyos/debug.rb
+  kernel/rubyos/examples.rb
   kernel/rubyos/sound.rb
   kernel/rubyos/media.rb
   kernel/rubyos/live.rb
@@ -35,6 +36,8 @@ paths = %w[
   kernel/rubyos/apps/application.rb
   kernel/rubyos/apps/system_apps.rb
   kernel/rubyos/apps/games.rb
+  kernel/rubyos/apps/ruby_demos.rb
+  kernel/rubyos/apps/catalog.rb
   kernel/rubyos/bridge/protocol.rb
   kernel/rubyos/bridge/codec.rb
   kernel/rubyos/bridge/client.rb
@@ -51,6 +54,11 @@ paths = %w[
   kernel/audio_boot.rb
   kernel/smp_boot.rb
 ]
+
+if ENV["RUBYOS_EMBED_LIST"] == "1"
+  puts paths
+  exit
+end
 
 source = paths.map do |path|
   File.readlines(File.join(root, path)).reject do |line|

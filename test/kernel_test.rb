@@ -223,11 +223,12 @@ compositor.close(terminal_window)
 files = RubyOS::Apps::Files.new
 files_window = files.launch(compositor)
 compositor.handle("kind" => 1, "code" => RubyOS::GUI::ListView::DOWN_KEYS.first)
+compositor.handle("kind" => 1, "code" => RubyOS::GUI::ListView::DOWN_KEYS.first)
 compositor.handle("kind" => 1, "code" => 13)
 assert(files.path == "/home", "Files keyboard selection opens a VFS directory")
 compositor.handle("kind" => 1, "code" => 8)
 assert(files.path == "/", "Files Backspace navigation returns to the parent directory")
-home_row_y = files_window.y + RubyOS::GUI::Window::TITLE_HEIGHT + 9 + 34 + 26 + 8
+home_row_y = files_window.y + RubyOS::GUI::Window::TITLE_HEIGHT + 9 + 34 + 52 + 8
 compositor.handle("kind" => 4, "button" => 1,
                   "x" => files_window.x + 24, "y" => home_row_y)
 assert(files.path == "/home", "Files pointer selection opens a VFS directory")
@@ -237,6 +238,41 @@ assert(compositor.focused_window.title == "Editor - /home/#{home_file}",
        "Files opens regular files in the VFS-backed Editor")
 compositor.close(compositor.focused_window)
 compositor.close(files_window)
+
+assert(RubyOS::Examples.run("enumerable_pipeline") == [1, 9, 25, 49, 81],
+       "canonical Enumerable example executes from the embedded catalog")
+assert(RubyOS::Examples.run("pattern_matching") == "virtio-net is ready",
+       "canonical pattern matching example destructures kernel-shaped data")
+assert(state.fetch(:vfs).read_file("/examples/fiber_stream.rb").include?("Fiber.yield"),
+       "canonical Ruby examples are present in the live VFS")
+
+shell_output = StringIO.new
+shell = RubyOS::Shell.new(output: shell_output)
+shell.execute_line("examples")
+shell.execute_line("example fiber_stream")
+shell.execute_line("apps")
+assert(shell_output.string.include?("enumerable_pipeline") &&
+       shell_output.string.include?("[1, 2, 4, 8, 16, 32]") &&
+       shell_output.string.include?("Enumerable Lab"),
+       "shell discovers and runs examples and lists categorized applications")
+
+catalog = RubyOS::Apps::Catalog.build(kernel: RubyOS::Kernel)
+assert(catalog.entries(category: :app).length == 10 &&
+       catalog.entries(category: :demo).length == 3 &&
+       catalog.entries(category: :game).length == 2,
+       "application catalog preserves app, demo, and game categories")
+enumerable_entry = catalog.entry("Enumerable Lab")
+catalog.replace("Enumerable Lab", RubyOS::Apps::EnumerableLab.new)
+assert(catalog.entry("Enumerable Lab").description == enumerable_entry.description &&
+       catalog.entry("Enumerable Lab").category == :demo,
+       "live replacement preserves application catalog metadata")
+launcher = catalog.fetch("Launcher")
+launcher_window = launcher.launch(compositor)
+launcher.launch_entry(entry: catalog.entry("Enumerable Lab"))
+assert(compositor.focused_window.title == "Enumerable Pipeline",
+       "graphical application catalog launches a Ruby demo")
+compositor.close(compositor.focused_window)
+compositor.close(launcher_window)
 
 settings = RubyOS::Apps::Settings.new
 settings_window = settings.launch(compositor)

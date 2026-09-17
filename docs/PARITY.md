@@ -14,27 +14,52 @@ claims, not certification for arbitrary physical hardware.
 |---|---|---|---|
 | Source-built language runtime | Cross-built CPython | CRuby 4.0.6 with Prism and native Fiber context backends, cross-built as static ARM64 and x86_64 kernels | Complete |
 | Bare-metal boot | x86_64 and ARM64, exceptions, timers | ARM64 EL1/FPU/TLS/exceptions/GICv2-v3 timer plus x86_64 Multiboot2/long-mode/SSE/TLS/IDT/PIT | Complete |
-| Scheduler | cooperative asyncio tasks, timer accounting, kill/reap lifecycle | cooperative Ruby Fibers with PIDs, per-task ticks, timed deadlines, kill/zombie-style completion, explicit reap, and auto-reap | Complete |
-| Interactive shell | serial and multi-session TCP REPL, commands, editor | shared serial/TCP command processor, simultaneous TCP sessions with private bindings and shared VFS/kernel objects, GUI editor | Complete |
+| Scheduler | cooperative asyncio tasks, timer accounting, kill/reap lifecycle | cooperative Ruby Fibers with PIDs, per-task ticks, timed deadlines, kill/zombie-style completion, explicit reap, and auto-reap | Core complete; broader async APIs pending |
+| Interactive shell | serial and multi-session TCP REPL, commands, editor, public desktop/example discovery | shared serial/TCP command processor, simultaneous TCP sessions with private bindings and shared VFS/kernel objects, GUI editor, and public `apps`, `examples`, and `example NAME` commands | In progress |
 | Device model | buses and typed drivers | enumerable discovery buses, platform/PCI device hierarchy, typed MMIO/port/IRQ resources, specificity-ranked driver DSL, probe/remove lifecycle, lookup, and topology | Complete |
 | Memory | physical allocator, DMA, mmap, heap metrics | reclaimable Ruby page-frame manager over the freestanding buddy heap, aligned DMA, mmap shim, and live heap metrics on ARM64/x86_64 | Complete |
 | Storage | VFS, tmpfs, ext2, mounted persistent `/home` | Ruby VFS/tmpfs plus writable ext2 over bare-metal VirtIO block, with sparse files, arbitrary truncate, double-indirect traversal, create, unlink, and rmdir | Complete |
 | Network | VirtIO net, Ethernet, ARP, IPv4, ICMP, UDP, TCP, DHCP, DNS | bare-metal Ruby VirtIO net, DHCP, ARP, IPv4/ICMP, UDP, DNS, TCP client/server, concurrent REPL sessions | Complete |
 | Remote display | RemoteOS-SDL v2 over bare-metal TCP/UART | shared service over hosted TCP, VirtIO console, and RubyOS-native bare-metal TCP | Complete |
-| GUI API | SDL-compatible surfaces, events, images, fonts | Ruby `Surface`, owned SDL_ttf `Font`, and widget hierarchy with focused keyboard/text dispatch | Complete |
-| Desktop | compositor, windows, menu bar, dock, wallpaper, shortcuts | Ruby compositor with focus/z-order, close/minimize/drag, patterned wallpaper, shortcuts, menu bar, and dock | Complete |
-| Apps | terminal, live editor, files, image viewer, monitor, clock, settings | About, Terminal, transactional Live Editor, Files, Image Viewer, Monitor, Clock, Settings, Ruby Inspector, Live Ruby | Complete |
-| Demos and games | graphics/audio demos and arcade games | graphics/audio lessons plus interactive Ruby Invaders and Snake desktop games with input, animation, collision, scoring, sound cues, and bitmap rendering | Complete |
-| Input | PS/2 and VirtIO input, canonical event queue | bounded canonical Ruby event queue fed by SDL, native x86 PS/2 keyboard/mouse, and ARM64 VirtIO keyboard/mouse, all polled at CRuby-safe points | Complete |
+| GUI API | SDL-compatible surfaces, events, images, fonts, menus, scrolling, resizing, drag/drop, clipboard | Ruby `Surface`, owned SDL_ttf `Font`, focusable widgets, bounded labels, text editing, lists, meters, and keyboard/pointer dispatch | In progress |
+| Desktop | compositor, windows, app-aware menu bar, dynamic dock, wallpaper, shortcuts, context menus | Ruby compositor with focus/z-order, close/minimize/drag, responsive windows, wallpaper, shortcuts, status bar, dock, and catalog launcher | In progress |
+| Apps | terminal, live editor, files, image viewer, monitor, clock, settings, keybindings, polished shared choosers | About, shell-backed Terminal, transactional Live Editor, navigable Files, Image Viewer, Monitor, Clock, Settings, Ruby Inspector, Media, and metadata-driven Launcher | In progress |
+| Demos and games | fifteen graphical/audio demos and arcade games | Ruby-centric Enumerable, Fiber, and pattern-matching labs plus Invaders and Snake; graphics/audio host lessons also exist | In progress (3 demos, 2 games) |
+| Input | PS/2 and VirtIO input, canonical event queue, configurable desktop shortcuts | bounded canonical Ruby event queue fed by SDL, native x86 PS/2 keyboard/mouse, and ARM64 VirtIO keyboard/mouse, all polled at CRuby-safe points; configurable shortcuts are missing | In progress |
 | Audio | Intel HDA/VirtIO/bridge mixer and sound API | Ruby PCM/waveform mixer, bare-metal SDL bridge, native ARM64 VirtIO Sound, and native x86_64 Intel HDA DMA | Complete |
 | Images | PNG/JPEG decoding and viewer | Ruby remote surfaces, raw upload, bare-metal PNG/JPEG decode/blit, and Image Viewer | Complete |
 | Concurrency | ARM64/x86 SMP, pthread substrate, no-GIL workers | ARM64 PSCI and x86 INIT/SIPI AP bring-up with C-safe native worker mailboxes exposed through Ruby while CRuby remains GVL-safe on the BSP | Complete |
-| Debug/automation | QMP/native debug, captures, performance metrics | serial/QMP/GDB-remote, captures, object graphs, class/Fiber/driver reflection, guest timing and shared-service telemetry | Complete |
+| Debug/automation | QMP/native debug, captures, performance metrics, desktop golden coverage | serial/QMP/GDB-remote, captures, object graphs, class/Fiber/driver reflection, guest timing and shared-service telemetry; broad desktop golden coverage is missing | In progress |
 | Web serving | Python network services | Rack-shaped request environment/router/response served by RubyOS's bare-metal TCP stack | Foundation complete |
-| Teaching examples | curated storage/network/graphics/audio/internals lessons | executable Ruby lessons for storage, networking, graphics, audio, internals, live Ruby, object graphs, web, and remote desktop | Complete |
+| Teaching examples | categorized start-here, concurrency, storage, networking, graphics/chipset/SDL, audio, and internals lessons | executable subsystem lessons plus six kernel-embedded canonical Ruby examples covering Enumerable, pattern matching, Fibers, mixins, Method objects, and Data records | In progress |
+
+## Breadth gaps
+
+The status column is deliberately evidence-based. A booting counterpart does
+not by itself establish equal depth. The largest remaining gaps are:
+
+- app-aware menus, context menus, resizing, scrolling, clipboard, drag/drop,
+  shared file choosers, configurable shortcuts, and source-opening workflows;
+- PythonOS demo breadth such as paint, life, Mandelbrot, spirograph, plasma,
+  starfield, rainfall, sprites, keyboard visualization, and its larger arcade
+  set; RubyOS equivalents should teach Ruby objects and protocols rather than
+  transliterate Python modules;
+- richer Terminal scrollback/history, editor commands and menus, live monitor
+  refresh, image navigation, and inspector drill-down;
+- categorized start-here and concurrency curricula, broader graphical/media
+  examples, and independent frozen-image/QEMU reachability checks;
+- desktop visual regression baselines and interaction tests covering every
+  catalog entry on both guest architectures.
 
 ## Delivery order
 
-Every PythonOS behavior row now has a RubyOS implementation and integration
-evidence. `make parity` runs the hosted contracts and the ARM64/x86_64 native
-matrix; future changes should keep the corresponding bare-metal gate green.
+1. Keep the metadata-driven catalog and public example surface reachable from
+   hosted Ruby, serial/TCP shells, and the graphical desktop.
+2. Close shared desktop primitives before multiplying bespoke apps: menus,
+   scrolling, resize/layout, shortcuts, file choosers, drag/drop, and clipboard.
+3. Grow Ruby-native demos around Enumerable, Fiber, pattern matching,
+   metaprogramming, refinements, object graphs, Rack-style composition, and
+   live class replacement while matching PythonOS's graphical breadth.
+4. Deepen the core applications and add cross-architecture catalog launch and
+   rendered-golden gates. `make parity` remains necessary but is not, today,
+   sufficient evidence of full behavioral parity.

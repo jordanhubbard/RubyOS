@@ -245,13 +245,15 @@ module RubyOS
         @dock_items.each_with_index do |(label, _), index|
           x = 12 + index * dock_slot_width
           surface.fill_rect(x, y + 6, dock_slot_width - 8, 28, 0x49325f)
-          surface.draw_text(x + 7, y + 14, label, color: 0xf2eaf7)
+          columns = [[(dock_slot_width - 14) / 8, 1].max, label.each_char.count].min
+          surface.draw_text(x + 7, y + 14, label.each_char.first(columns).join,
+                            color: 0xf2eaf7)
         end
       end
 
 
       def dock_slot_width
-        [(@width - 24) / [@dock_items.length, 1].max, 40].max
+        [(@width - 24) / [@dock_items.length, 1].max, 32].max
       end
     end
   end

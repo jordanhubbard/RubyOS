@@ -14,32 +14,18 @@ module RubyOS
       desktop = Bridge::RemoteDesktop.new(client, width: 480, height: 300,
                                            title: "RubyOS Bare-Metal Desktop")
       compositor = GUI::Compositor.new(width: 480, height: 300, title: "RubyOS")
-      terminal = Apps::Terminal.new
-      settings = Apps::Settings.new
-      applications = Apps::Registry.new
-        .register("About", Apps::About.new)
-        .register("Files", Apps::Files.new)
-        .register("Terminal", terminal)
-        .register("Monitor", Apps::SystemMonitor.new)
-        .register("Image", Apps::ImageViewer.new)
-        .register("Media", Apps::MediaWorkbench.new)
-        .register("Clock", Apps::Clock.new)
-        .register("Settings", settings)
-        .register("Inspector", Apps::RubyInspector.new)
-        .register("Invaders", Apps::Invaders.new)
-        .register("Snake", Apps::Snake.new)
+      applications = Apps::Catalog.build(kernel: self)
+      terminal = applications.fetch("Terminal")
+      settings = applications.fetch("Settings")
       runtime = Live::Runtime.new(vfs: state.fetch(:vfs), registry: applications)
       runtime.install("Live Hello", source: Apps::LIVE_HELLO_SOURCE,
                       path: "/apps/live_hello.rb")
       applications.register("Editor", Apps::Editor.new(
         path: "/apps/live_hello.rb", runtime:, application_name: "Live Hello"
-      ))
-      dock_labels = { "About" => "Abt", "Files" => "File", "Terminal" => "Term",
-                      "Monitor" => "Mon", "Editor" => "Edit", "Image" => "Img",
-                      "Media" => "Art", "Clock" => "Clk", "Settings" => "Set" }
-      applications.each do |name, application|
-        next if ["Invaders", "Snake"].include?(name)
-        compositor.add_dock_item(dock_labels.fetch(name, name)) { application.launch(compositor) }
+      ), description: "Edit VFS files and transactionally reload Ruby applications",
+         dock_label: "Edit")
+      applications.entries(category: :app).each do |entry|
+        compositor.add_dock_item(entry.dock_label) { entry.application.launch(compositor) }
       end
       compositor.add_shortcut("Clock", x: 8, y: 42) { applications.fetch("Clock").launch(compositor) }
       compositor.add_shortcut("Files", x: 8, y: 104) { applications.fetch("Files").launch(compositor) }
@@ -48,6 +34,24 @@ module RubyOS
       applications.fetch("Media").launch(compositor)
       terminal_window = applications.fetch("Terminal").launch(compositor)
       HAL.serial_write("[RubyOS] desktop smoke: applications launched\n")
+      RubyOS.invariant(applications.entries(category: :app).length == 12 &&
+                       applications.entries(category: :demo).length == 3 &&
+                       applications.entries(category: :game).length == 2,
+                       "categorized application catalog is incomplete")
+      launcher_window = applications.fetch("Launcher").launch(compositor)
+      compositor.draw(desktop.surface, uptime: "catalog")
+      desktop.present
+      desktop.capture("/tmp/rubyos-catalog.bmp")
+      compositor.close(launcher_window)
+      applications.entries(category: :demo).each do |entry|
+        demo = entry.application
+        demo_window = demo.launch(compositor)
+        demo.advance if demo.respond_to?(:advance)
+        demo.resume if demo.respond_to?(:resume)
+        compositor.draw(desktop.surface, uptime: entry.name)
+        compositor.close(demo_window)
+      end
+      HAL.serial_write("[RubyOS] desktop smoke: Ruby demos checked\n")
       invaders = applications.fetch("Invaders")
       game_window = invaders.launch(compositor)
       invaders.game.enemies.replace([[15, 16]])
@@ -167,6 +171,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS] SDL input routing: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] keyboard Terminal input: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] core desktop apps: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] categorized Ruby demo catalog: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] compositor desktop mechanics: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] SDL_ttf Ruby Font: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] PNG/JPEG image surfaces: PASS\n")
@@ -182,22 +187,15 @@ module RubyOS
       client.hello
       desktop = Bridge::RemoteDesktop.new(client, width: 640, height: 480, title: "RubyOS")
       compositor = GUI::Compositor.new(width: 640, height: 480, title: "RubyOS")
-      applications = Apps::Registry.new
-      { "About" => Apps::About.new, "Files" => Apps::Files.new,
-        "Terminal" => Apps::Terminal.new, "Monitor" => Apps::SystemMonitor.new,
-        "Inspector" => Apps::RubyInspector.new, "Clock" => Apps::Clock.new,
-        "Settings" => Apps::Settings.new, "Invaders" => Apps::Invaders.new,
-        "Snake" => Apps::Snake.new }.each { |name, app| applications.register(name, app) }
+      applications = Apps::Catalog.build(kernel: self)
       runtime = Live::Runtime.new(vfs: state.fetch(:vfs), registry: applications)
       runtime.install("Live Hello", source: Apps::LIVE_HELLO_SOURCE, path: "/apps/live_hello.rb")
       applications.register("Editor", Apps::Editor.new(
-        path: "/apps/live_hello.rb", runtime:, application_name: "Live Hello"))
-      dock_labels = { "About" => "Info", "Files" => "Files", "Terminal" => "Term",
-                      "Monitor" => "Mon", "Inspector" => "Ruby", "Clock" => "Clock",
-                      "Settings" => "Set", "Invaders" => "Inv", "Snake" => "Snake",
-                      "Live Hello" => "Live", "Editor" => "Edit" }
-      applications.each do |name, application|
-        compositor.add_dock_item(dock_labels.fetch(name, name[0, 4])) { application.launch(compositor) }
+        path: "/apps/live_hello.rb", runtime:, application_name: "Live Hello"),
+        description: "Edit VFS files and transactionally reload Ruby applications",
+        dock_label: "Edit")
+      applications.entries(category: :app).each do |entry|
+        compositor.add_dock_item(entry.dock_label) { entry.application.launch(compositor) }
       end
       applications.fetch("Terminal").launch(compositor)
       ready = false

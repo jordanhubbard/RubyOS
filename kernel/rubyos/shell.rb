@@ -5,6 +5,9 @@ module RubyOS
     COMMANDS = {
       "help" => "show RubyOS shell commands",
       "ruby" => "show the interactive Ruby runtime",
+      "apps" => "list desktop applications, Ruby demos, and games",
+      "examples" => "list canonical Ruby examples",
+      "example" => "run a canonical Ruby example: example name",
       "version" => "show the running Ruby implementation",
       "devices" => "list devices and bound drivers",
       "tasks" => "list scheduler tasks and states",
@@ -59,6 +62,20 @@ module RubyOS
       when "ruby"
         @output.puts RUBY_DESCRIPTION
         @output.puts "Ruby is already live here; enter any Ruby expression at this prompt."
+      when "apps"
+        Apps::Catalog.build(kernel: RubyOS::Kernel).entries.each do |entry|
+          @output.puts format("%-5s %-18s %s", entry.category, entry.name, entry.description)
+        end
+        @output.puts "Start the graphical catalog with make run-gui, then open Apps."
+      when "examples"
+        Examples.each do |lesson|
+          @output.puts format("%-22s %s", lesson.name, lesson.summary)
+        end
+        @output.puts "Run one with: example NAME"
+      when "example"
+        name = arguments.fetch(0)
+        result = Examples.run(name, context: @context)
+        @output.puts "=> #{result.inspect}"
       when "devices"
         devices = RubyOS::Kernel.state&.fetch(:bus, nil)
         devices&.each do |device|

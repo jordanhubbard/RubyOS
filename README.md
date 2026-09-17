@@ -71,6 +71,13 @@ make stop         # stop this checkout's running session
 make help         # show the small public command set
 ```
 
+At any `rubyos>` prompt, `apps` lists the categorized desktop catalog,
+`examples` lists kernel-embedded Ruby lessons, and `example NAME` executes one.
+The graphical **Apps** launcher exposes full applications, Ruby-focused demos,
+and games without pinning every demo to the dock. Current language labs cover
+Enumerable pipelines, Fiber yield/resume choreography, and structural pattern
+matching; their underlying examples are readable in `/examples`.
+
 These commands select the host CPU by default: ARM64 on ARM hosts, x86_64 on
 Intel/AMD hosts. Use `make run-gui TARGET_ARCH=x86_64` or `TARGET_ARCH=arm64`
 to select either guest explicitly. Docker must be running; a native-host

@@ -60,7 +60,8 @@ module RubyOS
       filesystem = FS::TmpFS.new.seed(
         "tmp" => {},
         "home" => { "welcome.txt" => "Welcome to RubyOS. Ruby is the kernel.\n" },
-        "apps" => {}
+        "apps" => {},
+        "examples" => Examples.files
       )
       vfs = FS::VFS.new.mount("/", filesystem)
 
