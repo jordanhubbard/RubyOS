@@ -6,10 +6,12 @@ elf="$root/build/baremetal/rubyos-arm64-gui/rubyos.elf"
 serial_log="$root/build/rubyos-arm64-gui-serial.log"
 bridge_log="$root/build/rubyos-arm64-gui-bridge.log"
 capture="/tmp/rubyos-baremetal-desktop.bmp"
+export_dir="$(mktemp -d /tmp/rubyos-gui-export.XXXXXX)"
 port="$($root/build/host-ruby/bin/ruby -rsocket -e 'server = TCPServer.new("127.0.0.1", 0); puts server.local_address.ip_port; server.close')"
 
 rm -f "$serial_log" "$bridge_log" "$capture"
 REMOTEOS_SDL_MODE=headless SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+    REMOTEOS_SDL_EXPORT_DIR="$export_dir" \
     "${REMOTEOS_SDL_BIN:-$root/services/remoteos-sdl/remoteos-sdl}" --listen-tcp "127.0.0.1:$port" \
     >"$bridge_log" 2>&1 &
 bridge_pid=$!
@@ -18,6 +20,7 @@ cleanup() {
         kill "$bridge_pid" 2>/dev/null || true
     fi
     wait "$bridge_pid" 2>/dev/null || true
+    rm -rf "$export_dir"
 }
 trap cleanup EXIT
 
@@ -48,6 +51,7 @@ grep -q 'remote SDL desktop: PASS' "$serial_log"
 grep -q 'SDL input routing: PASS' "$serial_log"
 grep -q 'keyboard Terminal input: PASS' "$serial_log"
 grep -q 'core desktop apps: PASS' "$serial_log"
+grep -q 'host file transfer: PASS' "$serial_log"
 grep -q 'compositor desktop mechanics: PASS' "$serial_log"
 grep -q 'SDL_ttf Ruby Font: PASS' "$serial_log"
 grep -q 'PNG/JPEG image surfaces: PASS' "$serial_log"
@@ -57,6 +61,8 @@ grep -q 'Ruby arcade games: PASS' "$serial_log"
 ! grep -q 'FATAL\|EXCEPTION\|ASSERT\|\[BUG\]' "$serial_log"
 test -s "$capture"
 file "$capture" | grep -q '480 x 300'
+test "$(cat "$export_dir/rubyos-host-export.txt")" = \
+    'RubyOS host export from the bare-metal VFS.'
 echo 'RubyOS bare-metal CRuby SDL remote desktop smoke: PASS'
 
 if [[ "${RUBYOS_REQUIRE_MEDIA:-0}" == 1 ]]; then

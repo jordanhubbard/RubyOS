@@ -5,7 +5,7 @@ module RubyOS
     class FileDialog
       MODES = [:open, :save].freeze
 
-      attr_reader :compositor, :vfs, :mode, :cwd, :result, :window
+      attr_reader :compositor, :vfs, :mode, :cwd, :result, :window, :transfer
 
       def initialize(compositor:, vfs:, mode: :open, path: nil,
                      title: nil, default_name: "untitled.rb", extensions: nil,
@@ -19,6 +19,7 @@ module RubyOS
         @extensions = Array(extensions).map { |extension| String(extension).downcase }.freeze
         @on_accept = on_accept
         @on_cancel = on_cancel
+        @transfer = compositor.file_transfer
         @done = false
         build(title || (mode == :save ? "Save File" : "Open File"), filename)
         refresh
@@ -92,6 +93,42 @@ module RubyOS
         true
       end
 
+      def receive_drop(event)
+        return false unless transfer&.import_supported?
+
+        local_x = event.fetch("x", 0) - window.x - 10
+        local_y = event.fetch("y", 0) - window.y - Window::TITLE_HEIGHT - 9
+        target = @list.item_at(local_x, local_y)
+        destination = target&.fetch(:kind, nil) == :directory ? target.fetch(:path) : cwd
+        report("Importing #{event.fetch('name', 'host file')}...")
+        path, count = transfer.import(
+          token: event.fetch("token", 0), name: event.fetch("name", ""),
+          size: event.fetch("size", -1), directory: destination
+        )
+        refresh
+        report("Imported #{count} bytes: #{path}")
+        true
+      rescue StandardError => error
+        report("Import failed: #{error.message}", error: true)
+        true
+      end
+
+      def export_selected(*)
+        return false unless transfer&.export_supported?
+
+        item = @list.selected_item
+        unless item && item.fetch(:kind) == :file
+          report("Select a file to export", error: true)
+          return false
+        end
+        host_path, count = transfer.export(item.fetch(:path))
+        report("Exported #{count} bytes: #{host_path}")
+        true
+      rescue StandardError => error
+        report("Export failed: #{error.message}", error: true)
+        false
+      end
+
       private
 
       def build(title, filename)
@@ -127,8 +164,14 @@ module RubyOS
           controls_y += 34
         end
         @status = window.add(Label.new("", x: 8, y: controls_y + 5,
-                                       width: content_width - 150, color: 0xa8d8ff),
+                                       width: content_width - (transfer&.export_supported? ? 224 : 150),
+                                       color: 0xa8d8ff),
                              anchors: [:left, :right, :bottom], minimum_width: 30)
+        if transfer&.export_supported?
+          window.add(Button.new("Export", x: content_width - 212, y: controls_y,
+                                width: 68, height: 26, action: method(:export_selected)),
+                     anchors: [:right, :bottom])
+        end
         action_label = mode == :save ? "Save" : "Open"
         window.add(Button.new(action_label, x: content_width - 138, y: controls_y,
                               width: 62, height: 26, action: ->(*) { accept }),
@@ -137,6 +180,7 @@ module RubyOS
                               width: 70, height: 26, action: method(:cancel)),
                    anchors: [:right, :bottom])
         window.focus_child(@list)
+        window.on_file_drop { |event| receive_drop(event) } if transfer&.import_supported?
       end
 
       def refresh
@@ -149,7 +193,8 @@ module RubyOS
         end
         @path_label.text = cwd
         @list.replace(items)
-        report("#{items.length} item#{items.length == 1 ? '' : 's'} | arrows + Enter")
+        count = "#{items.length} item#{items.length == 1 ? '' : 's'}"
+        report(transfer&.import_supported? ? "#{count} | drop host files" : "#{count} | arrows + Enter")
         window.invalidate
       end
 

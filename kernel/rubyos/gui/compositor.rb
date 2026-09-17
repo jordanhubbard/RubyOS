@@ -38,6 +38,12 @@ module RubyOS
         @minimum_width = Integer(minimum_width || [width / 2, 140].max)
         @minimum_height = Integer(minimum_height || [height / 2, 80].max)
         @layouts = {}
+        @file_drop_handler = nil
+      end
+
+      def on_file_drop(&handler)
+        @file_drop_handler = handler
+        self
       end
 
       def draw(surface)
@@ -104,6 +110,9 @@ module RubyOS
 
       def handle(event)
         kind = event.fetch("kind", 0)
+        if kind == Input::FILE_DROP && @file_drop_handler
+          return !!@file_drop_handler.call(event)
+        end
         if [Input::POINTER_MOVE, Input::POINTER_UP].include?(kind) &&
            focused_child&.enabled && focused_child.pointer_capture? &&
            focused_child.respond_to?(:handle_pointer)
@@ -201,7 +210,7 @@ module RubyOS
       MENU_HEIGHT = 24
       DOCK_HEIGHT = 42
 
-      attr_reader :width, :height, :windows
+      attr_reader :width, :height, :windows, :file_transfer
 
       def initialize(width:, height:, title: "RubyOS")
         @width = width
@@ -221,6 +230,14 @@ module RubyOS
         @keybindings = {}
         @bindings_by_name = {}
         @key_capture = nil
+        @file_transfer = nil
+        @file_drop_handler = nil
+      end
+
+      def install_file_transfer(service, &fallback)
+        @file_transfer = service
+        @file_drop_handler = fallback
+        self
       end
 
       def add_window(window)
@@ -376,6 +393,13 @@ module RubyOS
 
       def handle(event)
         kind = event.fetch("kind", 0)
+        if kind == Input::FILE_DROP
+          window = window_at(event.fetch("x", 0), event.fetch("y", 0)) || focused_window
+          focus(window) if window
+          return true if window&.handle(event)
+
+          return !!@file_drop_handler&.call(event)
+        end
         return true if @context_menu.handle(event)
         return true if @menu_bar.handle(event)
         if kind == Input::KEY_DOWN

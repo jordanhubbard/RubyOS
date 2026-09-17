@@ -4,6 +4,10 @@ All notable RubyOS changes are documented here.
 
 ## [Unreleased]
 
+- Add bounded host-to-VFS file drops and VFS-to-host exports to Files and the
+  shared Open/Save dialogs, with collision-safe names, partial-import cleanup,
+  host-policy export paths, and ARM64/x86_64 frozen-guest acceptance.
+
 ## [0.3.1] - 2026-09-16
 
 - Add `make install` as the supported self-bootstrap path for ARM64 and x86_64

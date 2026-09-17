@@ -523,6 +523,12 @@ module RubyOS
         selected_index && items[selected_index]
       end
 
+      def item_at(point_x, point_y)
+        return nil unless contains?(point_x, point_y)
+
+        items[scroll_offset + (point_y - y) / ROW_HEIGHT]
+      end
+
       def draw(surface)
         super
         visible_rows.times do |row|

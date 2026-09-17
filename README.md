@@ -83,7 +83,10 @@ F3 opens Terminal, and F4 opens Files; Ctrl-W closes the focused window.
 Rebound shortcuts are stored in `/home/.rubyos-keybindings`, restored on the
 next desktop session, and can be reset to defaults from the Shortcuts menu.
 The editor's File menu uses a shared, keyboard-and-mouse navigable VFS dialog
-for Open and Save As. Its multiline Ruby buffer supports caret placement,
+for Open and Save As. Files and shared dialogs accept host file drops and
+export selected guest files through bounded 32 KiB protocol chunks; imports
+use safe collision-free VFS names and exports stay inside the host's configured
+destination policy. Its multiline Ruby buffer supports caret placement,
 Shift/drag selection, vertical/page navigation, wheel scrolling, and guest
 clipboard cut/copy/paste through the standard Ctrl+A/C/X/V chords.
 Windows resize from their lower-right grip. Anchored Ruby views stretch or
@@ -184,6 +187,9 @@ build/host-ruby/bin/ruby -I kernel examples/remote_desktop.rb
 
 The v2 wire protocol is currently unauthenticated and unencrypted. Keep it on
 loopback or a trusted private/SSH-forwarded connection.
+Host transfers never accept guest-selected host paths: drops arrive as opaque
+tokens, and exports are basenames resolved by RemoteOS-SDL under
+`REMOTEOS_SDL_EXPORT_DIR` (or the host Downloads directory).
 
 `make rubyos-arm64-tcp-gui-smoke` proves the preferred bare-metal transport:
 RubyOS acquires DHCP through its VirtIO NIC, accepts RemoteOS-SDL on its own TCP

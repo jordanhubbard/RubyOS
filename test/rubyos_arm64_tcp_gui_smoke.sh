@@ -7,6 +7,7 @@ source "$root/test/guest-command.sh"
 port="${RUBYOS_REMOTEOS_PORT:-17012}"
 output="$(mktemp /tmp/rubyos-tcp-gui.XXXXXX)"
 service_output="$(mktemp /tmp/rubyos-tcp-gui-service.XXXXXX)"
+export_dir="$(mktemp -d /tmp/rubyos-tcp-gui-export.XXXXXX)"
 catalog_capture="/tmp/rubyos-catalog.bmp"
 menu_capture="/tmp/rubyos-menu.bmp"
 file_dialog_capture="/tmp/rubyos-file-dialog.bmp"
@@ -25,6 +26,7 @@ cleanup() {
     rm -f "$persistent_keymap_capture"
     rm -f "$context_menu_capture"
     rm -f "$dock_menu_capture"
+    rm -rf "$export_dir"
 }
 trap cleanup EXIT
 
@@ -35,6 +37,7 @@ trap cleanup EXIT
 qemu_pid=$!
 
 REMOTEOS_SDL_MODE=headless SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+    REMOTEOS_SDL_EXPORT_DIR="$export_dir" \
     "${REMOTEOS_SDL_BIN:-$root/services/remoteos-sdl/remoteos-sdl}" \
     --connect-tcp "127.0.0.1:$port" --connect-timeout-ms 30000 \
     >"$service_output" 2>&1 &
@@ -59,10 +62,13 @@ grep -q 'remote SDL desktop: PASS' "$output"
 grep -q 'categorized Ruby demo catalog: PASS' "$output"
 grep -q 'menus and global shortcuts: PASS' "$output"
 grep -q 'shared open/save dialog: PASS' "$output"
+grep -q 'host file transfer: PASS' "$output"
 grep -q 'text selection and guest clipboard: PASS' "$output"
 grep -q 'persistent shortcut keymap: PASS' "$output"
 grep -q 'desktop/window/text context menus: PASS' "$output"
 grep -q 'dynamic persistent dock: PASS' "$output"
+test "$(cat "$export_dir/rubyos-host-export.txt")" = \
+    'RubyOS host export from the bare-metal VFS.'
 test -s "$catalog_capture"
 file "$catalog_capture" | grep -q '480 x 300'
 cp "$catalog_capture" "$root/build/rubyos-catalog.bmp"

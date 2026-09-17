@@ -523,6 +523,93 @@ editor.save("Edited by a Ruby object.\n")
 assert(state.fetch(:vfs).read_file("/home/editor.txt") == "Edited by a Ruby object.\n",
        "Editor persists through VFS")
 
+transfer_source = ("Ruby blocks cross the host boundary.\n" * 1_200).b
+transfer_client = Class.new do
+  attr_reader :features, :exported, :calls
+
+  def initialize(source)
+    @source = source
+    @features = ["file.drop", "file.export"].freeze
+    @exported = +"".b
+    @calls = []
+  end
+
+  def call(operation, parameters = {}, payload: +"".b)
+    @calls << [operation, parameters, payload.bytesize]
+    case operation
+    when "host.file.read"
+      offset = parameters.fetch(:offset)
+      chunk = @source.byteslice(offset, parameters.fetch(:length)) || +"".b
+      { "data" => chunk.unpack1("H*"), "bytes" => chunk.bytesize,
+        "eof" => offset + chunk.bytesize >= @source.bytesize }
+    when "host.export.begin"
+      { "token" => 41, "path" => "/host/#{parameters.fetch(:name)}" }
+    when "host.export.chunk"
+      @exported << payload
+      { "bytes" => payload.bytesize }
+    when "host.export.finish"
+      { "path" => "/host/exported.rb" }
+    when "host.export.abort"
+      {}
+    else
+      raise "unexpected transfer operation: #{operation}"
+    end
+  end
+end.new(transfer_source)
+transfer = RubyOS::Bridge::FileTransfer.new(
+  client: transfer_client, vfs: state.fetch(:vfs)
+)
+state.fetch(:vfs).write_file("/home/canonical.rb", "existing")
+imported_path, imported_count = transfer.import(
+  token: 7, name: "../../canonical.rb", size: transfer_source.bytesize
+)
+assert(imported_path == "/home/canonical.rb.1" && imported_count == transfer_source.bytesize &&
+       state.fetch(:vfs).read_file(imported_path) == transfer_source,
+       "host import streams bounded chunks to a safe collision-free VFS path")
+host_path, exported_count = transfer.export(imported_path)
+assert(host_path == "/host/exported.rb" && exported_count == transfer_source.bytesize &&
+       transfer_client.exported == transfer_source,
+       "guest export streams bounded VFS chunks through host policy")
+begin
+  transfer.import(token: 8, name: "changed.rb", size: transfer_source.bytesize + 1)
+  raise "changed host file was accepted"
+rescue RubyOS::Error => error
+  raise unless error.message.include?("changed during transfer")
+end
+begin
+  state.fetch(:vfs).stat("/home/changed.rb")
+  raise "failed host import left a partial VFS file"
+rescue RubyOS::FS::NotFound
+  nil
+end
+
+drop_desktop = RubyOS::GUI::Compositor.new(width: 640, height: 480)
+drop_desktop.install_file_transfer(transfer)
+dropped_dialog = RubyOS::GUI::FileDialog.new(
+  compositor: drop_desktop, vfs: state.fetch(:vfs), mode: :open, path: "/home/"
+)
+drop_event = RubyOS::Input::Event.build(
+  kind: RubyOS::Input::FILE_DROP, x: dropped_dialog.window.x + 20,
+  y: dropped_dialog.window.y + 80, name: "dropped.rb", token: 9,
+  size: transfer_source.bytesize
+)
+assert(drop_desktop.handle(drop_event) &&
+       state.fetch(:vfs).read_file("/home/dropped.rb") == transfer_source,
+       "compositor routes host drops into the focused shared file dialog")
+dropped_dialog.cancel
+
+drop_catalog = RubyOS::Apps::Catalog.build(kernel: RubyOS::Kernel)
+drop_desktop = RubyOS::GUI::Compositor.new(width: 640, height: 480)
+RubyOS::Apps::Catalog.install_desktop(drop_desktop, drop_catalog, file_transfer: transfer)
+background_drop = RubyOS::Input::Event.build(
+  kind: RubyOS::Input::FILE_DROP, x: 20, y: 200, name: "background.rb",
+  token: 10, size: transfer_source.bytesize
+)
+assert(drop_desktop.handle(background_drop) &&
+       state.fetch(:vfs).read_file("/home/background.rb") == transfer_source &&
+       drop_desktop.focused_window.application.equal?(drop_catalog.fetch("Files")),
+       "desktop background drops import into Home and reveal the Files application")
+
 dialog_desktop = RubyOS::GUI::Compositor.new(width: 640, height: 480)
 opened_path = nil
 open_dialog = RubyOS::GUI::FileDialog.new(

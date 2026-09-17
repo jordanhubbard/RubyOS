@@ -20,7 +20,7 @@ module RubyOS
         registry
       end
 
-      def install_desktop(compositor, registry)
+      def install_desktop(compositor, registry, file_transfer: nil)
         launch = ->(name) { registry.fetch(name).launch(compositor) }
         category_menu = lambda do |title, category|
           GUI::Menu.new(title:, items: registry.entries(category:).map do |entry|
@@ -56,7 +56,23 @@ module RubyOS
                     name: "Close Window") { compositor.close(compositor.focused_window) }
         registry.fetch("Keybindings").restore(compositor)
         install_dock(compositor, registry)
+        install_file_transfer(compositor, registry, file_transfer) if file_transfer
         compositor
+      end
+
+      def install_file_transfer(compositor, registry, transfer)
+        compositor.install_file_transfer(transfer) do |event|
+          files = registry.fetch("Files")
+          window = compositor.windows.reverse.find { |candidate| candidate.application.equal?(files) }
+          if window
+            window.minimized = false
+            compositor.focus(window)
+          else
+            files.launch(compositor)
+          end
+          files.navigate("/home")
+          files.receive_drop(event, directory: "/home")
+        end
       end
 
       def install_dock(compositor, registry)

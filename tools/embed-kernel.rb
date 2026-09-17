@@ -43,6 +43,7 @@ paths = %w[
   kernel/rubyos/bridge/protocol.rb
   kernel/rubyos/bridge/codec.rb
   kernel/rubyos/bridge/client.rb
+  kernel/rubyos/bridge/file_transfer.rb
   kernel/rubyos/bridge/desktop.rb
   kernel/rubyos/bridge/virtio_console.rb
   kernel/rubyos/bridge/native_tcp.rb

@@ -14,6 +14,7 @@ module RubyOS
       desktop = Bridge::RemoteDesktop.new(client, width: 480, height: 300,
                                            title: "RubyOS Bare-Metal Desktop")
       compositor = GUI::Compositor.new(width: 480, height: 300, title: "RubyOS")
+      file_transfer = Bridge::FileTransfer.new(client:, vfs: state.fetch(:vfs))
       applications = Apps::Catalog.build(kernel: self)
       terminal = applications.fetch("Terminal")
       settings = applications.fetch("Settings")
@@ -24,7 +25,7 @@ module RubyOS
         path: "/apps/live_hello.rb", runtime:, application_name: "Live Hello"
       ), description: "Edit VFS files and transactionally reload Ruby applications",
          dock_label: "Edit")
-      Apps::Catalog.install_desktop(compositor, applications)
+      Apps::Catalog.install_desktop(compositor, applications, file_transfer:)
       compositor.add_shortcut("Clock", x: 8, y: 42) { applications.fetch("Clock").launch(compositor) }
       compositor.add_shortcut("Files", x: 8, y: 104) { applications.fetch("Files").launch(compositor) }
       applications.fetch("About").launch(compositor)
@@ -176,6 +177,13 @@ module RubyOS
                        "Editor selection copy/paste did not preserve the Ruby source")
       compositor.close(editor_window)
       HAL.serial_write("[RubyOS] desktop smoke: file dialog and clipboard checked\n")
+      export_source = "RubyOS host export from the bare-metal VFS.\n"
+      state.fetch(:vfs).write_file("/home/rubyos-host-export.txt", export_source)
+      exported_path, exported_count = file_transfer.export("/home/rubyos-host-export.txt")
+      RubyOS.invariant(exported_count == export_source.bytesize &&
+                       exported_path.end_with?("rubyos-host-export.txt"),
+                       "bounded host file export did not complete")
+      HAL.serial_write("[RubyOS] desktop smoke: host file export checked\n")
       client.call("debug.event.inject", { kind: 4, x: 126, y: 10, button: 1 })
       desktop.events.each { |event| compositor.handle(event) }
       compositor.draw(desktop.surface, uptime: "menus")
@@ -308,6 +316,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS] desktop/window/text context menus: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] dynamic persistent dock: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] shared open/save dialog: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] host file transfer: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] text selection and guest clipboard: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] compositor desktop mechanics: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] SDL_ttf Ruby Font: PASS\n")
@@ -324,6 +333,7 @@ module RubyOS
       client.hello
       desktop = Bridge::RemoteDesktop.new(client, width: 640, height: 480, title: "RubyOS")
       compositor = GUI::Compositor.new(width: 640, height: 480, title: "RubyOS")
+      file_transfer = Bridge::FileTransfer.new(client:, vfs: state.fetch(:vfs))
       applications = Apps::Catalog.build(kernel: self)
       runtime = Live::Runtime.new(vfs: state.fetch(:vfs), registry: applications)
       runtime.install("Live Hello", source: Apps::LIVE_HELLO_SOURCE, path: "/apps/live_hello.rb")
@@ -331,7 +341,7 @@ module RubyOS
         path: "/apps/live_hello.rb", runtime:, application_name: "Live Hello"),
         description: "Edit VFS files and transactionally reload Ruby applications",
         dock_label: "Edit")
-      Apps::Catalog.install_desktop(compositor, applications)
+      Apps::Catalog.install_desktop(compositor, applications, file_transfer:)
       applications.fetch("Terminal").launch(compositor)
       ready = false
       loop do

@@ -48,9 +48,16 @@ module RubyOS
                             anchors: [:left, :right, :top, :bottom],
                             minimum_width: 80, minimum_height: 30)
         @status = @window.add(GUI::Label.new("", x: 8, y: 44 + list_height,
-                                             width: content_width,
+                                             width: content_width - (transfer&.export_supported? ? 78 : 0),
                                              height: 22, color: 0xa8d8ff),
                               anchors: [:left, :right, :bottom], minimum_width: 80)
+        if transfer&.export_supported?
+          @window.add(GUI::Button.new("Export", x: content_width - 70, y: 44 + list_height,
+                                      width: 70, height: 24,
+                                      action: method(:export_selected)),
+                      anchors: [:right, :bottom])
+        end
+        @window.on_file_drop { |event| receive_drop(event) } if transfer&.import_supported?
         refresh
         @window.focus_child(@list)
         @window
@@ -87,8 +94,51 @@ module RubyOS
         true
       end
 
+      def receive_drop(event, directory: nil)
+        return false unless transfer&.import_supported?
+
+        target = unless directory
+                   local_x = event.fetch("x", 0) - @window.x - 10
+                   local_y = event.fetch("y", 0) - @window.y - GUI::Window::TITLE_HEIGHT - 9
+                   @list.item_at(local_x, local_y)
+                 end
+        destination = directory || (target&.fetch(:kind, nil) == :directory ? target.fetch(:path) : path)
+        show_transfer_status("Importing #{event.fetch('name', 'host file')}...")
+        imported_path, count = transfer.import(
+          token: event.fetch("token", 0), name: event.fetch("name", ""),
+          size: event.fetch("size", -1), directory: destination
+        )
+        refresh
+        show_transfer_status("Imported #{count} bytes: #{imported_path}")
+        true
+      rescue StandardError => error
+        show_transfer_status("Import failed: #{error.message}", error: true)
+        true
+      end
+
+      def export_selected(*)
+        return false unless transfer&.export_supported?
+
+        item = @list.selected_item
+        unless item && item.fetch(:kind) == :file
+          show_transfer_status("Select a file to export", error: true)
+          return false
+        end
+        host_path, count = transfer.export(item.fetch(:path))
+        show_transfer_status("Exported #{count} bytes: #{host_path}")
+        true
+      rescue StandardError => error
+        show_transfer_status("Export failed: #{error.message}", error: true)
+        false
+      end
+
       def menus(compositor)
-        [GUI::Menu.new(title: "Go", items: [
+        file_items = [
+          GUI::MenuItem.command("Export Selected",
+                                enabled: !!transfer&.export_supported?) { export_selected }
+        ]
+        [GUI::Menu.new(title: "File", items: file_items),
+         GUI::Menu.new(title: "Go", items: [
           GUI::MenuItem.command("Up", shortcut: "Backspace") { go_up },
           GUI::MenuItem.command("Home") { navigate("/home") },
           GUI::MenuItem.command("Root") { navigate("/") }
@@ -96,6 +146,16 @@ module RubyOS
       end
 
       private
+
+      def transfer = @compositor&.file_transfer
+
+      def show_transfer_status(message, error: false)
+        return unless @status
+
+        @status.text = String(message)
+        @status.color = error ? 0xff668a : 0xc3e88d
+        @status.invalidate
+      end
 
       def refresh
         vfs = kernel.state.fetch(:vfs)
@@ -107,7 +167,9 @@ module RubyOS
         @window.title = "Files - #{path}"
         @path_label.text = path
         @list.replace(items)
-        @status.text = "#{items.length} item#{items.length == 1 ? '' : 's'}  |  arrows + Enter  |  Backspace: up"
+        count = "#{items.length} item#{items.length == 1 ? '' : 's'}"
+        @status.text = transfer&.import_supported? ? "#{count}  |  drop host files" :
+                                                     "#{count}  |  arrows + Enter"
         @status.color = 0xa8d8ff
         @window.invalidate
       end
