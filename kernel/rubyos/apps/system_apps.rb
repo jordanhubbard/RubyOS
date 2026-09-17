@@ -217,11 +217,42 @@ module RubyOS
       end
     end
 
+    class TerminalHistory
+      HEADER = "# RubyOS terminal history v1"
+      DEFAULT_PATH = "/home/.rubyos-history"
+
+      def initialize(vfs:, path: DEFAULT_PATH, limit: 100)
+        @vfs = vfs
+        @path = String(path)
+        @limit = Integer(limit)
+      end
+
+      def load
+        lines = @vfs.read_file(@path).lines(chomp: true)
+        return [] unless lines.shift == HEADER
+
+        lines.last(@limit).filter_map do |line|
+          next if line.empty?
+          line.gsub("%0A", "\n").gsub("%25", "%")
+        end
+      rescue FS::NotFound
+        []
+      end
+
+      def save(commands)
+        rows = Array(commands).last(@limit).map do |command|
+          String(command).gsub("%", "%25").gsub("\n", "%0A")
+        end
+        @vfs.write_file(@path, ([HEADER] + rows).join("\n") + "\n")
+        rows.length
+      end
+    end
+
     class Terminal < Application
       MAX_SCROLLBACK = 500
       MAX_HISTORY = 100
 
-      attr_reader :last_result, :history, :transcript_view
+      attr_reader :last_result, :history, :transcript_view, :completion_candidates
 
       class OutputBuffer
         attr_reader :string
@@ -239,9 +270,11 @@ module RubyOS
         transcript_height = window_height - 98
         prompt_y = window_height - 74
         @output = OutputBuffer.new
-        @shell = Shell.new(output: @output)
+        @shell = Shell.new(output: @output, desktop: method(:launch_desktop))
+        @pending_source = +""
         @transcript = ["RubyOS console", "Commands and Ruby expressions share this prompt. Type help to begin."]
-        @history ||= []
+        @history_store ||= TerminalHistory.new(vfs: kernel.state.fetch(:vfs), limit: MAX_HISTORY)
+        @history ||= @history_store.load
         @history_index = @history.length
         GUI::Window.new("Terminal", x: window_x, y: window_y,
                         width: window_width, height: window_height,
@@ -252,13 +285,14 @@ module RubyOS
             wrap: true, background: 0x0b0e14, color: 0xc3e88d
           ), anchors: [:left, :right, :top, :bottom],
              minimum_width: 80, minimum_height: 24)
-          window.add(GUI::Label.new("rubyos>", x: 8, y: prompt_y, width: 64,
-                                    color: 0xffd866), anchors: [:left, :bottom])
+          @prompt_label = window.add(GUI::Label.new("rubyos>", x: 8, y: prompt_y, width: 64,
+                                                    color: 0xffd866), anchors: [:left, :bottom])
           @input = window.add(GUI::TextInput.new(x: 72, y: prompt_y - 6,
                                                  width: window_width - 100, height: 28,
                                                  background: 0x211a29,
                                                  on_submit: method(:evaluate),
-                                                 on_history: method(:navigate_history)),
+                                                 on_history: method(:navigate_history),
+                                                 on_complete: method(:complete_input)),
                               anchors: [:left, :right, :bottom], minimum_width: 56)
           window.focus_child(@input)
         end
@@ -268,18 +302,41 @@ module RubyOS
         source = String(source).strip
         return nil if source.empty?
 
+        combined = @pending_source.empty? ? source : "#{@pending_source}\n#{source}"
+        unless @shell.source_complete?(combined)
+          prompt = @pending_source.empty? ? "rubyos>" : "....>"
+          @transcript << "#{prompt} #{source}"
+          @pending_source = combined
+          @prompt_label.text = "....>"
+          @transcript_view.replace(@transcript.join("\n"), scroll: :end)
+          @input.replace("")
+          return :continue
+        end
+        @pending_source.clear
+        @prompt_label.text = "rubyos>"
+
         @output.clear
-        @shell.execute_line(source)
+        @shell.execute_line(combined)
         @last_result = @output.string.sub(/\n\z/, "")
-        @history << source unless @history.last == source
+        @history << combined unless @history.last == combined
         @history = @history.last(MAX_HISTORY)
+        @history_store.save(@history)
         @history_index = @history.length
-        @transcript << "rubyos> #{source}"
+        @transcript << "rubyos> #{combined.gsub("\n", "\n....> ")}"
         @transcript.concat(@last_result.split("\n")) unless @last_result.empty?
         @transcript = @transcript.last(MAX_SCROLLBACK)
         @transcript_view.replace(@transcript.join("\n"), scroll: :end)
         @input.replace("")
         @last_result
+      end
+
+      def complete_input(source)
+        completed, @completion_candidates = @shell.complete(source)
+        if @completion_candidates.length > 1 && completed == source
+          @transcript << @completion_candidates.first(12).join("  ")
+          @transcript_view.replace(@transcript.last(MAX_SCROLLBACK).join("\n"), scroll: :end)
+        end
+        completed
       end
 
       def navigate_history(direction)
@@ -306,6 +363,19 @@ module RubyOS
         @transcript = ["RubyOS console cleared"]
         @transcript_view.replace(@transcript.first, scroll: :end)
         true
+      end
+
+      def launch_desktop(name, *arguments)
+        if name.casecmp?("Editor")
+          path = arguments.first || "/home/welcome.txt"
+          return Editor.new(kernel:, path:).launch(@compositor)
+        end
+
+        registry = Catalog.build(kernel:)
+        entry = registry.entries.find { |candidate| candidate.name.casecmp?(name) }
+        raise KeyError, "unknown desktop application: #{name}" unless entry
+
+        entry.application.launch(@compositor)
       end
 
       def menus(compositor)
@@ -1050,13 +1120,64 @@ module RubyOS
     end
 
     class ImageViewer < Application
-      EXTENSIONS = %w[.bmp .png .jpg .jpeg].freeze
+      EXTENSIONS = %w[.bmp .png .jpg .jpeg .ppm].freeze
       MAX_BYTES = 16 * 1024 * 1024
 
       attr_reader :path, :surface, :file_dialog, :canvas, :last_error
 
       def self.image_path?(path)
         EXTENSIONS.include?(File.extname(String(path)).downcase)
+      end
+
+      def self.decode_ppm(bytes)
+        bytes = String(bytes).b
+        offset = 0
+        token = lambda do
+          loop do
+            offset += 1 while offset < bytes.bytesize && bytes.getbyte(offset).chr.match?(/\s/)
+            if bytes.getbyte(offset) == 35
+              offset += 1 until offset >= bytes.bytesize || bytes.getbyte(offset) == 10
+            else
+              break
+            end
+          end
+          start = offset
+          offset += 1 while offset < bytes.bytesize && !bytes.getbyte(offset).chr.match?(/\s/)
+          raise ArgumentError, "truncated PPM header" if start == offset
+          bytes.byteslice(start...offset)
+        end
+
+        magic = token.call
+        raise ArgumentError, "expected P3 or P6 portable pixmap" unless %w[P3 P6].include?(magic)
+        width = Integer(token.call, 10)
+        height = Integer(token.call, 10)
+        maximum = Integer(token.call, 10)
+        raise ArgumentError, "invalid PPM dimensions" unless width.positive? && height.positive?
+        raise ArgumentError, "PPM is too large" if width * height * 4 > MAX_BYTES
+        raise ArgumentError, "invalid PPM sample maximum" unless (1..65_535).cover?(maximum)
+
+        samples = if magic == "P3"
+                    Array.new(width * height * 3) { Integer(token.call, 10) }
+                  else
+                    if bytes.getbyte(offset) == 13 && bytes.getbyte(offset + 1) == 10
+                      offset += 2
+                    elsif offset < bytes.bytesize && bytes.getbyte(offset).chr.match?(/\s/)
+                      offset += 1
+                    end
+                    sample_bytes = maximum < 256 ? 1 : 2
+                    payload = bytes.byteslice(offset, width * height * 3 * sample_bytes)
+                    raise ArgumentError, "truncated PPM pixels" unless payload&.bytesize == width * height * 3 * sample_bytes
+                    sample_bytes == 1 ? payload.bytes : payload.unpack("n*")
+                  end
+        raise ArgumentError, "PPM sample exceeds maximum" if samples.any? { |sample| sample.negative? || sample > maximum }
+
+        bitmap = Media::Bitmap.new(width, height)
+        samples.each_slice(3).with_index do |(red, green, blue), index|
+          scale = ->(sample) { (sample * 255 + maximum / 2) / maximum }
+          bitmap.put(index % width, index / width,
+                     (scale.call(red) << 16) | (scale.call(green) << 8) | scale.call(blue))
+        end
+        bitmap
       end
 
       def initialize(path: nil, surface_loader: nil, **options)
@@ -1074,7 +1195,7 @@ module RubyOS
             on_change: method(:update_status)
           ), anchors: [:left, :right, :top, :bottom],
              minimum_width: 180, minimum_height: 80)
-          @status = window.add(GUI::Label.new("Open a BMP, PNG, or JPEG from the Ruby VFS",
+          @status = window.add(GUI::Label.new("Open a BMP, PNG, JPEG, or PPM from the Ruby VFS",
                                                x: 4, y: 164, width: 260,
                                                height: 24, background: 0x151c29,
                                                color: 0xa8d8ff),
@@ -1104,8 +1225,15 @@ module RubyOS
         raise RubyOS::Error, "image exceeds #{MAX_BYTES} byte limit" if stat.size > MAX_BYTES
 
         bytes = kernel.state.fetch(:vfs).read_file(new_path)
-        loaded = @surface_loader ? @surface_loader.call(bytes) :
-                                   Bridge::Surface.load_image(image_client, bytes)
+        loaded = if @surface_loader
+                   @surface_loader.call(bytes)
+                 elsif File.extname(String(new_path)).downcase == ".ppm"
+                   bitmap = self.class.decode_ppm(bytes)
+                   Bridge::Surface.create(image_client, width: bitmap.width, height: bitmap.height)
+                                  .upload(bitmap.bytes)
+                 else
+                   Bridge::Surface.load_image(image_client, bytes)
+                 end
         release_surface
         @surface = loaded
         @path = String(new_path)
@@ -1156,13 +1284,24 @@ module RubyOS
     end
 
     class CanvasPreview < GUI::View
-      def initialize(bitmap, scale: 5, **options)
+      attr_reader :bitmap
+
+      def initialize(bitmap, scale: 5, on_key: nil, **options)
         super(**options)
         @bitmap = bitmap
         @scale = scale
+        @on_key = on_key
+      end
+
+      def bitmap=(value)
+        @bitmap = value
+        invalidate
+        value
       end
 
       def draw(surface)
+        surface.fill_rect(x - 2, y - 2, bitmap.width * @scale + 4,
+                          bitmap.height * @scale + 4, 0x604481)
         pixels = @bitmap.raster
         @bitmap.height.times do |row|
           @bitmap.width.times do |column|
@@ -1171,25 +1310,208 @@ module RubyOS
           end
         end
       end
+
+      def handle(event)
+        return false unless focused && @on_key && event.respond_to?(:fetch)
+        return false unless event.fetch("kind", 0) == Input::KEY_DOWN
+
+        !!@on_key.call(event)
+      end
+
+      def focusable? = !@on_key.nil?
     end
 
     class MediaWorkbench < Application
-      def build_view
-        view = Media::Bitmap.new(32, 16)
-        16.times do |row|
-          view.rect(0, row, 32, 1, color: [0x17243a, 0x203951, 0x28516a, 0x357489][row / 4])
+      WIDTH = 60
+      HEIGHT = 22
+      FRAME_SECONDS = 1.0 / 30
+
+      attr_reader :program, :playing, :direction, :transition, :preview,
+                  :status, :meter, :cue_count
+
+      def initialize(**options)
+        super
+        @program = :a
+        @playing = false
+        @direction = :left_to_right
+        @cue_count = 0
+      end
+
+      def build_program_a
+        bitmap = Media::Bitmap.new(WIDTH, HEIGHT)
+        colors = [0xff668a, 0xffce73, 0xc3e88d, 0x51d6c5,
+                  0x68aaff, 0x8f7cff, 0xb396ff, 0x34243f]
+        band = (WIDTH.to_f / colors.length).ceil
+        colors.each_with_index do |color, index|
+          bitmap.rect(index * band, 0, [band, WIDTH - index * band].min, HEIGHT,
+                      color:)
         end
-        view.rect(6, 3, 10, 9, color: 0x51d6c5)
-        view.rect(14, 6, 11, 7, color: 0xffce73)
-        view
+        # A small faceted Ruby mark makes this more than a generic test card.
+        bitmap.rect(24, 5, 12, 12, color: 0x180c24)
+        bitmap.line(30, 6, 25, 11, color: 0xffffff)
+        bitmap.line(30, 6, 35, 11, color: 0xffffff)
+        bitmap.line(25, 11, 30, 16, color: 0xff668a)
+        bitmap.line(35, 11, 30, 16, color: 0xff668a)
+        bitmap.line(25, 11, 35, 11, color: 0xffd9e3)
+        bitmap
+      end
+
+      def build_program_b
+        Media::Bitmap.new(WIDTH, HEIGHT).tap do |bitmap|
+          HEIGHT.times do |y|
+            WIDTH.times.each_slice(2) do |columns|
+              columns.each do |x|
+                red = (x * 7 + y * 3) & 0xff
+                green = (y * 11 + (x / 3) * 5) & 0xff
+                blue = ((x + y) * 9) & 0xff
+                bitmap.put(x, y, red << 16 | green << 8 | blue)
+              end
+            end
+          end
+          6.times do |index|
+            inset = index * 2
+            bitmap.line(inset, inset, WIDTH - 1 - inset, inset, color: 0xffffff)
+            bitmap.line(WIDTH - 1 - inset, inset, WIDTH - 1 - inset,
+                        HEIGHT - 1 - inset, color: 0x51d6c5)
+          end
+        end
       end
 
       def build_window
-        GUI::Window.new("Ruby Media Studio", x: 138, y: 56, width: 196, height: 140,
-                        background: 0x0c0912).tap do |window|
-          window.add(CanvasPreview.new(build_view, x: 2, y: 0, width: 160, height: 80))
-          window.add(GUI::Label.new("Scenes, sound, motion", x: 2, y: 88, color: 0xe8dff5))
+        @program_a = build_program_a
+        @program_b = build_program_b
+        @timeline = Media::Timeline.new
+        @window = GUI::Window.new("Ruby Media Studio", x: 70, y: 14,
+                                  width: 340, height: 238,
+                                  minimum_width: 340, minimum_height: 238,
+                                  resizable: false,
+                                  background: 0x0c0912).tap do |window|
+          @preview = window.add(CanvasPreview.new(@program_a, scale: 5,
+                                                   on_key: method(:handle_key),
+                                                   x: 10, y: 4, width: 300, height: 110))
+          @status = window.add(GUI::Label.new("", x: 2, y: 120, width: 316,
+                                               height: 20, color: 0xe8dff5))
+          @meter = window.add(GUI::Meter.new(value: 0, maximum: 100,
+                                              label: "A  0%  B", x: 2, y: 142,
+                                              width: 306, height: 22,
+                                              color: 0x51d6c5))
+          window.add(GUI::Button.new("A CUT", x: 2, y: 170, width: 72, height: 24,
+                                     action: method(:select_a)))
+          window.add(GUI::Button.new("WIPE", x: 80, y: 170, width: 72, height: 24,
+                                     action: method(:start_wipe)))
+          window.add(GUI::Button.new("B CUT", x: 158, y: 170, width: 72, height: 24,
+                                     action: method(:select_b)))
+          window.add(GUI::Button.new("DIR", x: 236, y: 170, width: 72, height: 24,
+                                     action: method(:cycle_direction)))
+          window.on_tick { tick }
+          refresh_status
         end
+      end
+
+      def select_a(*) = select_program(:a)
+      def select_b(*) = select_program(:b)
+
+      def select_program(value)
+        value = value.to_sym
+        raise ArgumentError, "unknown program" unless %i[a b].include?(value)
+
+        @program = value
+        @playing = false
+        @transition = nil
+        @timeline.clear.seek(0)
+        @preview.bitmap = program == :a ? @program_a : @program_b
+        refresh_status
+        true
+      end
+
+      def menus(compositor)
+        [GUI::Menu.new(title: "Studio", items: [
+          GUI::MenuItem.command("Cut to Program A", shortcut: "1") { select_a },
+          GUI::MenuItem.command("Run wipe", shortcut: "W / Space") { start_wipe },
+          GUI::MenuItem.command("Cut to Program B", shortcut: "2") { select_b },
+          GUI::MenuItem.command("Next direction", shortcut: "D") { cycle_direction }
+        ]), *super]
+      end
+
+      def start_wipe(*)
+        source, destination, target = if program == :a
+                                        [@program_a, @program_b, :b]
+                                      else
+                                        [@program_b, @program_a, :a]
+                                      end
+        @transition = Media::WipeTransition.new(source:, destination:, direction:)
+        @target_program = target
+        @timeline.clear.seek(0)
+        @timeline.animate(transition, :progress, from: 0, to: 1,
+                          duration: 1, easing: :smooth)
+        @preview.bitmap = transition.output
+        @playing = true
+        play_stinger
+        refresh_status
+        true
+      end
+
+      def cycle_direction(*)
+        index = Media::WipeTransition::DIRECTIONS.index(direction)
+        @direction = Media::WipeTransition::DIRECTIONS.fetch(
+          (index + 1) % Media::WipeTransition::DIRECTIONS.length
+        )
+        @transition.direction = direction if playing
+        refresh_status
+        true
+      end
+
+      def tick
+        return false unless playing
+
+        @timeline.advance(FRAME_SECONDS)
+        @preview.invalidate
+        if transition.complete?
+          @program = @target_program
+          @playing = false
+          @preview.bitmap = program == :a ? @program_a : @program_b
+        end
+        refresh_status
+        true
+      end
+
+      def handle_key(event)
+        case event.fetch("code", 0)
+        when 49 then select_a
+        when 50 then select_b
+        when 119, 87, 32 then start_wipe
+        when 100, 68 then cycle_direction
+        else false
+        end
+      end
+
+      private
+
+      def refresh_status
+        progress = transition ? (transition.progress * 100).round : (program == :a ? 0 : 100)
+        label = direction.to_s.tr("_", " ")
+        @status.text = "#{playing ? 'ON AIR' : 'READY'}  Program #{program.upcase}  |  #{label}"
+        @status.color = playing ? 0xffce73 : 0xe8dff5
+        @meter.value = progress
+        @meter.label = "A  #{progress.to_s.rjust(3)}%  B"
+        @window&.invalidate
+        true
+      end
+
+      def play_stinger
+        client = @compositor&.file_transfer&.client
+        output = @compositor&.audio_output
+        return false unless output || client&.features&.include?("audio.pcm")
+
+        owned_output = !output
+        output ||= Sound::BridgeOutput.new(client)
+        high = Sound::Waveform.square(880, duration_ms: 45, amplitude: 0.12)
+        low = Sound::Waveform.sine(440, duration_ms: 90, amplitude: 0.10)
+        output.play(Sound::Mixer.new.mix(high, low))
+        @cue_count += 1
+        true
+      ensure
+        output&.close if owned_output
       end
     end
   end

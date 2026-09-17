@@ -11,6 +11,7 @@ manifest = IO.popen(
 
 required = %w[
   kernel/rubyos/examples.rb
+  kernel/rubyos/async.rb
   kernel/rubyos/gui/menu.rb
   kernel/rubyos/gui/file_dialog.rb
   kernel/rubyos/bridge/file_transfer.rb

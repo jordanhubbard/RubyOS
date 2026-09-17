@@ -989,12 +989,14 @@ module RubyOS
 
       def play(*)
         client = @compositor&.file_transfer&.client
-        unless client&.features&.include?("audio.pcm")
+        output = @compositor&.audio_output
+        unless output || client&.features&.include?("audio.pcm")
           show_status("Audio bridge unavailable | #{frequency} Hz #{waveform}")
           return false
         end
 
-        output = Sound::BridgeOutput.new(client)
+        owned_output = !output
+        output ||= Sound::BridgeOutput.new(client)
         voice = Sound::Waveform.public_send(waveform, frequency, duration_ms: 180, amplitude: 0.18)
         if @chord
           harmony = Sound::Waveform.public_send(waveform, frequency * 1.5,
@@ -1004,11 +1006,11 @@ module RubyOS
         output.play(voice)
         @last_queued = output.queued_bytes
         @plays += 1
-        output.close
+        output.close if owned_output
         render
         true
       ensure
-        output&.close rescue nil
+        output&.close if owned_output
       end
       alias advance play
 

@@ -22,8 +22,9 @@ try:
             sys.stdout.buffer.write(chunk)
             sys.stdout.buffer.flush()
             pending += chunk
-            if b"rubyos> " in pending:
-                pending = pending.split(b"rubyos> ")[-1]
+            prompt_at = max(pending.rfind(b"rubyos> "), pending.rfind(b"....> "))
+            if prompt_at >= 0:
+                pending = pending[prompt_at + len(b"rubyos> "):]
                 if not commands:
                     sys.exit(0)
                 process.stdin.write(commands.pop(0))

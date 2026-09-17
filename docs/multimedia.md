@@ -1,9 +1,10 @@
-# RubyOS multimedia: first iteration
+# RubyOS multimedia
 
 Ruby owns scenes, objects, animation and composition. RemoteOS-SDL owns host
 rendering, decoding and devices. There is no emulated Amiga chipset: the games
-use ordinary `Media::Bitmap` images, and the desktop has a Media Workbench.
-This is a creation-framework foundation, not a finished audiovisual editor.
+use ordinary `Media::Bitmap` images, and the desktop has a two-program Media
+Workbench. This is a creation framework and live transition studio, not a
+nonlinear audiovisual editor.
 
 ## Try it
 
@@ -57,11 +58,24 @@ session.video(encoded_bytes) do |video|
     break if video.tick(canvas).fetch("eof")
   end
 end
+
+# Seekable composition stays in ordinary Ruby objects.
+source = RubyOS::Media::Bitmap.new(64, 36, background: 0x17243a)
+destination = RubyOS::Media::Bitmap.new(64, 36, background: 0x51d6c5)
+wipe = RubyOS::Media::WipeTransition.new(
+  source:, destination:, direction: :left_to_right
+)
+timeline = RubyOS::Media::Timeline.new
+timeline.animate(wipe, :progress, to: 1, duration: 1)
+timeline.seek(0.5)
+frame = wipe.output
 ```
 
 `Media::Scene` composes 2D shapes/text; `Scene3D` composes colored triangle
 meshes with a perspective camera. `Timeline` provides seekable linear/smooth
-property animation. `Studio` combines display, timeline and a paced frame loop.
+property animation. `WipeTransition` combines equal-sized bitmaps from any of
+four directions and exposes its progress to the same timeline. `Studio`
+combines display, timeline and a paced frame loop.
 Image decoding, TrueType fonts, input/injection, file-token import, file export,
 capture and guest/host performance counters have named session methods.
 `session.sdl(name, *args)` exposes the service's registered SDL functions;

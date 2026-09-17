@@ -113,24 +113,44 @@ module RubyOS
       RUBY
       lesson("concurrency", "fiber_mailbox", "cooperative producer/consumer tasks", <<~'RUBY'),
         # /examples/concurrency/fiber_mailbox.rb
-        # A scheduler and Array mailbox make each cooperative hand-off visible.
+        # A bounded Enumerable channel supplies backpressure between Fibers.
         scheduler = RubyOS::Scheduler.new
-        mailbox = []
+        mailbox = RubyOS::Async::Channel.new(scheduler:, capacity: 1)
         received = []
-        scheduler.spawn("producer") do
-          3.times do |index|
-            mailbox << "message-#{index + 1}"
-            scheduler.yield_now
-          end
-        end
-        scheduler.spawn("consumer") do
-          3.times do
-            scheduler.yield_now while mailbox.empty?
-            received << mailbox.shift
+        scheduler.spawn("pipeline") do
+          RubyOS::Async::TaskGroup.open(scheduler) do |group|
+            group.async("producer") do
+              3.times { |index| mailbox << "message-#{index + 1}" }
+              mailbox.close
+            end
+            group.async("consumer") { mailbox.each { |message| received << message } }
           end
         end
         scheduler.run
         received
+      RUBY
+      lesson("concurrency", "structured_tasks", "scope Fiber tasks with events and semaphores", <<~'RUBY'),
+        # /examples/concurrency/structured_tasks.rb
+        scheduler = RubyOS::Scheduler.new
+        start = RubyOS::Async::Event.new(scheduler:)
+        gate = RubyOS::Async::Semaphore.new(scheduler:, limit: 1)
+        trace = []
+        scheduler.spawn("supervisor") do
+          RubyOS::Async::TaskGroup.open(scheduler) do |group|
+            2.times do |index|
+              group.async("worker-#{index + 1}") do
+                start.wait
+                gate.synchronize do
+                  trace << "worker-#{index + 1}"
+                  scheduler.yield_now
+                end
+              end
+            end
+            group.async("starter") { start.set }
+          end
+        end
+        scheduler.run
+        trace
       RUBY
       lesson("concurrency", "native_workers", "inspect CPUs and cross the native worker boundary", <<~'RUBY'),
         # /examples/concurrency/native_workers.rb

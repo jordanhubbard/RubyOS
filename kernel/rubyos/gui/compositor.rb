@@ -167,6 +167,7 @@ module RubyOS
           end
         end
         if kind == Input::KEY_DOWN && event.fetch("code", 0) == 9
+          return true if focused_child&.enabled && focused_child.handle(event)
           cycle_focus
           return true
         end
@@ -246,7 +247,7 @@ module RubyOS
       MENU_HEIGHT = 24
       DOCK_HEIGHT = 42
 
-      attr_reader :width, :height, :windows, :file_transfer, :source_workspace
+      attr_reader :width, :height, :windows, :file_transfer, :source_workspace, :audio_output
 
       def initialize(width:, height:, title: "RubyOS")
         @width = width
@@ -278,6 +279,11 @@ module RubyOS
 
       def install_source_workspace(workspace)
         @source_workspace = workspace
+        self
+      end
+
+      def install_audio(output)
+        @audio_output = output
         self
       end
 

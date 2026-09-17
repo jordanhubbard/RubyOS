@@ -15,12 +15,14 @@ sprites_capture="/tmp/rubyos-sprites.bmp"
 image_viewer_capture="/tmp/rubyos-image-viewer.bmp"
 source_editor_capture="/tmp/rubyos-source-editor.bmp"
 file_drag_capture="/tmp/rubyos-interaction-file-drag.bmp"
+media_wipe_capture="/tmp/rubyos-interaction-media-wipe.bmp"
 export_dir="$(mktemp -d /tmp/rubyos-gui-export.XXXXXX)"
 port="$($root/build/host-ruby/bin/ruby -rsocket -e 'server = TCPServer.new("127.0.0.1", 0); puts server.local_address.ip_port; server.close')"
 
 rm -f "$serial_log" "$bridge_log" "$capture" "$graphical_demo_capture" "$inspector_capture" \
     "$terminal_capture" "$arcade_capture" "$plasma_capture" "$sprites_capture" \
-    "$image_viewer_capture" "$source_editor_capture" "$file_drag_capture"
+    "$image_viewer_capture" "$source_editor_capture" "$file_drag_capture" \
+    "$media_wipe_capture"
 REMOTEOS_SDL_MODE=headless SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
     REMOTEOS_SDL_EXPORT_DIR="$export_dir" \
     "${REMOTEOS_SDL_BIN:-$root/services/remoteos-sdl/remoteos-sdl}" --listen-tcp "127.0.0.1:$port" \
@@ -74,6 +76,7 @@ grep -q 'SDL_ttf Ruby Font: PASS' "$serial_log"
 grep -q 'PNG/JPEG image surfaces: PASS' "$serial_log"
 grep -q 'SDL audio bridge: PASS' "$serial_log"
 grep -q 'Ruby media canvas: PASS' "$serial_log"
+grep -q 'Ruby media wipe studio: PASS' "$serial_log"
 grep -q 'Ruby arcade games: PASS' "$serial_log"
 ! grep -q 'FATAL\|EXCEPTION\|ASSERT\|\[BUG\]' "$serial_log"
 test -s "$capture"
@@ -96,6 +99,8 @@ test -s "$source_editor_capture"
 file "$source_editor_capture" | grep -q '480 x 300'
 test -s "$file_drag_capture"
 file "$file_drag_capture" | grep -q '480 x 300'
+test -s "$media_wipe_capture"
+file "$media_wipe_capture" | grep -q '480 x 300'
 test "$(cat "$export_dir/rubyos-host-export.txt")" = \
     'RubyOS host export from the bare-metal VFS.'
 echo 'RubyOS bare-metal CRuby SDL remote desktop smoke: PASS'

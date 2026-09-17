@@ -9,7 +9,8 @@ not use a system Ruby package, a system `ruby` executable, or a system
 `libruby`. The pinned version and checksum live in `config/ruby.mk`.
 
 See [the current release notes](RELEASE-NOTES.md), [changelog](CHANGELOG.md),
-and [the three-repository alignment guide](docs/remoteos-alignment.md).
+[Fiber concurrency guide](docs/concurrency.md), and
+[the three-repository alignment guide](docs/remoteos-alignment.md).
 
 ## Getting started
 
@@ -38,7 +39,9 @@ RubyOS carries the PythonOS behavior surface in Ruby on source-built CRuby:
 
 - Ruby 4.0.6 bootstrapped and installed privately in `build/host-ruby`
 - the same CRuby source cross-built as freestanding ARM64 and x86_64 static runtimes
-- a cooperative `Fiber` kernel scheduler with timed deadlines and task lifecycle accounting
+- a cooperative `Fiber` kernel scheduler with timed deadlines, join/gather,
+  bounded `Enumerable` channels, events, block-scoped semaphores and structured
+  task groups
 - ARM generic-counter monotonic time, 100 Hz GICv2/v3 timer IRQs, sleeping, and a Ruby session clock
 - a Ruby VFS/tmpfs with mount routing and file-descriptor semantics
 - Ruby-native Ethernet, ARP, IPv4, ICMP, and UDP packet objects
@@ -46,6 +49,8 @@ RubyOS carries the PythonOS behavior surface in Ruby on source-built CRuby:
 - reclaimable page-frame memory backed by the native allocator
 - writable ext2, VirtIO block/network, DHCP/DNS/TCP, and concurrent TCP Ruby consoles
 - a Ruby-native `Element -> View -> Container/Label -> Button` GUI hierarchy
+- a public backend-neutral `RubyOS::App` class library for canvas, lifecycle,
+  input, and audio applications with memory, native-surface, or RemoteOS-SDL output
 - a Ruby compositor with focus/z-order, windows, menu bar, dock, and system apps
 - the shared RemoteOS-SDL v2 service plus an idiomatic Ruby
   `Transport -> Client -> Surface -> RemoteDesktop` hierarchy
@@ -73,7 +78,7 @@ make help         # show the small public command set
 
 At any `rubyos>` prompt, `apps` lists the categorized desktop catalog,
 `examples` lists eleven kernel-embedded learning tracks, `examples TRACK`
-browses one, and `example TRACK/NAME` executes a lesson. Seventeen readable
+browses one, and `example TRACK/NAME` executes a lesson. Eighteen readable
 sources and per-track guides are mounted under `/examples`; short unique lesson
 names remain accepted for compatibility.
 The graphical **Apps** launcher exposes full applications, Ruby-focused demos,
@@ -89,20 +94,24 @@ Enumerable Plasma animates bounded sine lookup tables, while Event Scope uses
 structural pattern matching to visualize key-down, key-up, modifier, and pointer
 events. The five playable games are Invaders, Snake, Maze, Raiders, and
 Defender; each owns a Ruby state model, receives focused input, advances from
-window ticks, and renders through the same revision-cached bitmap path.
+window ticks, renders shaded sprite cells at 640x400 on the 1024x768 desktop,
+and sends audible effect cues through the shared PCM output.
 Data Rain uses immutable records and `filter_map` splashes; Sprite Layers
 composes color-keyed Ruby bitmaps; Tone Lab generates sine, square, triangle,
 and chord PCM with live pitch and waveform controls. The Image Viewer opens
-BMP, PNG, and JPEG files from the VFS through the shared chooser, supports
+BMP, PNG, JPEG, and portable-pixmap files from the VFS through the shared chooser, supports
 arrow/wheel panning, and releases decoded bridge surfaces when its window
 closes. Files routes recognized image extensions directly to that viewer.
 The desktop menu bar is registry-driven and gains commands from the focused
 Ruby application. F1 opens the live-rebindable keymap, F2 opens Applications,
 F3 opens Terminal, F4 opens Files, and F5 opens the focused application's Ruby
 source; Ctrl-W closes the focused window.
-Terminal retains bounded scrollback, supports wheel/Page navigation and Up/Down
-command history, and evaluates shell commands and Ruby expressions through the
-same prompt. System Monitor updates live from compositor ticks. Ruby Inspector
+Terminal retains bounded scrollback, persists command history in the VFS,
+supports wheel/Page navigation, Up/Down recall, Tab completion, and
+syntax-aware multiline Ruby definitions. The shared serial/TCP/GUI command
+surface provides a current directory, file copy/move, source execution,
+system/network status, streaming TCP file transfer, and graphical app/editor
+launching. System Monitor updates live from compositor ticks. Ruby Inspector
 offers navigable runtime, Fiber, driver, heap, object-graph, and class-model
 views instead of a fixed summary.
 Rebound shortcuts are stored in `/home/.rubyos-keybindings`, restored on the
@@ -205,6 +214,11 @@ mounted guide.
 
 ## SDL remote desktop
 
+The persistent desktop opens at **1024x768**, matching PythonOS. RubyOS
+applications do not have to depend on the companion: the public
+[`RubyOS::App` toolkit](docs/applications.md) runs the same lifecycle, canvas,
+input, and audio code against an in-memory/native surface or RemoteOS-SDL.
+
 `make test-bridge` builds the shared `services/remoteos-sdl/remoteos-sdl` and uses the privately built
 Ruby—not a system interpreter—to open a hidden SDL desktop, draw the GUI object
 tree, present it, poll input, capture it, and shut it down.
@@ -260,7 +274,11 @@ generators and a saturating PCM mixer stream stereo
 audio through the same companion. The SDL companion remains a rendering,
 input, and audio device.
 
-The Ruby Media Workbench and games use ordinary image objects. The new
+The Ruby Media Workbench and games use ordinary image objects. Workbench is a
+two-program studio with direct cuts and four-direction wipes driven by a
+seekable Ruby `Timeline`; `1`, `2`, `W`/Space, and `D` select programs, run the
+transition, and change direction, with a short Ruby PCM cue when audio is
+available. The
 [Ruby multimedia framework](docs/multimedia.md) adds scoped SDL resources,
 2D scenes, perspective 3D meshes, animation, PCM audio and video decoding.
 See that guide for runnable creation/playback examples and current limits.

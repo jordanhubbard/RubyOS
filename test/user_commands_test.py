@@ -61,6 +61,7 @@ try:
                         time.sleep(2)
                         assert process.poll() is None, "desktop ran a smoke scene and exited"
                         guest_log = (ROOT / "build/run/serial.log").read_text(errors="replace")
+                        assert "interactive desktop: READY 1024x768 audio=on" in guest_log, guest_log
                         assert not any(marker in guest_log for marker in ("FATAL", "EXCEPTION", "[BUG]")), guest_log
                     duplicate = subprocess.run([RUBY, "tools/run.rb", mode], capture_output=True, text=True)
                     assert duplicate.returncode != 0 and "already running" in duplicate.stderr

@@ -31,49 +31,39 @@ module RubyOS
       end
 
       def tcp_echo(destination, port, payload, timeout_ms: 5_000)
+        connection = connect(destination, port, timeout_ms:)
+        connection.write(payload)
+        connection.read(timeout_ms:)
+      ensure
+        connection&.close
+      end
+
+      def connect(destination, port, timeout_ms: 5_000)
         destination = IPv4Address.new(destination) unless destination.is_a?(IPv4Address)
         remote_mac = resolve(destination, timeout_ms:)
-        local_port = 49_152
-        sequence = 0x5255_4259
-        syn = TCPSegment.new(local_port, port, sequence, 0, TCPSegment::SYN, 65_535, +"".b)
-        send_ip(destination, remote_mac, IPv4Packet::TCP,
-                syn.encode(source_ip: address, destination_ip: destination))
+        local_port = next_local_port
+        sequence = 0x5255_4259 ^ local_port
+        syn = TCPSegment.new(local_port, Integer(port), sequence, 0,
+                             TCPSegment::SYN, 65_535, +"".b)
+        transmit_tcp(destination, remote_mac, syn)
 
-        syn_ack = wait_for_tcp(destination, local_port, port, timeout_ms)
-        raise Error, "TCP handshake timed out" unless syn_ack
-        expected = TCPSegment::SYN | TCPSegment::ACK
-        raise Error, "TCP peer rejected connection" if (syn_ack.flags & TCPSegment::RST) != 0
-        raise Error, "invalid TCP handshake flags" unless (syn_ack.flags & expected) == expected
-        sequence = (sequence + 1) & 0xffffffff
-        acknowledgment = (syn_ack.sequence + 1) & 0xffffffff
-        ack = TCPSegment.new(local_port, port, sequence, acknowledgment,
-                             TCPSegment::ACK, 65_535, +"".b)
-        send_ip(destination, remote_mac, IPv4Packet::TCP,
-                ack.encode(source_ip: address, destination_ip: destination))
-
-        data = TCPSegment.new(local_port, port, sequence, acknowledgment,
-                              TCPSegment::PSH | TCPSegment::ACK, 65_535, String(payload).b)
-        send_ip(destination, remote_mac, IPv4Packet::TCP,
-                data.encode(source_ip: address, destination_ip: destination))
-        sequence = (sequence + data.payload.bytesize) & 0xffffffff
-
-        reply = nil
-        deadline = RubyOS::HAL.monotonic_ns + timeout_ms * 1_000_000
-        while RubyOS::HAL.monotonic_ns < deadline
-          segment = receive_tcp(destination, local_port, port)
-          next unless segment
-          raise Error, "TCP peer reset connection" if (segment.flags & TCPSegment::RST) != 0
-          next if segment.payload.empty?
-          reply = segment
-          break
+        frame = wait_for_tcp_frame(timeout_ms:) do |_ethernet, ip, segment|
+          ip.source == destination && segment.source_port == Integer(port) &&
+            segment.destination_port == local_port
         end
-        raise Error, "TCP payload timed out" unless reply
-        acknowledgment = (reply.sequence + reply.payload.bytesize) & 0xffffffff
-        final_ack = TCPSegment.new(local_port, port, sequence, acknowledgment,
-                                   TCPSegment::ACK, 65_535, +"".b)
-        send_ip(destination, remote_mac, IPv4Packet::TCP,
-                final_ack.encode(source_ip: address, destination_ip: destination))
-        reply.payload
+        raise Error, "TCP handshake timed out" unless frame
+        _, _, syn_ack = frame
+        raise Error, "TCP peer rejected connection" if (syn_ack.flags & TCPSegment::RST) != 0
+        expected = TCPSegment::SYN | TCPSegment::ACK
+        raise Error, "invalid TCP handshake flags" unless (syn_ack.flags & expected) == expected
+        raise Error, "invalid TCP handshake acknowledgment" unless syn_ack.acknowledgment == ((sequence + 1) & 0xffffffff)
+
+        connection = TCPConnection.new(self, remote_ip: destination, remote_mac:,
+                                       remote_port: Integer(port), local_port:,
+                                       sequence: (sequence + 1) & 0xffffffff,
+                                       acknowledgment: (syn_ack.sequence + 1) & 0xffffffff)
+        connection.acknowledge
+        connection
       end
 
       def udp_exchange(destination, port, payload, source_port:, timeout_ms: 5_000)
@@ -174,6 +164,12 @@ module RubyOS
 
       def next_identification
         @identification = (@identification + 1) & 0xffff
+      end
+
+      def next_local_port
+        @local_port = ((@local_port || 49_151) + 1)
+        @local_port = 49_152 if @local_port > 65_535
+        @local_port
       end
 
       def wait_for(timeout_ms)

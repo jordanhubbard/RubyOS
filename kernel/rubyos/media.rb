@@ -176,6 +176,66 @@ module RubyOS
       end
     end
 
+    # Composites two ordinary Ruby bitmaps with a seekable edge wipe.  The
+    # transition deliberately has no display-driver knowledge: Timeline can
+    # animate +progress+ on the host, in a guest, or during an offline export.
+    class WipeTransition
+      DIRECTIONS = %i[left_to_right right_to_left top_to_bottom bottom_to_top].freeze
+
+      attr_reader :source, :destination, :output, :progress, :direction
+
+      def initialize(source:, destination:, direction: :left_to_right, progress: 0.0)
+        unless source.is_a?(Bitmap) && destination.is_a?(Bitmap) &&
+               source.width == destination.width && source.height == destination.height
+          raise ArgumentError, "wipe bitmaps must have matching dimensions"
+        end
+
+        @source = source
+        @destination = destination
+        @output = Bitmap.new(source.width, source.height)
+        self.direction = direction
+        self.progress = progress
+      end
+
+      def progress=(value)
+        value = Float(value)
+        raise ArgumentError, "wipe progress must be finite and between 0 and 1" unless
+          value.finite? && (0.0..1.0).cover?(value)
+
+        @progress = value
+        render
+        value
+      end
+
+      def direction=(value)
+        value = value.to_sym
+        raise ArgumentError, "unknown wipe direction" unless DIRECTIONS.include?(value)
+
+        @direction = value
+        render if defined?(@progress)
+        value
+      end
+
+      def complete? = progress >= 1.0
+
+      private
+
+      def render
+        reveal_columns = (source.width * progress).ceil
+        reveal_rows = (source.height * progress).ceil
+        source.each_pixel do |x, y, source_color|
+          revealed = case direction
+                     when :left_to_right then x < reveal_columns
+                     when :right_to_left then x >= source.width - reveal_columns
+                     when :top_to_bottom then y < reveal_rows
+                     when :bottom_to_top then y >= source.height - reveal_rows
+                     end
+          output.put(x, y, revealed ? destination.get(x, y) : source_color)
+        end
+        output
+      end
+    end
+
     class Shape
       attr_accessor :x, :y, :width, :height, :color, :text
       def initialize(x:, y:, width: 0, height: 0, color: 0xffffff, text: nil)

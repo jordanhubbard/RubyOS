@@ -130,6 +130,12 @@ module RubyOS
         self
       end
 
+      def clear_bitmap_cache
+        @bitmap_cache&.each_value { |cached| cached.fetch(:surface).destroy }
+        @bitmap_cache = {}
+        self
+      end
+
       def blit_to(destination, x:, y:, source_rect: nil)
         parameters = { src: handle, dst: destination.handle,
                        dst_rect: { x:, y:, w: width, h: height } }
@@ -139,6 +145,7 @@ module RubyOS
       end
 
       def destroy
+        clear_bitmap_cache
         return self unless @owned
         client.cast("surface.destroy", { handle: })
         @owned = false
@@ -149,7 +156,7 @@ module RubyOS
     class RemoteDesktop
       attr_reader :client, :surface, :width, :height
 
-      def initialize(client, width: 640, height: 400, title: "RubyOS")
+      def initialize(client, width: 1_024, height: 768, title: "RubyOS")
         @client = client
         @width = Integer(width)
         @height = Integer(height)

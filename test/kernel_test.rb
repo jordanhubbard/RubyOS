@@ -137,6 +137,80 @@ assert(zombie.ticks == 1 && lifecycle.ticks == 2, "per-task CPU tick accounting"
 assert(lifecycle.ps == [zombie], "short-lived task auto-reaping")
 assert(lifecycle.reap(zombie.pid).equal?(zombie) && lifecycle.ps.empty?, "completed task reaping")
 
+structured = RubyOS::Scheduler.new(monotonic_ms: -> { 0.0 }, sleeper: ->(_) {})
+channel = RubyOS::Async::Channel.new(scheduler: structured, capacity: 1)
+channel_values = []
+group_results = nil
+structured.spawn("supervisor") do
+  group_results = RubyOS::Async::TaskGroup.open(structured) do |group|
+    group.async("producer") do
+      3.times { |value| channel << value + 1 }
+      channel.close
+      :produced
+    end
+    group.async("consumer") { channel.map { |value| channel_values << value; value * value } }
+  end
+end
+structured.run
+assert(channel_values == [1, 2, 3] && group_results == [:produced, [1, 4, 9]],
+       "bounded Enumerable channel and structured task results")
+
+coordinated = RubyOS::Scheduler.new(monotonic_ms: -> { 0.0 }, sleeper: ->(_) {})
+event = RubyOS::Async::Event.new(scheduler: coordinated)
+semaphore = RubyOS::Async::Semaphore.new(scheduler: coordinated, limit: 1)
+active = 0
+peak = 0
+trace = []
+coordinated.spawn("coordination") do
+  RubyOS::Async::TaskGroup.open(coordinated) do |group|
+    2.times do |index|
+      group.async("worker-#{index}") do
+        event.wait
+        semaphore.synchronize do
+          active += 1
+          peak = [peak, active].max
+          trace << index
+          coordinated.yield_now
+          active -= 1
+        end
+      end
+    end
+    group.async("starter") { event.set }
+  end
+end
+coordinated.run
+assert(peak == 1 && trace.sort == [0, 1] && semaphore.available == 1,
+       "event and block-scoped semaphore coordinate Fiber tasks")
+
+timeout_clock = 0.0
+timeouts = RubyOS::Scheduler.new(monotonic_ms: -> { timeout_clock += 1 }, sleeper: ->(_) {})
+empty_channel = RubyOS::Async::Channel.new(scheduler: timeouts)
+timed_out = false
+timeouts.spawn("timeout") do
+  empty_channel.receive(timeout_ms: 3)
+rescue RubyOS::Scheduler::TimeoutError
+  timed_out = true
+end
+timeouts.run
+assert(timed_out, "cooperative channel timeout uses scheduler monotonic time")
+
+failing = RubyOS::Scheduler.new(monotonic_ms: -> { 0.0 }, sleeper: ->(_) {})
+failure = nil
+sibling = nil
+failing.spawn("failure-supervisor") do
+  begin
+    RubyOS::Async::TaskGroup.open(failing) do |group|
+      group.async("failure") { raise "structured boom" }
+      sibling = group.async("sibling") { loop { failing.yield_now } }
+    end
+  rescue RuntimeError => error
+    failure = error
+  end
+end
+failing.run
+assert(failure&.message == "structured boom" && sibling.state == :killed,
+       "task group propagates failure and cancels unfinished siblings")
+
 samples = [1_000_000_000, 1_001_500_000, 3_001_500_000, 5_001_500_000]
 clock = RubyOS::Timekeeper.new(monotonic_ns: -> { samples.shift })
 assert(clock.milliseconds == 1, "monotonic milliseconds")
@@ -161,6 +235,23 @@ bitmap = RubyOS::Media::Bitmap.new(8, 4)
 bitmap.rect(1, 1, 3, 2, color: 0x123456)
 assert(bitmap.raster[10] == 0x123456, "media bitmap rectangle")
 assert(bitmap.bytes.bytesize == 8 * 4 * 4, "media bitmap bytes")
+workbench = RubyOS::Apps::MediaWorkbench.new
+workbench.build_window
+assert(workbench.program == :a && !workbench.playing, "media workbench begins on program A")
+workbench.start_wipe
+15.times { workbench.tick }
+assert(workbench.playing && workbench.transition.progress > 0,
+       "media workbench advances a timeline-driven wipe")
+assert(workbench.preview.bitmap.equal?(workbench.transition.output),
+       "media workbench previews the composited bitmap")
+20.times { workbench.tick }
+assert(workbench.program == :b && !workbench.playing,
+       "media workbench completes on program B")
+initial_direction = workbench.direction
+workbench.cycle_direction
+assert(workbench.direction != initial_direction, "media workbench cycles wipe direction")
+assert(workbench.handle_key({ "kind" => RubyOS::Input::KEY_DOWN, "code" => 49 }) &&
+       workbench.program == :a, "media workbench keyboard selects program A")
 
 invaders = RubyOS::Games::Invaders.new
 invaders.enemies.replace([[15, 16]])
@@ -404,7 +495,26 @@ assert(terminal.current_command == "1 + 1", "Terminal history walks backward")
 compositor.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => RubyOS::GUI::TextInput::DOWN_KEY)
 assert(terminal.current_command == "2 + 2" && terminal.transcript_view.at_end?,
        "Terminal history walks forward while scrollback follows output")
+assert(terminal.complete_input("sysi") == "sysinfo ",
+       "Terminal exposes shell command completion")
+terminal.evaluate("desktop Clock")
+assert(compositor.focused_window.title == "RubyOS Clock" &&
+       terminal.last_result == "launched Clock",
+       "Terminal desktop command launches a real catalog application")
+compositor.close(compositor.focused_window)
+compositor.focus(terminal_window)
+assert(terminal.evaluate("def terminal_double(value)") == :continue &&
+       terminal.evaluate("value * 2") == :continue &&
+       terminal.evaluate("end").include?("terminal_double") &&
+       terminal.evaluate("terminal_double(6)") == "=> 12",
+       "Terminal accumulates and evaluates multiline Ruby definitions")
 compositor.close(terminal_window)
+restored_terminal = RubyOS::Apps::Terminal.new
+restored_terminal_window = restored_terminal.launch(compositor)
+assert(restored_terminal.history.include?("1 + 1") &&
+       restored_terminal.history.last == "terminal_double(6)",
+       "Terminal history persists through the VFS across application sessions")
+compositor.close(restored_terminal_window)
 
 monitor = RubyOS::Apps::SystemMonitor.new
 monitor_window = monitor.launch(compositor)
@@ -435,7 +545,9 @@ compositor.handle("kind" => 1, "code" => 13)
 assert(files.path == "/home", "Files keyboard selection opens a VFS directory")
 compositor.handle("kind" => 1, "code" => 8)
 assert(files.path == "/", "Files Backspace navigation returns to the parent directory")
-home_row_y = files_window.y + RubyOS::GUI::Window::TITLE_HEIGHT + 9 + 34 + 52 + 8
+home_row = files.list.items.index { |item| item.fetch(:path) == "/home" }
+home_row_y = files_window.y + RubyOS::GUI::Window::TITLE_HEIGHT + 9 + 34 +
+             (home_row - files.list.scroll_offset) * RubyOS::GUI::ListView::ROW_HEIGHT + 8
 compositor.handle("kind" => 4, "button" => 1,
                   "x" => files_window.x + 24, "y" => home_row_y)
 assert(files.path == "/home", "Files pointer selection opens a VFS directory")
@@ -455,7 +567,9 @@ assert(RubyOS::Examples.run("start_here/prime_enumerator").last == 47,
 assert(RubyOS::Examples.run("concurrency/fiber_mailbox") ==
        %w[message-1 message-2 message-3],
        "concurrency curriculum executes cooperative Ruby producer/consumer tasks")
-assert(RubyOS::Examples.tracks.length == 11 && RubyOS::Examples::LESSONS.length == 17,
+assert(RubyOS::Examples.run("concurrency/structured_tasks") == %w[worker-1 worker-2],
+       "concurrency curriculum executes structured Fiber synchronization")
+assert(RubyOS::Examples.tracks.length == 11 && RubyOS::Examples::LESSONS.length == 18,
        "Ruby curriculum preserves broad track and runnable-lesson depth")
 assert(state.fetch(:vfs).read_file("/examples/language/fiber_stream.rb").include?("Fiber.yield") &&
        state.fetch(:vfs).read_file("/examples/concurrency/README.txt").include?("native_workers"),
@@ -467,11 +581,82 @@ shell.execute_line("examples")
 shell.execute_line("examples language")
 shell.execute_line("example concurrency/fiber_mailbox")
 shell.execute_line("apps")
+shell_task = state.fetch(:scheduler).spawn("shell-lifecycle") { :never }
+shell.execute_line("tasks")
+shell.execute_line("kill #{shell_task.pid}")
+shell.execute_line("reap #{shell_task.pid}")
 assert(shell_output.string.include?("start_here") &&
        shell_output.string.include?("enumerable_pipeline") &&
        shell_output.string.include?('["message-1", "message-2", "message-3"]') &&
-       shell_output.string.include?("Enumerable Lab"),
-       "shell discovers learning tracks, runs a categorized lesson, and lists applications")
+       shell_output.string.include?("Enumerable Lab") &&
+       shell_output.string.include?("shell-lifecycle") &&
+       shell_output.string.include?("killed #{shell_task.pid}") &&
+       shell_output.string.include?("reaped #{shell_task.pid} (killed)"),
+       "shell discovers lessons/apps and controls visible task lifecycle")
+
+desktop_launches = []
+network_stub = Struct.new(:address, :gateway).new("10.0.2.15", "10.0.2.2")
+session_output = StringIO.new
+session_shell = RubyOS::Shell.new(
+  output: session_output, network: network_stub,
+  desktop: ->(name, *arguments) { desktop_launches << [name, *arguments] }
+)
+session_shell.execute_line("pwd")
+session_shell.execute_line("write session.txt hello")
+session_shell.execute_line("cp session.txt session-copy.txt")
+session_shell.execute_line("mv session-copy.txt moved.txt")
+session_shell.execute_line("mkdir /tmp/workspace")
+session_shell.execute_line("cd /tmp/workspace")
+session_shell.execute_line("write answer.rb 6 * 7")
+session_shell.execute_line("run answer.rb")
+session_shell.execute_line("sysinfo")
+session_shell.execute_line("netstat")
+session_shell.execute_line("desktop Media Workbench")
+session_shell.execute_line("ed notes.rb")
+assert(session_shell.cwd == "/tmp/workspace" &&
+       state.fetch(:vfs).read_file("/home/moved.txt") == "hello" &&
+       session_output.string.include?("=> 42") &&
+       session_output.string.include?("CPUs: 1/1 online") &&
+       session_output.string.include?("eth0   10.0.2.15  gateway 10.0.2.2") &&
+       desktop_launches == [["Media Workbench"], ["Editor", "/tmp/workspace/notes.rb"]],
+       "stateful shell supports cwd-aware files, Ruby programs, inspection, and desktop launch")
+assert(!session_shell.source_complete?("def twice(value)") &&
+       session_shell.source_complete?("def twice(value)\nvalue * 2\nend") &&
+       session_shell.source_complete?("ls /examples") &&
+       session_shell.complete("sysi").first == "sysinfo " &&
+       session_shell.complete("cat /home/sess").first == "cat /home/session.txt ",
+       "shell completion covers commands and VFS paths while syntax drives multiline continuation")
+
+transfer_connection_class = Class.new do
+  attr_reader :written
+  def initialize(chunks = []) = (@chunks = chunks; @written = +"".b)
+  def read(timeout_ms:) = @chunks.shift || +"".b
+  def write(bytes) = (@written << String(bytes).b; String(bytes).bytesize)
+  def close = self
+end
+incoming_transfer = transfer_connection_class.new(["ruby-", "stream", +"".b])
+outgoing_transfer = transfer_connection_class.new
+listener = Struct.new(:connection) do
+  def accept(timeout_ms:) = connection
+end.new(incoming_transfer)
+transfer_network = Class.new do
+  attr_reader :address, :gateway, :destination
+  def initialize(listener, outgoing)
+    @listener = listener
+    @outgoing = outgoing
+    @address = "10.0.2.15"
+    @gateway = "10.0.2.2"
+  end
+  def listen(_port) = @listener
+  def connect(host, port, timeout_ms:) = (@destination = [host, port]; @outgoing)
+end.new(listener, outgoing_transfer)
+transfer_shell = RubyOS::Shell.new(output: StringIO.new, network: transfer_network)
+transfer_shell.execute_line("ftp get received.bin 7000")
+transfer_shell.execute_line("ftp put received.bin 10.0.2.3 7001")
+assert(state.fetch(:vfs).read_file("/home/received.bin") == "ruby-stream" &&
+       outgoing_transfer.written == "ruby-stream" &&
+       transfer_network.destination == ["10.0.2.3", 7001],
+       "shell FTP streams VFS files through listener and client TCP connections")
 
 catalog = RubyOS::Apps::Catalog.build(kernel: RubyOS::Kernel)
 assert(catalog.entries(category: :app).length == 11 &&
@@ -607,6 +792,14 @@ assert(viewer.surface.equal?(fake_image) && viewer.canvas.pan_x > initial_pan &&
        "Image Viewer loads a VFS image surface and pans it from focused input")
 graphics_desktop.close(viewer_window)
 assert(fake_image.destroyed?, "closing Image Viewer releases its decoded surface")
+
+ppm = RubyOS::Apps::ImageViewer.decode_ppm("P3\n# ruby colors\n2 1\n15\n15 0 0  0 15 8\n")
+binary_ppm = RubyOS::Apps::ImageViewer.decode_ppm("P6\r\n1 1\r\n255\r\n\x01\x02\x03".b)
+assert(RubyOS::Apps::ImageViewer.image_path?("/home/palette.ppm") &&
+       ppm.width == 2 && ppm.height == 1 &&
+       ppm.get(0, 0) == 0xff0000 && ppm.get(1, 0) == 0x00ff88 &&
+       binary_ppm.get(0, 0) == 0x010203,
+       "Image Viewer decodes comment-bearing portable pixmaps into Ruby bitmaps")
 
 maze = catalog.fetch("Maze")
 maze_window = maze.launch(graphics_desktop)
@@ -1128,6 +1321,39 @@ begin
   raise "unlinked file remained visible"
 rescue RubyOS::FS::NotFound
   nil
+end
+
+class PortableApplication < RubyOS::App::Base
+  attr_reader :ticks
+  def initialize(audio: RubyOS::App::Audio.new)
+    super(width: 96, height: 64, audio:)
+    @ticks = 0
+  end
+  def update(_seconds) = (@ticks += 1)
+  def draw(canvas)
+    canvas.clear(0x07101e).frame(2, 2, 92, 60, color: 0x51d6c5)
+    canvas.text(8, 10, "RUBYOS APP 42", color: 0xffd866)
+    audio.tone(440, duration_ms: 10) if ticks == 1
+  end
+end
+audio_sink = Class.new do
+  attr_reader :played
+  def initialize = (@played = [])
+  def play(pcm) = (@played << pcm; self)
+end.new
+memory_backend = RubyOS::App::Backend::Memory.new
+portable = PortableApplication.new(audio: RubyOS::App::Audio.new(audio_sink))
+RubyOS::App::Runtime.new(portable, backend: memory_backend).run(frames: 2)
+assert(memory_backend.frames == 2 && memory_backend.last_frame.get(8, 10) == 0xffd866,
+       "public App runtime renders without RemoteOS-SDL")
+assert(audio_sink.played.one? && audio_sink.played.first.frames == 480,
+       "public App audio targets an injected native or SDL output")
+polished = RubyOS::Apps::ArcadeArt.enhance(RubyOS::Games::Invaders.new.view, 8)
+assert(polished.width == 256 && polished.height == 160 && polished.raster.uniq.length > 8,
+       "arcade renderer adds shaded high-resolution artwork")
+%w[Invaders Snake Maze Raiders Defender].each do |name|
+  game = RubyOS::Games.const_get(name).new
+  assert(game.cue.is_a?(RubyOS::Sound::PCM), "#{name} exposes an audible startup cue")
 end
 
 puts "RubyOS kernel exploration: PASS"

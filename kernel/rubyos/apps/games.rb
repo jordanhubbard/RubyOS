@@ -7,7 +7,32 @@ module RubyOS
     UP_KEY = GUI::TextInput::UP_KEY
     DOWN_KEY = GUI::TextInput::DOWN_KEY
 
+    module SoundEvents
+      attr_reader :sound_events
+
+      def emit_sound(name)
+        @sound_events ||= []
+        @sound_events << name
+      end
+
+      def cue
+        name = sound_events&.shift
+        return nil unless name
+
+        frequency, duration, waveform, amplitude = {
+          start: [392, 120, :triangle, 0.12], move: [180, 24, :sine, 0.05],
+          fire: [880, 70, :square, 0.14], hit: [140, 110, :square, 0.18],
+          collect: [660, 65, :sine, 0.13], danger: [110, 160, :triangle, 0.16],
+          rescue: [988, 140, :sine, 0.14], bomb: [55, 240, :square, 0.20],
+          game_over: [82, 320, :triangle, 0.18]
+        }.fetch(name, [440, 60, :sine, 0.10])
+        Sound::Waveform.public_send(waveform, frequency, duration_ms: duration,
+                                    amplitude:)
+      end
+    end
+
     class Invaders
+      include SoundEvents
       attr_reader :player_x, :enemies, :shot, :score, :sound_events
 
       def initialize
@@ -16,7 +41,7 @@ module RubyOS
         @shot = nil
         @score = 0
         @direction = 1
-        @sound_events = []
+        @sound_events = [:start]
         @bitmap = Media::Bitmap.new(32, 20)
         render
       end
@@ -37,7 +62,7 @@ module RubyOS
       def fire
         unless shot
           @shot = [player_x + 1, 17]
-          sound_events << :fire
+          emit_sound(:fire)
         end
         self
       end
@@ -58,7 +83,7 @@ module RubyOS
           if target
             enemies.delete(target)
             @score += 100
-            sound_events << :hit
+            emit_sound(:hit)
             @shot = nil
           elsif shot[1].negative?
             @shot = nil
@@ -71,14 +96,6 @@ module RubyOS
       def view = @bitmap
       def status = "SCORE #{score}  |  #{enemies.length} INVADERS"
 
-      def cue
-        event = sound_events.shift
-        return nil unless event
-
-        amplitude = event == :hit ? 8_000 : 4_000
-        Sound::PCM.new(Array.new(96) { |index| index.even? ? amplitude : -amplitude })
-      end
-
       private
 
       def render
@@ -90,6 +107,7 @@ module RubyOS
     end
 
     class Snake
+      include SoundEvents
       DIRECTIONS = { 97 => [-1, 0], 100 => [1, 0], 119 => [0, -1], 115 => [0, 1] }.freeze
       attr_reader :body, :food, :score, :direction
 
@@ -99,6 +117,7 @@ module RubyOS
         @direction = [1, 0]
         @score = 0
         @finished = false
+        @sound_events = [:start]
         @bitmap = Media::Bitmap.new(32, 20)
         render
       end
@@ -119,12 +138,14 @@ module RubyOS
         head = [(body.first[0] + direction[0]) % 32, (body.first[1] + direction[1]) % 20]
         if body.include?(head)
           @finished = true
+          emit_sound(:game_over)
           render
           return self
         end
         body.unshift(head)
         if head == food
           @score += 10
+          emit_sound(:collect)
           @food = [(@food[0] + 11) % 32, (@food[1] + 7) % 20]
         else
           body.pop
@@ -148,6 +169,7 @@ module RubyOS
     end
 
     class Maze
+      include SoundEvents
       Ghost = Data.define(:x, :y, :color)
       WIDTH = 24
       HEIGHT = 15
@@ -164,6 +186,7 @@ module RubyOS
         @lives = 3
         @direction = [1, 0]
         @desired = @direction
+        @sound_events = [:start]
         build_level
         render
       end
@@ -182,6 +205,7 @@ module RubyOS
         @player = destination if open?(*destination)
         if pellets.delete(player)
           @score += 10
+          emit_sound(:collect) if (@score % 50).zero?
           @score += 250 if pellets.empty?
         end
         @ghosts = ghosts.each_with_index.map { |ghost, index| move_ghost(ghost, index) }
@@ -234,6 +258,7 @@ module RubyOS
 
       def lose_life
         @lives -= 1
+        emit_sound(@lives.positive? ? :danger : :game_over)
         @player = [1, 1]
         @ghosts = [Ghost.new(x: WIDTH - 2, y: 1, color: 0xff668a),
                    Ghost.new(x: WIDTH - 2, y: HEIGHT - 2, color: 0x78dce8)]
@@ -251,6 +276,7 @@ module RubyOS
     end
 
     class Raiders
+      include SoundEvents
       Raider = Data.define(:x, :y, :home_x, :home_y, :diving)
       WIDTH = 32
       HEIGHT = 20
@@ -270,6 +296,7 @@ module RubyOS
         @score = 0
         @frame = 0
         @direction = 1
+        @sound_events = [:start]
         render
       end
 
@@ -279,7 +306,11 @@ module RubyOS
         case event.fetch("code", 0)
         when 97, LEFT_KEY then @player_x = [player_x - 1, 0].max
         when 100, RIGHT_KEY then @player_x = [player_x + 1, WIDTH - 2].min
-        when 32 then @shot ||= [player_x, HEIGHT - 3]
+        when 32
+          unless @shot
+            @shot = [player_x, HEIGHT - 3]
+            emit_sound(:fire)
+          end
         else return false
         end
         render
@@ -287,7 +318,10 @@ module RubyOS
       end
 
       def fire
-        @shot ||= [player_x, HEIGHT - 3]
+        unless @shot
+          @shot = [player_x, HEIGHT - 3]
+          emit_sound(:fire)
+        end
         render
         self
       end
@@ -329,6 +363,7 @@ module RubyOS
         if target
           enemies.delete(target)
           @score += target.diving ? 200 : 100
+          emit_sound(:hit)
           @shot = nil
         elsif shot[1].negative?
           @shot = nil
@@ -347,6 +382,7 @@ module RubyOS
     end
 
     class Defender
+      include SoundEvents
       Lander = Data.define(:x, :y, :carrying, :kind)
       Human = Data.define(:x, :y, :state)
       WORLD_WIDTH = 256
@@ -364,6 +400,7 @@ module RubyOS
         @score = 0
         @lives = 3
         @bombs = 3
+        @sound_events = [:start]
         @shots = []
         @humans = 8.times.map { |index| Human.new(x: 12 + index * 29, y: 17, state: :ground) }
         @landers = 6.times.map do |index|
@@ -393,7 +430,10 @@ module RubyOS
       end
 
       def fire
-        @shots << [((player_x + direction * 2) % WORLD_WIDTH), player_y, direction, 18] if shots.length < 6
+        if shots.length < 6
+          @shots << [((player_x + direction * 2) % WORLD_WIDTH), player_y, direction, 18]
+          emit_sound(:fire)
+        end
         self
       end
 
@@ -401,6 +441,7 @@ module RubyOS
         return self unless bombs.positive?
 
         @bombs -= 1
+        emit_sound(:bomb)
         visible, hidden = landers.partition { |enemy| screen_x(enemy.x).between?(0, WIDTH - 1) }
         visible.each do |enemy|
           next unless enemy.carrying
@@ -419,6 +460,7 @@ module RubyOS
         update_humans
         if landers.any? { |enemy| screen_x(enemy.x).between?(14, 17) && (enemy.y - player_y).abs <= 1 }
           @lives -= 1
+          emit_sound(@lives.positive? ? :danger : :game_over)
           @player_y = 10
         end
         render
@@ -484,6 +526,7 @@ module RubyOS
           target = survivors.find { |enemy| circular_delta(enemy.x, x).abs <= 1 && (enemy.y - y).abs <= 1 }
           if target
             survivors.delete(target)
+            emit_sound(:hit)
             @score += target.kind == :mutant ? 250 : 150
             if target.carrying
               human = humans.fetch(target.carrying)
@@ -503,6 +546,7 @@ module RubyOS
           when :falling
             if circular_delta(human.x, player_x).abs <= 2 && (human.y - player_y).abs <= 2
               @score += 250
+              emit_sound(:rescue)
               Human.new(x: player_x, y: player_y + 1, state: :aboard)
             elsif human.y >= 17
               Human.new(x: human.x, y: 17, state: :ground)
@@ -512,6 +556,7 @@ module RubyOS
           when :aboard
             if player_y >= 16
               @score += 500
+              emit_sound(:rescue)
               Human.new(x: player_x, y: 17, state: :ground)
             else
               Human.new(x: player_x, y: player_y + 1, state: :aboard)
@@ -550,28 +595,221 @@ module RubyOS
   end
 
   module Apps
+    module ArcadeArt
+      module_function
+
+      INVADER = ["  XX  ", " XXXX ", "XXXXXX", "XX  XX", " X  X "].freeze
+      RAIDER = ["  XX  ", " XXXXXX ", "XXXXXXXX", " XX  XX ", "X  XX  X"].freeze
+      SHIP = ["    X   ", "   XXX  ", "XXXXXXX ", " XXXXXXX", "  X  X  "].freeze
+      LANDER = ["  XXXX  ", " XXXXXX ", "XX XX XX", "  X  X  ", " X    X "].freeze
+      GHOST = [" XXXX ", "XXXXXX", "XXOOXX", "XXXXXX", "X X X "].freeze
+
+      def render(game, scale)
+        source = game.view
+        target = Media::Bitmap.new(source.width * scale, source.height * scale)
+        background = source.get(0, 0) || 0x02040c
+        target.height.times do |y|
+          shade = adjust(background, 1.0 + 0.35 * y / [target.height, 1].max)
+          target.rect(0, y, target.width, 1, color: shade)
+        end
+        60.times do |index|
+          x = (index * 97 + 19) % target.width
+          y = (index * 53 + 11) % target.height
+          target.rect(x, y, index % 7 == 0 ? 2 : 1, 1,
+                      color: index.even? ? 0x496785 : 0x26344d)
+        end
+        case game
+        when Games::Invaders then invaders(target, game, scale)
+        when Games::Snake then snake(target, game, scale)
+        when Games::Maze then maze(target, game, scale)
+        when Games::Raiders then raiders(target, game, scale)
+        when Games::Defender then defender(target, game, scale)
+        else
+          source.each_pixel do |x, y, color|
+            tile(target, x, y, scale, color) unless color == background
+          end
+        end
+        target
+      end
+
+      def enhance(source, scale)
+        wrapper = Struct.new(:view).new(source)
+        render(wrapper, scale)
+      end
+
+      def invaders(target, game, cell)
+        game.enemies.each do |x, y|
+          stamp(target, INVADER, x * cell - cell / 2, y * cell - cell / 3,
+                color: 0x89ddff, accent: 0xe8fbff, unit: [cell / 4, 1].max)
+        end
+        stamp(target, SHIP, game.player_x * cell - cell, 18 * cell - cell / 2,
+              color: 0xffd866, accent: 0xffffff, unit: [cell / 4, 1].max)
+        projectile(target, game.shot, cell, 0xff668a)
+      end
+
+      def snake(target, game, cell)
+        game.body.reverse_each.with_index do |(x, y), index|
+          color = index == game.body.length - 1 ? 0xe5ffb8 : 0x72d66d
+          target.rect(x * cell + 1, y * cell + 1, cell - 2, cell - 2,
+                      color: adjust(color, 0.65))
+          target.rect(x * cell + 2, y * cell + 2, cell - 4, cell - 4, color:)
+        end
+        head_x, head_y = game.body.first
+        target.rect(head_x * cell + cell - 3, head_y * cell + 2, 2, 2, color: 0x08140e)
+        food_x, food_y = game.food
+        disc(target, food_x * cell + cell / 2, food_y * cell + cell / 2,
+             [cell / 2 - 1, 2].max, 0xff668a)
+        target.line(food_x * cell + cell / 2, food_y * cell + 1,
+                    food_x * cell + cell / 2 + 2, food_y * cell - 2, color: 0x8fe388)
+      end
+
+      def maze(target, game, cell)
+        Games::Maze::HEIGHT.times do |y|
+          Games::Maze::WIDTH.times do |x|
+            next unless game.send(:wall?, x, y)
+            tile(target, x, y, cell, 0x375bd2)
+          end
+        end
+        game.pellets.each_key do |x, y|
+          size = [cell / 4, 2].max
+          target.rect(x * cell + (cell - size) / 2, y * cell + (cell - size) / 2,
+                      size, size, color: 0xffd866)
+        end
+        game.ghosts.each do |ghost|
+          stamp(target, GHOST, ghost.x * cell - cell / 3, ghost.y * cell - cell / 3,
+                color: ghost.color, accent: 0xffffff, unit: [cell / 5, 1].max)
+        end
+        x, y = game.player
+        disc(target, x * cell + cell / 2, y * cell + cell / 2, cell / 2, 0xffff80)
+        target.rect(x * cell + cell / 2, y * cell + cell / 2 - 1,
+                    cell / 2, 3, color: background_color(target, x * cell, y * cell))
+      end
+
+      def raiders(target, game, cell)
+        game.enemies.each do |enemy|
+          stamp(target, RAIDER, enemy.x * cell - cell / 2, enemy.y * cell - cell / 3,
+                color: enemy.diving ? 0xff668a : 0x51d6c5, accent: 0xffffff,
+                unit: [cell / 5, 1].max)
+        end
+        stamp(target, SHIP, (game.player_x - 1) * cell, 18 * cell - cell / 2,
+              color: 0xffd866, accent: 0xffffff, unit: [cell / 4, 1].max)
+        projectile(target, game.shot, cell, 0xffffff)
+      end
+
+      def defender(target, game, cell)
+        terrain_y = 18 * cell
+        target.rect(0, terrain_y, target.width, target.height - terrain_y, color: 0x183a2b)
+        (0...target.width).step([cell / 2, 1].max) do |x|
+          ridge = ((x / [cell / 2, 1].max * 7 + game.player_x) % 11) * cell / 12
+          target.rect(x, terrain_y - ridge, [cell / 2, 1].max, ridge + 2,
+                      color: 0x426b3a)
+        end
+        game.humans.each do |human|
+          x = game.send(:screen_x, human.x)
+          next unless x.between?(0, Games::Defender::WIDTH - 1)
+          color = human.state == :lost ? 0x493542 : 0xffd866
+          px, py = x * cell + cell / 2, human.y * cell
+          disc(target, px, py, [cell / 5, 1].max, color)
+          target.line(px, py + cell / 4, px, py + cell - 2, color:)
+          target.line(px, py + cell / 2, px - cell / 3, py + cell * 3 / 4, color:)
+          target.line(px, py + cell / 2, px + cell / 3, py + cell * 3 / 4, color:)
+        end
+        game.landers.each do |enemy|
+          x = game.send(:screen_x, enemy.x)
+          next unless x.between?(-2, Games::Defender::WIDTH + 1)
+          stamp(target, LANDER, x * cell - cell / 2, enemy.y * cell - cell / 3,
+                color: enemy.kind == :mutant ? 0xff668a : 0x78dce8,
+                accent: 0xffffff, unit: [cell / 5, 1].max)
+          radar_x = enemy.x * target.width / Games::Defender::WORLD_WIDTH
+          target.rect(radar_x, cell, [cell / 3, 2].max, [cell / 4, 2].max, color: 0xff668a)
+        end
+        game.shots.each do |x, y, heading, _ttl|
+          sx = game.send(:screen_x, x)
+          next unless sx.between?(0, Games::Defender::WIDTH - 1)
+          start = sx * cell + (heading.negative? ? -cell : 0)
+          target.rect(start, y * cell + cell / 2, cell * 2, 2, color: 0xffffff)
+        end
+        stamp(target, SHIP, 15 * cell - cell / 2, game.player_y * cell - cell / 2,
+              color: 0x51d6c5, accent: 0xffffff, unit: [cell / 4, 1].max)
+        radar_x = game.player_x * target.width / Games::Defender::WORLD_WIDTH
+        target.rect(radar_x, 0, [cell / 2, 2].max, [cell / 3, 2].max, color: 0x51d6c5)
+      end
+
+      def tile(target, x, y, cell, color)
+        left, top = x * cell, y * cell
+        target.rect(left, top, cell, cell, color: adjust(color, 0.55))
+        target.rect(left + 1, top + 1, [cell - 2, 1].max, [cell - 2, 1].max, color:)
+        target.line(left + 1, top + 1, left + cell - 2, top + 1,
+                    color: adjust(color, 1.35)) if cell >= 4
+      end
+
+      def stamp(target, pattern, x, y, color:, accent:, unit: 1)
+        pattern.each_with_index do |row, row_index|
+          row.each_char.with_index do |pixel, column|
+            next if pixel == " "
+            shade = pixel == "O" ? 0x07101e : (row_index.zero? ? accent : color)
+            target.rect(x + column * unit, y + row_index * unit, unit, unit, color: shade)
+          end
+        end
+      end
+
+      def projectile(target, point, cell, color)
+        return unless point
+        x, y = point
+        target.rect(x * cell + cell / 2 - 1, y * cell, 3, cell, color:)
+      end
+
+      def disc(target, center_x, center_y, radius, color)
+        (-radius..radius).each do |offset|
+          half = Math.sqrt([radius * radius - offset * offset, 0].max).to_i
+          target.rect(center_x - half, center_y + offset, half * 2 + 1, 1, color:)
+        end
+      end
+
+      def background_color(target, x, y) = target.get(x, y) || 0x03040d
+
+      def adjust(color, factor)
+        channels = [16, 8, 0].map { |shift| [[((color >> shift) & 0xff) * factor, 255].min, 0].max.to_i }
+        (channels[0] << 16) | (channels[1] << 8) | channels[2]
+      end
+    end
+
     class ArcadeView < GUI::View
-      def initialize(game, scale: 4, on_change: nil, **options)
+      def initialize(game, scale: 4, on_change: nil, on_sound: nil, **options)
         super(**options)
         @game = game
         @scale = scale
         @on_change = on_change
+        @on_sound = on_sound
       end
 
       def handle(event)
         handled = @game.handle(event)
         if handled
           @on_change&.call
+          @on_sound&.call
           invalidate
         end
         handled
       end
 
       def draw(surface)
-        surface.draw_bitmap(x, y, @game.view, scale: @scale)
+        if @art_revision != @game.view.revision
+          @render_scale = @scale.even? ? @scale / 2 : @scale
+          @present_scale = @scale / @render_scale
+          @art = ArcadeArt.render(@game, @render_scale)
+          @art_revision = @game.view.revision
+        end
+        surface.draw_bitmap(x, y, @art, scale: @present_scale)
       end
 
       def focusable? = true
+
+      def release
+        @art = nil
+        @art_revision = nil
+        self
+      end
     end
 
     class ArcadeApplication < Application
@@ -579,6 +817,7 @@ module RubyOS
 
       def advance(*)
         game.tick
+        play_pending_cues
         update_status
         @arcade&.invalidate
         true
@@ -598,9 +837,10 @@ module RubyOS
 
       private
 
-      def build_arcade_window(title, instructions:, x:, y:, scale: 8, background: 0x080b18,
+      def build_arcade_window(title, instructions:, x:, y:, scale: nil, background: 0x080b18,
                               tick_every: 4)
         bitmap = game.view
+        scale ||= @compositor&.width.to_i >= 900 ? 20 : 8
         width = bitmap.width * scale + 36
         height = bitmap.height * scale + 72
         @tick_count = 0
@@ -609,7 +849,8 @@ module RubyOS
                                   background:)
         @arcade = @window.add(ArcadeView.new(
           game, scale:, x: 0, y: 0, width: bitmap.width * scale,
-          height: bitmap.height * scale, on_change: method(:update_status)
+          height: bitmap.height * scale, on_change: method(:update_status),
+          on_sound: method(:play_pending_cues)
         ))
         @status = @window.add(GUI::Label.new("", x: 0, y: bitmap.height * scale + 4,
                                              width: bitmap.width * scale, color: 0xffd866))
@@ -622,8 +863,28 @@ module RubyOS
           @tick_count += 1
           advance if !@paused && (@tick_count % tick_every).zero?
         end
+        @window.on_close do
+          @arcade&.release
+          @arcade = @status = @instructions = @window = nil
+          GC.start
+        end
         update_status
+        play_pending_cues
         @window
+      end
+
+      def play_pending_cues
+        output = @compositor&.audio_output
+        return false unless output && game.respond_to?(:cue)
+
+        played = false
+        while (pcm = game.cue)
+          output.play(pcm)
+          played = true
+        end
+        played
+      rescue RubyOS::Error
+        false
       end
 
       def update_status
@@ -665,7 +926,7 @@ module RubyOS
 
       def build_window
         build_arcade_window("Enumerable Maze", instructions: "W/A/S/D or arrows chase gems",
-                            x: 104, y: 32, scale: 8, background: 0x060716, tick_every: 5)
+                            x: 104, y: 32, background: 0x060716, tick_every: 5)
       end
     end
 

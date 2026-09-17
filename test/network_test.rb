@@ -48,6 +48,24 @@ decoded_tcp = RubyOS::Net::TCPSegment.decode(tcp_bytes, source_ip:, destination_
 assert(decoded_tcp.sequence == 123, "TCP sequence round trip")
 assert(decoded_tcp.payload == "ruby-stream", "TCP payload round trip")
 
+fin_segment = RubyOS::Net::TCPSegment.new(7000, 49_152, 900, 101,
+                                           RubyOS::Net::TCPSegment::FIN |
+                                           RubyOS::Net::TCPSegment::ACK,
+                                           65_535, +"".b)
+tcp_stack_double = Class.new do
+  attr_reader :transmissions
+  def initialize(tuple) = (@tuple = tuple; @transmissions = [])
+  def wait_for_tcp_frame(timeout_ms:) = (yield(*@tuple) ? @tuple : nil)
+  def transmit_tcp(*arguments) = @transmissions << arguments.last
+end.new([nil, Struct.new(:source).new(destination_ip), fin_segment])
+stream = RubyOS::Net::TCPConnection.new(
+  tcp_stack_double, remote_ip: destination_ip, remote_mac: destination_mac,
+  remote_port: 7000, local_port: 49_152, sequence: 101, acknowledgment: 900
+)
+assert(stream.read(timeout_ms: 10).empty? &&
+       (tcp_stack_double.transmissions.last.flags & RubyOS::Net::TCPSegment::ACK) != 0,
+       "TCP streams surface FIN as EOF and acknowledge it")
+
 dhcp = RubyOS::Net::DHCPMessage.new(transaction: 0x12345678, client_mac: source_mac,
                                     options: { 53 => [RubyOS::Net::DHCPMessage::DISCOVER].pack("C") })
 wire = dhcp.encode.dup

@@ -2,6 +2,8 @@
 
 module RubyOS
   module Kernel
+    INTERACTIVE_DESKTOP_WIDTH = 1_024
+    INTERACTIVE_DESKTOP_HEIGHT = 768
     module_function
 
     def boot_remote_desktop(transport: nil)
@@ -31,7 +33,8 @@ module RubyOS
       compositor.add_shortcut("Files", x: 8, y: 104) { applications.fetch("Files").launch(compositor) }
       about_window = applications.fetch("About").launch(compositor)
       applications.fetch("Files").launch(compositor)
-      applications.fetch("Media").launch(compositor)
+      media = applications.fetch("Media")
+      media_window = media.launch(compositor)
       terminal_window = applications.fetch("Terminal").launch(compositor)
       HAL.serial_write("[RubyOS] desktop smoke: applications launched\n")
       RubyOS.invariant(compositor.pinned_dock_names == Apps::Catalog::DEFAULT_DOCK,
@@ -74,6 +77,8 @@ module RubyOS
       RubyOS.invariant(Examples.run("start_here/prime_enumerator").last == 47 &&
                        Examples.run("concurrency/fiber_mailbox") ==
                          %w[message-1 message-2 message-3] &&
+                       Examples.run("concurrency/structured_tasks") ==
+                         %w[worker-1 worker-2] &&
                        state.fetch(:vfs).read_file(
                          "/examples/concurrency/README.txt"
                        ).include?("native_workers"),
@@ -122,6 +127,7 @@ module RubyOS
           desktop.capture("/tmp/rubyos-sprites.bmp")
         end
         compositor.close(demo_window)
+        desktop.surface.clear_bitmap_cache
         HAL.serial_write("[RubyOS] desktop smoke: completed demo #{entry.name} at " \
                          "#{state.fetch(:clock).milliseconds} ms\n")
       end
@@ -375,6 +381,21 @@ module RubyOS
                        files.status.text.include?("Exported #{export_source.bytesize} bytes"),
                        "dropping a guest file on Export did not complete")
       HAL.serial_write("[RubyOS] desktop smoke: guest file drag export checked\n")
+      compositor.focus(media_window)
+      media.select_a
+      media.start_wipe
+      15.times { media.tick }
+      RubyOS.invariant(media.playing && media.cue_count.positive? &&
+                       media.transition.progress.between?(0.0, 1.0) &&
+                       media.preview.bitmap.equal?(media.transition.output),
+                       "Media Workbench did not render and cue a timeline-driven wipe")
+      compositor.draw(desktop.surface, uptime: "Ruby bitmap wipe")
+      desktop.present
+      desktop.capture("/tmp/rubyos-interaction-media-wipe.bmp")
+      20.times { media.tick }
+      RubyOS.invariant(!media.playing && media.program == :b && media.meter.value == 100,
+                       "Media Workbench did not complete on program B")
+      HAL.serial_write("[RubyOS] desktop smoke: Ruby media wipe checked\n")
       client.call("debug.event.inject", { kind: 4, x: 126, y: 10, button: 1 })
       desktop.events.each { |event| compositor.handle(event) }
       compositor.draw(desktop.surface, uptime: "menus")
@@ -386,6 +407,7 @@ module RubyOS
                        "Demos menu did not launch the first Ruby demo")
       compositor.close(compositor.focused_window)
       HAL.serial_write("[RubyOS] desktop smoke: menus and shortcuts checked\n")
+      compositor.focus(terminal_window)
       initial_terminal_position = [terminal_window.x, terminal_window.y]
       drag_x = terminal_window.x + 20
       drag_y = terminal_window.y + 10
@@ -520,6 +542,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS] PNG/JPEG image surfaces: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] SDL audio bridge: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] Ruby media canvas: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] Ruby media wipe studio: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] Ruby arcade games: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] guest/host performance metrics: PASS\n")
       true
@@ -543,6 +566,7 @@ module RubyOS
         slug = entry.name.downcase.gsub(/[^a-z0-9]+/, "-").gsub(/\A-|-\z/, "")
         desktop.capture("/tmp/rubyos-app-#{slug}.bmp")
         compositor.close(window)
+        desktop.surface.clear_bitmap_cache
       end
       HAL.serial_write(
         "[RubyOS] catalog visual captures: #{applications.entries.length} PASS\n"
@@ -553,8 +577,12 @@ module RubyOS
     def run_interactive_desktop(transport)
       client = Bridge::Client.new(transport)
       client.hello
-      desktop = Bridge::RemoteDesktop.new(client, width: 640, height: 480, title: "RubyOS")
-      compositor = GUI::Compositor.new(width: 640, height: 480, title: "RubyOS")
+      desktop = Bridge::RemoteDesktop.new(client, width: INTERACTIVE_DESKTOP_WIDTH,
+                                          height: INTERACTIVE_DESKTOP_HEIGHT, title: "RubyOS")
+      compositor = GUI::Compositor.new(width: INTERACTIVE_DESKTOP_WIDTH,
+                                       height: INTERACTIVE_DESKTOP_HEIGHT, title: "RubyOS")
+      audio = client.features.include?("audio.pcm") ? Sound::BridgeOutput.new(client) : nil
+      compositor.install_audio(audio)
       file_transfer = Bridge::FileTransfer.new(client:, vfs: state.fetch(:vfs))
       applications = Apps::Catalog.build(kernel: self)
       runtime = Live::Runtime.new(vfs: state.fetch(:vfs), registry: applications)
@@ -574,11 +602,12 @@ module RubyOS
         compositor.draw(desktop.surface, uptime: "#{state.fetch(:clock).milliseconds} ms")
         desktop.present
         unless ready
-          HAL.serial_write("[RubyOS] interactive desktop: READY\n")
+          HAL.serial_write("[RubyOS] interactive desktop: READY 1024x768 audio=#{audio ? 'on' : 'off'}\n")
           ready = true
         end
         HAL.sleep_us(16_000)
       end
+      audio&.close
       desktop.close
       client.call("shutdown")
       client.close

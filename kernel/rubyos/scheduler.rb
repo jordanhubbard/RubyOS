@@ -7,6 +7,9 @@ module RubyOS
   class Scheduler
     TICK_HZ = 100
 
+    class TimeoutError < Error; end
+    class TaskKilled < Error; end
+
     Task = Struct.new(:pid, :name, :fiber, :state, :result, :failure, :wake_at,
                       :ticks, :auto_reap, keyword_init: true) do
       def alive? = fiber.alive? && ![:killed, :complete, :failed].include?(state)
@@ -99,6 +102,57 @@ module RubyOS
     end
 
     alias ps tasks
+
+    def current_task = @current
+
+    def wait_until(timeout_ms: nil)
+      raise ArgumentError, "condition block required" unless block_given?
+
+      timeout = timeout_ms.nil? ? nil : Float(timeout_ms)
+      raise ArgumentError, "timeout must be finite and nonnegative" if
+        timeout && (!timeout.finite? || timeout.negative?)
+      deadline = timeout && now_ms + timeout
+      loop do
+        return true if yield
+        raise TimeoutError, "operation timed out after #{timeout_ms} ms" if
+          deadline && now_ms >= deadline
+        raise Error, "waiting requires a scheduled task" unless current_task
+
+        yield_now
+      end
+    end
+
+    def join(task_or_pid, timeout_ms: nil)
+      task = resolve_task(task_or_pid)
+      raise ArgumentError, "unknown task" unless task
+      raise Error, "task cannot join itself" if task.equal?(current_task)
+
+      wait_until(timeout_ms:) { task.terminal? }
+      raise task.failure if task.failure
+      raise TaskKilled, "task #{task.pid} (#{task.name}) was killed" if task.state == :killed
+
+      task.result
+    end
+
+    def gather(*task_values, timeout_ms: nil)
+      selected = task_values.flatten.map do |task_or_pid|
+        resolve_task(task_or_pid) || raise(ArgumentError, "unknown task")
+      end
+      raise Error, "task cannot gather itself" if selected.include?(current_task)
+
+      wait_until(timeout_ms:) do
+        selected.all?(&:terminal?) || selected.any?(&:failure) ||
+          selected.any? { |task| task.state == :killed }
+      end
+      failed = selected.find(&:failure)
+      raise failed.failure if failed
+      killed = selected.find { |task| task.state == :killed }
+      if killed
+        raise TaskKilled, "task #{killed.pid} (#{killed.name}) was killed"
+      end
+
+      selected.map(&:result)
+    end
 
     def kill(task_or_pid)
       task = resolve_task(task_or_pid)

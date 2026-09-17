@@ -50,12 +50,17 @@ module RubyOS
       def read(timeout_ms: 10_000)
         frame = @stack.wait_for_tcp_frame(timeout_ms:) do |_ethernet, ip, segment|
           ip.source == remote_ip && segment.source_port == remote_port &&
-            segment.destination_port == local_port && !segment.payload.empty?
+            segment.destination_port == local_port &&
+            (!segment.payload.empty? || (segment.flags & (TCPSegment::FIN | TCPSegment::RST)) != 0)
         end
         raise Error, "TCP receive timed out" unless frame
         _, _, segment = frame
-        @acknowledgment = (segment.sequence + segment.payload.bytesize) & 0xffffffff
-        transmit(TCPSegment::ACK, +"".b)
+        raise Error, "TCP peer reset connection" if (segment.flags & TCPSegment::RST) != 0
+
+        consumed = segment.payload.bytesize
+        consumed += 1 if (segment.flags & TCPSegment::FIN) != 0
+        @acknowledgment = (segment.sequence + consumed) & 0xffffffff
+        acknowledge
         segment.payload
       end
 
@@ -74,6 +79,11 @@ module RubyOS
       def close
         transmit(TCPSegment::FIN | TCPSegment::ACK, +"".b)
         @sequence = (@sequence + 1) & 0xffffffff
+        self
+      end
+
+      def acknowledge
+        transmit(TCPSegment::ACK, +"".b)
         self
       end
 

@@ -78,7 +78,7 @@ module RubyOS
         sequence = (0x5255_4259 + @sessions.length * 0x1000) & 0xffffffff
         context = Object.new.instance_eval { binding }
         output = SessionOutput.new
-        shell = RubyOS::Shell.new(input: -> { nil }, output:, context:)
+        shell = RubyOS::Shell.new(input: -> { nil }, output:, context:, network: @stack)
         session = Session.new(remote_ip: ip.source, remote_mac: ethernet.source,
                               remote_port: segment.source_port,
                               sequence: (sequence + 1) & 0xffffffff,

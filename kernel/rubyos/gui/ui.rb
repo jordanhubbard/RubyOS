@@ -296,7 +296,7 @@ module RubyOS
       attr_reader :text, :cursor, :scroll_line, :scroll_column, :clipboard
 
       def initialize(text: "", color: 0xffffff, multiline: false,
-                     on_change: nil, on_submit: nil, on_history: nil,
+                     on_change: nil, on_submit: nil, on_history: nil, on_complete: nil,
                      clipboard: Clipboard.default, **options)
         super(**options)
         @text = String(text).dup
@@ -306,6 +306,7 @@ module RubyOS
         @on_change = on_change
         @on_submit = on_submit
         @on_history = on_history
+        @on_complete = on_complete
         @clipboard = clipboard
         @selection_anchor = nil
         @pointer_selecting = false
@@ -358,6 +359,12 @@ module RubyOS
           move_cursor(vertical_target(1), extend: extend_selection)
         elsif !@multiline && @on_history && [UP_KEY, DOWN_KEY].include?(code)
           replacement = @on_history.call(code == UP_KEY ? -1 : 1)
+          if replacement
+            replace(replacement, notify: false)
+            move_cursor(text.each_char.count)
+          end
+        elsif !@multiline && code == 9 && @on_complete
+          replacement = @on_complete.call(text)
           if replacement
             replace(replacement, notify: false)
             move_cursor(text.each_char.count)

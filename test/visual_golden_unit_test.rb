@@ -17,8 +17,10 @@ end
 Dir.mktmpdir("rubyos-visual-golden-") do |directory|
   capture = File.join(directory, "rubyos-app-probe.bmp")
   interaction = File.join(directory, "rubyos-interaction-file-drag.bmp")
+  media_interaction = File.join(directory, "rubyos-interaction-media-wipe.bmp")
   File.binwrite(capture, bmp24(656, 16))
   File.binwrite(interaction, bmp24(656, 16))
+  File.binwrite(media_interaction, bmp24(656, 16))
   root = File.join(directory, "root")
 
   previous = ENV["RUBYOS_GOLDEN_REFRESH"]

@@ -12,6 +12,7 @@ examples
 examples start_here
 example start_here/hello_kernel
 example concurrency/fiber_mailbox
+example concurrency/structured_tasks
 cat /examples/concurrency/README.txt
 ```
 

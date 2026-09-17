@@ -27,6 +27,19 @@ timeline.animate(shape, :x, from: 10, to: 20, duration: 1, delay: 1, easing: :li
 timeline.seek(0.5); assert(shape.x == 5)
 timeline.seek(1.5); assert(shape.x == 15)
 timeline.seek(0); assert(shape.x == 0)
+source = media::Bitmap.new(4, 2, background: 0x111111)
+destination = media::Bitmap.new(4, 2, background: 0xeeeeee)
+wipe = media::WipeTransition.new(source:, destination:, progress: 0.5)
+assert(wipe.output.raster == [0xeeeeee, 0xeeeeee, 0x111111, 0x111111] * 2)
+wipe.direction = :bottom_to_top
+assert(wipe.output.raster == [0x111111] * 4 + [0xeeeeee] * 4)
+wipe.progress = 1
+assert(wipe.complete? && wipe.output.raster.all? { |pixel| pixel == 0xeeeeee })
+begin
+  media::WipeTransition.new(source:, destination: media::Bitmap.new(3, 2))
+  raise "mismatched wipe dimensions accepted"
+rescue ArgumentError
+end
 scene = media::Scene3D.new
 scene.add(media::Mesh.cube)
 vertices = scene.vertices(aspect: 1.5)

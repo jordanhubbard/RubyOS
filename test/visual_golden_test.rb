@@ -82,8 +82,11 @@ module RubyOSVisualGolden
                                          "rubyos-interaction-*.bmp")].sort
     captures = app_captures + interaction_captures
     raise "no visual captures found in #{capture_directory}" if captures.empty?
-    raise "guest file drag interaction capture is missing" unless interaction_captures.any? do |path|
-      identifier(path, ".bmp") == "rubyos-interaction-file-drag"
+    interaction_ids = interaction_captures.map { |path| identifier(path, ".bmp") }
+    required_interactions = %w[rubyos-interaction-file-drag rubyos-interaction-media-wipe]
+    missing_interactions = required_interactions - interaction_ids
+    unless missing_interactions.empty?
+      raise "interaction captures are missing: #{missing_interactions.join(', ')}"
     end
 
     golden_directory = File.join(root, "test", "goldens", architecture)

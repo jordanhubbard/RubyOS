@@ -4,6 +4,28 @@ All notable RubyOS changes are documented here.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-09-17
+
+- Match PythonOS's 1024x768 interactive desktop, replace enlarged game pixels
+  with shaded high-resolution arcade rendering, and connect all five games to
+  audible PCM startup, action, score, rescue, danger, and game-over cues.
+- Add the public backend-neutral `RubyOS::App` class library: portable Canvas,
+  lifecycle, input, fixed-step Runtime and Audio APIs run unchanged with an
+  in-memory/native surface or the optional RemoteOS-SDL backend.
+
+- Complete the PythonOS behavior ledger with a stateful Ruby shell: persistent
+  Terminal history, syntax-aware multiline evaluation, command/path/method
+  completion, cwd-aware file operations, source execution, system/network
+  inspection, desktop/editor launch, and streaming TCP file transfer. Add an
+  active TCP client API with FIN-as-EOF semantics and portable-pixmap viewing.
+- Add structured Fiber concurrency with join/gather, monotonic timeouts,
+  bounded Enumerable channels, events, block-scoped semaphores and task groups;
+  the frozen curriculum now runs producer/consumer and coordinated-worker
+  examples through those public Ruby APIs on both guest architectures.
+- Replace the static Media thumbnail with a Ruby-native two-program studio:
+  reusable seekable bitmap wipes, four directions, timeline animation, direct
+  cuts, keyboard/menu controls, progress feedback, an SDL audio cue, and
+  frozen ARM64/x86_64 interaction captures.
 - Add pointer-captured guest file dragging to reusable Ruby `ListView` widgets;
   Files and shared Open/Save dialogs now show a bounded drag badge and export
   only when a file is released on the Export target, with frozen ARM64/x86_64

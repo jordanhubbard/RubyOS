@@ -25,6 +25,7 @@ sprites_capture="/tmp/rubyos-sprites.bmp"
 image_viewer_capture="/tmp/rubyos-image-viewer.bmp"
 source_editor_capture="/tmp/rubyos-source-editor.bmp"
 file_drag_capture="/tmp/rubyos-interaction-file-drag.bmp"
+media_wipe_capture="/tmp/rubyos-interaction-media-wipe.bmp"
 visual_capture_pattern="rubyos-app-*.bmp"
 
 cleanup() {
@@ -42,7 +43,7 @@ cleanup() {
     rm -f "$arcade_capture"
     rm -f "$plasma_capture"
     rm -f "$sprites_capture" "$image_viewer_capture" "$source_editor_capture" \
-        "$file_drag_capture"
+        "$file_drag_capture" "$media_wipe_capture"
     find /tmp -maxdepth 1 -type f -name "$visual_capture_pattern" -delete
     rm -rf "$export_dir"
 }
@@ -86,6 +87,7 @@ grep -q 'menus and global shortcuts: PASS' "$output"
 grep -q 'shared open/save dialog: PASS' "$output"
 grep -q 'host file transfer: PASS' "$output"
 grep -q 'guest file drag export: PASS' "$output"
+grep -q 'Ruby media wipe studio: PASS' "$output"
 grep -q 'text selection and guest clipboard: PASS' "$output"
 grep -q 'editor navigation and explicit persistence: PASS' "$output"
 grep -q 'focused source edit and transactional reload: PASS' "$output"
@@ -116,6 +118,9 @@ cp "$source_editor_capture" "$root/build/rubyos-source-editor.bmp"
 test -s "$file_drag_capture"
 file "$file_drag_capture" | grep -q '480 x 300'
 cp "$file_drag_capture" "$root/build/rubyos-file-drag.bmp"
+test -s "$media_wipe_capture"
+file "$media_wipe_capture" | grep -q '480 x 300'
+cp "$media_wipe_capture" "$root/build/rubyos-media-wipe.bmp"
 test -s "$persistent_keymap_capture"
 file "$persistent_keymap_capture" | grep -q '480 x 300'
 cp "$persistent_keymap_capture" "$root/build/rubyos-persistent-keymap.bmp"

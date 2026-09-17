@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module RubyOS
-  VERSION = "0.3.1"
+  VERSION = "0.3.2"
 
   class Error < StandardError; end
   class InvariantError < Error; end
@@ -12,6 +12,7 @@ module RubyOS
 end
 
 require "rubyos/scheduler"
+require "rubyos/async"
 require "rubyos/timekeeper"
 require "rubyos/memory"
 require "rubyos/input"
@@ -20,6 +21,7 @@ require "rubyos/debug"
 require "rubyos/examples"
 require "rubyos/sound"
 require "rubyos/media"
+require "rubyos/app"
 require "rubyos/live"
 require "rubyos/fs"
 require "rubyos/fs/ext2"
