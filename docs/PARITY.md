@@ -21,11 +21,11 @@ claims, not certification for arbitrary physical hardware.
 | Storage | VFS, tmpfs, ext2, mounted persistent `/home` | Ruby VFS/tmpfs plus writable ext2 over bare-metal VirtIO block, with sparse files, arbitrary truncate, double-indirect traversal, create, unlink, and rmdir | Complete |
 | Network | VirtIO net, Ethernet, ARP, IPv4, ICMP, UDP, TCP, DHCP, DNS | bare-metal Ruby VirtIO net, DHCP, ARP, IPv4/ICMP, UDP, DNS, TCP client/server, concurrent REPL sessions | Complete |
 | Remote display | RemoteOS-SDL v2 over bare-metal TCP/UART | shared service over hosted TCP, VirtIO console, and RubyOS-native bare-metal TCP | Complete |
-| GUI API | SDL-compatible surfaces, events, images, fonts, menus, scrolling, resizing, drag/drop, clipboard | Ruby `Surface`, owned SDL_ttf `Font`, focusable widgets, bounded labels, text editing, lists, meters, and keyboard/pointer dispatch | In progress |
-| Desktop | compositor, windows, app-aware menu bar, dynamic dock, wallpaper, shortcuts, context menus | Ruby compositor with focus/z-order, close/minimize/drag, responsive windows, wallpaper, shortcuts, status bar, dock, and catalog launcher | In progress |
-| Apps | terminal, live editor, files, image viewer, monitor, clock, settings, keybindings, polished shared choosers | About, shell-backed Terminal, transactional Live Editor, navigable Files, Image Viewer, Monitor, Clock, Settings, Ruby Inspector, Media, and metadata-driven Launcher | In progress |
+| GUI API | SDL-compatible surfaces, events, images, fonts, menus, scrolling, resizing, drag/drop, clipboard | Ruby `Surface`, owned SDL_ttf `Font`, focusable widgets, bounded labels, text editing, wheel-scrollable lists, meters, app menus, and keyboard/pointer dispatch | In progress |
+| Desktop | compositor, windows, app-aware menu bar, dynamic dock, wallpaper, shortcuts, context menus | Ruby compositor with focus/z-order, close/minimize/drag, responsive windows, app-aware menus, configurable global shortcuts, wallpaper, status bar, dock, and catalog launcher | In progress |
+| Apps | terminal, live editor, files, image viewer, monitor, clock, settings, keybindings, polished shared choosers | About, shell-backed Terminal, transactional Live Editor, navigable Files, Image Viewer, Monitor, Clock, Settings, Keybindings, Ruby Inspector, Media, and metadata-driven Launcher | In progress |
 | Demos and games | fifteen graphical/audio demos and arcade games | Ruby-centric Enumerable, Fiber, and pattern-matching labs plus Invaders and Snake; graphics/audio host lessons also exist | In progress (3 demos, 2 games) |
-| Input | PS/2 and VirtIO input, canonical event queue, configurable desktop shortcuts | bounded canonical Ruby event queue fed by SDL, native x86 PS/2 keyboard/mouse, and ARM64 VirtIO keyboard/mouse, all polled at CRuby-safe points; configurable shortcuts are missing | In progress |
+| Input | PS/2 and VirtIO input, canonical event queue, configurable persistent desktop shortcuts | bounded canonical Ruby event queue fed by SDL, native x86 PS/2 keyboard/mouse, ARM64 VirtIO keyboard/mouse, normalized SDL modifiers/function keys, and a live-rebindable keymap; persistence is missing | In progress |
 | Audio | Intel HDA/VirtIO/bridge mixer and sound API | Ruby PCM/waveform mixer, bare-metal SDL bridge, native ARM64 VirtIO Sound, and native x86_64 Intel HDA DMA | Complete |
 | Images | PNG/JPEG decoding and viewer | Ruby remote surfaces, raw upload, bare-metal PNG/JPEG decode/blit, and Image Viewer | Complete |
 | Concurrency | ARM64/x86 SMP, pthread substrate, no-GIL workers | ARM64 PSCI and x86 INIT/SIPI AP bring-up with C-safe native worker mailboxes exposed through Ruby while CRuby remains GVL-safe on the BSP | Complete |
@@ -38,8 +38,8 @@ claims, not certification for arbitrary physical hardware.
 The status column is deliberately evidence-based. A booting counterpart does
 not by itself establish equal depth. The largest remaining gaps are:
 
-- app-aware menus, context menus, resizing, scrolling, clipboard, drag/drop,
-  shared file choosers, configurable shortcuts, and source-opening workflows;
+- context menus, resizing, general text/editor scrolling, clipboard, drag/drop,
+  shared file choosers, shortcut persistence, and source-opening workflows;
 - PythonOS demo breadth such as paint, life, Mandelbrot, spirograph, plasma,
   starfield, rainfall, sprites, keyboard visualization, and its larger arcade
   set; RubyOS equivalents should teach Ruby objects and protocols rather than
@@ -55,8 +55,9 @@ not by itself establish equal depth. The largest remaining gaps are:
 
 1. Keep the metadata-driven catalog and public example surface reachable from
    hosted Ruby, serial/TCP shells, and the graphical desktop.
-2. Close shared desktop primitives before multiplying bespoke apps: menus,
-   scrolling, resize/layout, shortcuts, file choosers, drag/drop, and clipboard.
+2. Close the remaining shared desktop primitives before multiplying bespoke
+   apps: resize/layout, text scrolling, shortcut persistence, file choosers,
+   context menus, drag/drop, and clipboard.
 3. Grow Ruby-native demos around Enumerable, Fiber, pattern matching,
    metaprogramming, refinements, object graphs, Rack-style composition, and
    live class replacement while matching PythonOS's graphical breadth.

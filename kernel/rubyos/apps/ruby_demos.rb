@@ -87,6 +87,12 @@ module RubyOS
         render_step
       end
 
+      def menus(compositor)
+        [GUI::Menu.new(title: "Pipeline", items: [
+          GUI::MenuItem.command("Next stage") { advance }
+        ]), *super]
+      end
+
       private
 
       def render_step
@@ -128,6 +134,12 @@ module RubyOS
         @state.text = @fiber.alive? ? "Fiber suspended at yield" : "Fiber complete; Resume restarts"
         @window.invalidate
         true
+      end
+
+      def menus(compositor)
+        [GUI::Menu.new(title: "Fiber", items: [
+          GUI::MenuItem.command("Resume") { resume }
+        ]), *super]
       end
 
       private
@@ -180,6 +192,12 @@ module RubyOS
       def advance(*)
         @index = (@index + 1) % EVENTS.length
         render_match
+      end
+
+      def menus(compositor)
+        [GUI::Menu.new(title: "Pattern", items: [
+          GUI::MenuItem.command("Next value") { advance }
+        ]), *super]
       end
 
       private

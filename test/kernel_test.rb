@@ -25,6 +25,12 @@ input_queue.subscribe { |event| observed_input << event.kind }
 key_event = RubyOS::Input::Event.from_bridge("kind" => 1, "code" => 114, "text" => "r")
 assert(key_event.is_a?(RubyOS::Input::Event) && key_event.fetch("text") == "r",
        "bridge input normalization")
+modified_key = RubyOS::Input::Event.from_bridge(
+  "kind" => 1, "code" => 119, "mod" => 0x00c1
+)
+assert((modified_key.mods & RubyOS::Input::MOD_CTRL) != 0 &&
+       (modified_key.mods & RubyOS::Input::MOD_SHIFT) != 0,
+       "SDL modifier bits normalize to canonical RubyOS modifiers")
 assert(input_queue.post(key_event), "canonical event queue accepts input")
 assert(input_queue.post(RubyOS::Input::Event.build(kind: RubyOS::Input::KEY_UP, code: 114)),
        "canonical event queue preserves releases")
@@ -38,6 +44,7 @@ assert(ps2.feed(0x13).text == "R", "PS/2 shifted make-code translation")
 assert(ps2.feed(0x93).kind == RubyOS::Input::KEY_UP, "PS/2 break-code translation")
 ps2.feed(0xaa)
 assert(ps2.mods.zero?, "PS/2 modifier release")
+assert(ps2.feed(0x3b).code == RubyOS::Input::KEY_F1, "PS/2 function-key normalization")
 ps2_mouse = RubyOS::Input::PS2Mouse.new(x: 10, y: 10)
 mouse_events = [0x29, 5, 0xfd].flat_map { |byte| ps2_mouse.feed(byte) }
 assert([mouse_events.first.dx, mouse_events.first.dy] == [5, 3], "PS/2 signed pointer motion")
@@ -49,6 +56,8 @@ assert(virtio_keys.translate(1, 19, 1).text == "R", "VirtIO shifted EV_KEY trans
 assert(virtio_keys.translate(1, 19, 0).kind == RubyOS::Input::KEY_UP,
        "VirtIO key release translation")
 virtio_keys.translate(1, 42, 0)
+assert(virtio_keys.translate(1, 59, 1).code == RubyOS::Input::KEY_F1,
+       "VirtIO function-key normalization")
 virtio_keys.translate(2, 0, 12)
 virtio_keys.translate(2, 1, 0xffff_fffb)
 pointer_event = virtio_keys.translate(0, 0, 0)
@@ -210,6 +219,24 @@ input.handle("kind" => 1, "code" => 0, "text" => "y")
 input.handle("kind" => 1, "code" => 13)
 assert(submitted == "ruby", "text input insertion, backspace, and submit")
 
+menu_action = false
+menu_bar = RubyOS::GUI::MenuBar.new(width: 320, height: 200)
+menu_bar.replace([RubyOS::GUI::Menu.new(title: "RubyOS", items: [
+  RubyOS::GUI::MenuItem.command("About") { menu_action = true }
+])])
+assert(menu_bar.handle("kind" => RubyOS::Input::POINTER_DOWN,
+                       "button" => 1, "x" => 12, "y" => 8) && menu_bar.open?,
+       "menu title opens its command popup")
+menu_bar.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 13)
+assert(menu_action && !menu_bar.open?, "keyboard activates the highlighted menu command")
+
+scroll_items = 10.times.map { |index| { label: "item #{index}", kind: :file } }
+scroll_list = RubyOS::GUI::ListView.new(items: scroll_items, width: 160, height: 52)
+scroll_list.focused = true
+assert(scroll_list.handle("kind" => RubyOS::Input::POINTER_WHEEL, "dy" => -1, "dx" => 0),
+       "list view consumes wheel scrolling when more rows are available")
+assert(scroll_list.scroll_offset == 3, "wheel scrolling advances the list viewport")
+
 terminal = RubyOS::Apps::Terminal.new
 terminal_window = terminal.launch(compositor)
 "ruby".each_char do |character|
@@ -257,7 +284,7 @@ assert(shell_output.string.include?("enumerable_pipeline") &&
        "shell discovers and runs examples and lists categorized applications")
 
 catalog = RubyOS::Apps::Catalog.build(kernel: RubyOS::Kernel)
-assert(catalog.entries(category: :app).length == 10 &&
+assert(catalog.entries(category: :app).length == 11 &&
        catalog.entries(category: :demo).length == 3 &&
        catalog.entries(category: :game).length == 2,
        "application catalog preserves app, demo, and game categories")
@@ -266,6 +293,31 @@ catalog.replace("Enumerable Lab", RubyOS::Apps::EnumerableLab.new)
 assert(catalog.entry("Enumerable Lab").description == enumerable_entry.description &&
        catalog.entry("Enumerable Lab").category == :demo,
        "live replacement preserves application catalog metadata")
+RubyOS::Apps::Catalog.install_desktop(compositor, catalog)
+compositor.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => RubyOS::Input::KEY_F1,
+                  "mods" => 0)
+assert(compositor.focused_window.title == "Keyboard Shortcuts",
+       "F1 opens the global keybinding control panel")
+assert(compositor.menus.map(&:title).last == "Window",
+       "focused applications contribute their own menu")
+keybindings = catalog.fetch("Keybindings")
+application_binding = compositor.keybindings.find { |binding| binding.name == "Applications" }
+keybindings.capture(binding: application_binding)
+compositor.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 97,
+                  "mods" => RubyOS::Input::MOD_ALT)
+rebound = compositor.keybindings.find { |binding| binding.name == "Applications" }
+assert(rebound.code == 97 && rebound.mods == RubyOS::Input::MOD_ALT,
+       "keybinding control panel captures and replaces a global shortcut")
+compositor.rebind_key("Applications", code: RubyOS::Input::KEY_F2)
+compositor.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 119,
+                  "mods" => RubyOS::Input::MOD_CTRL)
+assert(compositor.focused_window.title != "Keyboard Shortcuts",
+       "Ctrl+W closes the focused application window")
+compositor.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => RubyOS::Input::KEY_F2,
+                  "mods" => 0)
+assert(compositor.focused_window.title == "RubyOS Applications",
+       "F2 opens the graphical application catalog")
+compositor.close(compositor.focused_window)
 launcher = catalog.fetch("Launcher")
 launcher_window = launcher.launch(compositor)
 launcher.launch_entry(entry: catalog.entry("Enumerable Lab"))

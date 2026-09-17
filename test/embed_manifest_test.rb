@@ -11,6 +11,7 @@ manifest = IO.popen(
 
 required = %w[
   kernel/rubyos/examples.rb
+  kernel/rubyos/gui/menu.rb
   kernel/rubyos/apps/ruby_demos.rb
   kernel/rubyos/apps/catalog.rb
 ]

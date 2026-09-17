@@ -17,6 +17,11 @@ module RubyOS
     MOD_META = 1 << 3
     MOD_CAPS = 1 << 4
 
+    KEY_F1 = 1_073_741_882
+    KEY_F2 = 1_073_741_883
+    KEY_F3 = 1_073_741_884
+    KEY_F4 = 1_073_741_885
+
     Event = Data.define(:kind, :code, :text, :mods, :x, :y, :dx, :dy,
                         :button, :name, :token, :size) do
       DEFAULTS = { code: 0, text: "", mods: 0, x: 0, y: 0, dx: 0, dy: 0,
@@ -28,9 +33,25 @@ module RubyOS
 
       def self.from_bridge(document)
         values = DEFAULTS.to_h do |key, fallback|
-          [key, document.fetch(key.to_s, fallback)]
+          value = if key == :mods && document.key?("mod")
+                    normalize_sdl_mods(document.fetch("mod"))
+                  else
+                    document.fetch(key.to_s, fallback)
+                  end
+          [key, value]
         end
         build(kind: document.fetch("kind"), **values)
+      end
+
+      def self.normalize_sdl_mods(value)
+        raw = Integer(value)
+        mods = 0
+        mods |= MOD_SHIFT if (raw & 0x0003) != 0
+        mods |= MOD_CTRL if (raw & 0x00c0) != 0
+        mods |= MOD_ALT if (raw & 0x0300) != 0
+        mods |= MOD_META if (raw & 0x0c00) != 0
+        mods |= MOD_CAPS if (raw & 0x2000) != 0
+        mods
       end
 
       def fetch(key, default = (missing = true))
@@ -102,7 +123,9 @@ module RubyOS
         0x26 => [108, "l", "L"], 0x2c => [122, "z", "Z"], 0x2d => [120, "x", "X"],
         0x2e => [99, "c", "C"], 0x2f => [118, "v", "V"], 0x30 => [98, "b", "B"],
         0x31 => [110, "n", "N"], 0x32 => [109, "m", "M"],
-        0x33 => [44, ",", "<"], 0x34 => [46, ".", ">"], 0x35 => [47, "/", "?"]
+        0x33 => [44, ",", "<"], 0x34 => [46, ".", ">"], 0x35 => [47, "/", "?"],
+        0x3b => [1_073_741_882, "", ""], 0x3c => [1_073_741_883, "", ""],
+        0x3d => [1_073_741_884, "", ""], 0x3e => [1_073_741_885, "", ""]
       }.freeze
       MODIFIERS = { 0x2a => MOD_SHIFT, 0x36 => MOD_SHIFT,
                     0x1d => MOD_CTRL, 0x38 => MOD_ALT }.freeze
@@ -191,6 +214,8 @@ module RubyOS
       }.freeze
       SPECIAL = {
         1 => 27, 14 => 8, 15 => 9, 28 => 13,
+        59 => 1_073_741_882, 60 => 1_073_741_883,
+        61 => 1_073_741_884, 62 => 1_073_741_885,
         102 => 1_073_741_898, 103 => 1_073_741_906,
         105 => 1_073_741_904, 106 => 1_073_741_903,
         107 => 1_073_741_897, 108 => 1_073_741_905,

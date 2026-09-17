@@ -242,7 +242,7 @@ module RubyOS
       UP_KEYS = [1_073_741_906].freeze
       DOWN_KEYS = [1_073_741_905].freeze
 
-      attr_reader :items, :selected_index
+      attr_reader :items, :selected_index, :scroll_offset
 
       def initialize(items: [], on_activate: nil, on_cancel: nil, **options)
         super(**options)
@@ -268,7 +268,7 @@ module RubyOS
       def draw(surface)
         super
         visible_rows.times do |row|
-          index = @scroll_offset + row
+          index = scroll_offset + row
           item = items[index]
           break unless item
 
@@ -283,11 +283,21 @@ module RubyOS
           label = label.each_char.first(max - 3).join + "..." if label.each_char.count > max
           surface.draw_text(x + 8, row_y + 7, label, color:)
         end
+        surface.draw_text(x + width - 12, y + 4, "^", color: 0x8f7cff) if scroll_offset.positive?
+        if scroll_offset + visible_rows < items.length
+          surface.draw_text(x + width - 12, y + height - 16, "v", color: 0x8f7cff)
+        end
       end
 
       def handle(event)
         return false unless focused && event.respond_to?(:fetch)
-        return false unless event.fetch("kind", 0) == 1
+        kind = event.fetch("kind", 0)
+        if kind == Input::POINTER_WHEEL
+          delta = event.fetch("dy", 0)
+          delta = event.fetch("dx", 0) if delta.zero?
+          return scroll(delta.positive? ? -3 : 3)
+        end
+        return false unless kind == Input::KEY_DOWN
 
         code = event.fetch("code", 0)
         if UP_KEYS.include?(code)
@@ -308,7 +318,7 @@ module RubyOS
       def handle_pointer(local_x, local_y, _event)
         return false unless contains?(local_x, local_y)
 
-        index = @scroll_offset + (local_y - y) / ROW_HEIGHT
+        index = scroll_offset + (local_y - y) / ROW_HEIGHT
         return false unless items[index]
 
         @selected_index = index
@@ -332,9 +342,17 @@ module RubyOS
 
       def keep_selected_visible
         return unless selected_index
-        @scroll_offset = selected_index if selected_index < @scroll_offset
-        @scroll_offset = selected_index - visible_rows + 1 if selected_index >= @scroll_offset + visible_rows
+        @scroll_offset = selected_index if selected_index < scroll_offset
+        @scroll_offset = selected_index - visible_rows + 1 if selected_index >= scroll_offset + visible_rows
         @scroll_offset = [@scroll_offset, 0].max
+      end
+
+      def scroll(delta)
+        maximum = [items.length - visible_rows, 0].max
+        previous = scroll_offset
+        @scroll_offset = [[scroll_offset + delta, 0].max, maximum].min
+        invalidate if previous != scroll_offset
+        previous != scroll_offset
       end
 
       def activate

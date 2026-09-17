@@ -22,7 +22,7 @@ module RubyOS
       TITLE_HEIGHT = 24
       BORDER = 2
 
-      attr_accessor :title
+      attr_accessor :title, :application
       attr_reader :focused_child
       attr_accessor :focused, :minimized
 
@@ -84,6 +84,13 @@ module RubyOS
           cycle_focus
           return true
         end
+        if event.fetch("kind", 0) == Input::POINTER_WHEEL
+          local_x = event.fetch("x", 0) - x - 10
+          local_y = event.fetch("y", 0) - y - TITLE_HEIGHT - 9
+          child = children.reverse.find { |candidate| candidate.contains?(local_x, local_y) }
+          focus_child(child) if child&.focusable?
+          return true if child&.enabled && child.handle(event)
+        end
         return true if focused_child&.enabled && focused_child.handle(event)
         false
       end
@@ -110,6 +117,7 @@ module RubyOS
     end
 
     class Compositor
+      Binding = Data.define(:name, :code, :mods, :action)
       MENU_HEIGHT = 24
       DOCK_HEIGHT = 42
 
@@ -123,6 +131,11 @@ module RubyOS
         @dock_items = []
         @shortcuts = []
         @dragging = nil
+        @system_menus = []
+        @menu_bar = MenuBar.new(width:, height:)
+        @keybindings = {}
+        @bindings_by_name = {}
+        @key_capture = nil
       end
 
       def add_window(window)
@@ -132,8 +145,19 @@ module RubyOS
       end
 
       def close(window)
+        return unless window
         windows.delete(window)
         focus(windows.last) if windows.any?
+        refresh_menus
+        window
+      end
+
+      def minimize(window)
+        return unless window && windows.include?(window)
+
+        window.minimized = true
+        focus(windows.reverse.find { |candidate| !candidate.minimized })
+        refresh_menus
         window
       end
 
@@ -143,6 +167,7 @@ module RubyOS
         windows.delete(window)
         windows << window
         window.focused = true
+        refresh_menus
         window
       end
 
@@ -161,14 +186,77 @@ module RubyOS
         self
       end
 
+      def dock_item_center(label)
+        index = @dock_items.index { |item_label, _| item_label == String(label) }
+        raise KeyError, "dock item not found: #{label}" unless index
+
+        x = 12 + index * dock_slot_width
+        [x + (dock_slot_width - 8) / 2, height - DOCK_HEIGHT + 20]
+      end
+
       def add_shortcut(label, x:, y:, &action)
         @shortcuts << [String(label), Integer(x), Integer(y), action]
         self
       end
 
+      def set_system_menus(menus)
+        @system_menus = Array(menus)
+        refresh_menus
+        self
+      end
+
+      def menus = @menu_bar.menus
+
+      def bind_key(code, mods: 0, name: nil, &action)
+        raise ArgumentError, "key binding action required" unless action
+
+        code = Integer(code)
+        mods = Integer(mods) & ~Input::MOD_CAPS
+        name = String(name || "Key #{code}")
+        if (previous = @bindings_by_name[name])
+          @keybindings.delete([previous.code, previous.mods])
+        end
+        binding = Binding.new(name:, code:, mods:, action:).freeze
+        @keybindings[[code, mods]] = binding
+        @bindings_by_name[name] = binding
+        self
+      end
+
+      def keybindings = @bindings_by_name.values
+
+      def rebind_key(name, code:, mods: 0)
+        previous = @bindings_by_name.fetch(String(name))
+        bind_key(code, mods:, name: previous.name, &previous.action)
+      end
+
+      def capture_next_key(&callback)
+        raise ArgumentError, "key capture callback required" unless callback
+
+        @key_capture = callback
+        self
+      end
+
       def handle(event)
         kind = event.fetch("kind", 0)
+        return true if @menu_bar.handle(event)
+        if kind == Input::KEY_DOWN
+          if @key_capture
+            callback = @key_capture
+            @key_capture = nil
+            callback.call(event)
+            return true
+          end
+          chord = [event.fetch("code", 0), event.fetch("mods", 0) & ~Input::MOD_CAPS]
+          if (binding = @keybindings[chord])
+            binding.action.call
+            return true
+          end
+        end
         return focused_window&.handle(event) || false if kind == 1 || kind == 2
+        if kind == Input::POINTER_WHEEL
+          window = window_at(event.fetch("x", 0), event.fetch("y", 0))
+          return window&.handle(event) || false
+        end
         if kind == 3 && @dragging
           window, offset_x, offset_y = @dragging
           window.x = [[event.fetch("x") - offset_x, 0].max, width - window.width].min
@@ -200,8 +288,7 @@ module RubyOS
         if window.close_hit?(point_x, point_y)
           close(window)
         elsif window.minimize_hit?(point_x, point_y)
-          window.minimized = true
-          focus(windows.reverse.find { |candidate| !candidate.minimized })
+          minimize(window)
         else
           focus(window)
           @dragging = [window, point_x - window.x, point_y - window.y] if window.title_hit?(point_x, point_y)
@@ -213,18 +300,19 @@ module RubyOS
       def draw(surface, uptime: nil)
         surface.fill_rect(0, 0, width, height, 0x171321)
         draw_wallpaper(surface)
-        surface.fill_rect(0, 0, width, MENU_HEIGHT, 0x2a1f35)
-        surface.draw_text(10, 6, @title, color: 0xffd866)
-        if focused_window
-          surface.draw_text(88, 6, focused_window.title.each_char.first(32).join, color: 0xa99bb8)
-        end
-        surface.draw_text(width - 104, 6, uptime || "Ruby 4", color: 0xd8cae5)
         windows.each { |window| window.draw(surface) }
         draw_dock(surface)
+        @menu_bar.draw(surface, active_title: focused_window&.title,
+                       status: uptime || "Ruby 4")
         self
       end
 
       private
+
+      def refresh_menus
+        application_menus = focused_window&.application&.menus(self) || []
+        @menu_bar.replace(@system_menus + application_menus)
+      end
 
       def draw_wallpaper(surface)
         surface.fill_rect(0, MENU_HEIGHT, width, height - MENU_HEIGHT, 0x191624)

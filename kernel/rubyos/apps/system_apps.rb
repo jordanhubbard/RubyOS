@@ -83,6 +83,14 @@ module RubyOS
         true
       end
 
+      def menus(compositor)
+        [GUI::Menu.new(title: "Go", items: [
+          GUI::MenuItem.command("Up", shortcut: "Backspace") { go_up },
+          GUI::MenuItem.command("Home") { navigate("/home") },
+          GUI::MenuItem.command("Root") { navigate("/") }
+        ]), *super]
+      end
+
       private
 
       def refresh
@@ -163,6 +171,20 @@ module RubyOS
         @result_label.invalidate
         @last_result
       end
+
+      def clear
+        @transcript = ["RubyOS console cleared"]
+        @result_label.text = @transcript.first
+        @result_label.invalidate
+        true
+      end
+
+      def menus(compositor)
+        [GUI::Menu.new(title: "Terminal", items: [
+          GUI::MenuItem.command("Clear") { clear },
+          GUI::MenuItem.command("Show commands") { evaluate("help") }
+        ]), *super]
+      end
     end
 
     class SystemMonitor < Application
@@ -218,6 +240,75 @@ module RubyOS
       end
     end
 
+    class Keybindings < Application
+      def build_window
+        window_x, window_y = spacious_desktop? ? [126, 52] : [50, 34]
+        window_width, window_height = spacious_desktop? ? [390, 260] : [380, 210]
+        content_width = window_width - 36
+        list_height = window_height - 110
+        window = GUI::Window.new("Keyboard Shortcuts", x: window_x, y: window_y,
+                                 width: window_width, height: window_height,
+                                 background: 0x151c29)
+        window.add(GUI::Label.new("GLOBAL KEYMAP", x: 8, y: 4, width: 160,
+                                  color: 0x8f7cff))
+        @list = window.add(GUI::ListView.new(items: binding_items, x: 8, y: 30,
+                                             width: content_width, height: list_height,
+                                             background: 0x1d2535,
+                                             on_activate: method(:capture)))
+        @status = window.add(GUI::Label.new("Choose a shortcut, then press its replacement",
+                                            x: 8, y: 40 + list_height,
+                                            width: content_width,
+                                            color: 0xa8d8ff))
+        window.focus_child(@list)
+        window
+      end
+
+      def capture(item)
+        binding = item.fetch(:binding)
+        @status.text = "Press a new key for #{binding.name} (Esc cancels)"
+        @status.color = 0xffd866
+        @status.invalidate
+        @compositor.capture_next_key do |event|
+          if event.fetch("code", 0) == 27
+            @status.text = "Shortcut change cancelled"
+          else
+            @compositor.rebind_key(binding.name, code: event.fetch("code", 0),
+                                   mods: event.fetch("mods", 0))
+            @list.replace(binding_items)
+            @status.text = "#{binding.name} is now #{chord(event.fetch('code', 0), event.fetch('mods', 0))}"
+          end
+          @status.color = 0xc3e88d
+          @status.invalidate
+        end
+        true
+      end
+
+      private
+
+      def binding_items
+        @compositor.keybindings.map do |binding|
+          { label: "#{chord(binding.code, binding.mods).ljust(12)} #{binding.name}",
+            kind: :file, binding: }
+        end
+      end
+
+      def chord(code, mods)
+        parts = []
+        parts << "Shift" if (mods & Input::MOD_SHIFT) != 0
+        parts << "Ctrl" if (mods & Input::MOD_CTRL) != 0
+        parts << "Alt" if (mods & Input::MOD_ALT) != 0
+        parts << "Meta" if (mods & Input::MOD_META) != 0
+        key = if code.between?(Input::KEY_F1, Input::KEY_F4)
+                "F#{code - Input::KEY_F1 + 1}"
+              elsif code.between?(32, 126)
+                code.chr.upcase
+              else
+                code.to_s
+              end
+        [*parts, key].join("+")
+      end
+    end
+
     class Editor < Application
       attr_reader :path, :content, :reload_error
 
@@ -269,6 +360,12 @@ module RubyOS
                                                 color: 0xa8d8ff))
           end
         end
+      end
+
+      def menus(compositor)
+        items = [GUI::MenuItem.command("Autosave enabled", enabled: false)]
+        items << GUI::MenuItem.command("Reload Ruby") { reload } if @runtime
+        [GUI::Menu.new(title: "File", items:), *super]
       end
     end
 

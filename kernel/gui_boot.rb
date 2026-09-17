@@ -24,6 +24,7 @@ module RubyOS
         path: "/apps/live_hello.rb", runtime:, application_name: "Live Hello"
       ), description: "Edit VFS files and transactionally reload Ruby applications",
          dock_label: "Edit")
+      Apps::Catalog.install_desktop(compositor, applications)
       applications.entries(category: :app).each do |entry|
         compositor.add_dock_item(entry.dock_label) { entry.application.launch(compositor) }
       end
@@ -34,7 +35,7 @@ module RubyOS
       applications.fetch("Media").launch(compositor)
       terminal_window = applications.fetch("Terminal").launch(compositor)
       HAL.serial_write("[RubyOS] desktop smoke: applications launched\n")
-      RubyOS.invariant(applications.entries(category: :app).length == 12 &&
+      RubyOS.invariant(applications.entries(category: :app).length == 13 &&
                        applications.entries(category: :demo).length == 3 &&
                        applications.entries(category: :game).length == 2,
                        "categorized application catalog is incomplete")
@@ -71,6 +72,33 @@ module RubyOS
       client.call("debug.event.inject", { kind: 1, code: 13 })
       desktop.events.each { |event| compositor.handle(event) }
       RubyOS.invariant(terminal.last_result == "=> 6", "keyboard input did not reach Terminal")
+      client.call("debug.event.inject", { kind: 1, code: Input::KEY_F1 })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(compositor.focused_window.title == "Keyboard Shortcuts",
+                       "F1 did not launch the keybinding control panel")
+      client.call("debug.event.inject", { kind: 1, code: 119, mod: 0x0040 })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(compositor.focused_window == terminal_window,
+                       "canonical Ctrl+W did not close the keybinding panel")
+      client.call("debug.event.inject", { kind: 1, code: Input::KEY_F2 })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(compositor.focused_window.title == "RubyOS Applications",
+                       "F2 did not launch the application catalog")
+      client.call("debug.event.inject", { kind: 1, code: 119, mod: 0x0040 })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(compositor.focused_window == terminal_window,
+                       "canonical Ctrl+W did not close the catalog")
+      client.call("debug.event.inject", { kind: 4, x: 126, y: 10, button: 1 })
+      desktop.events.each { |event| compositor.handle(event) }
+      compositor.draw(desktop.surface, uptime: "menus")
+      desktop.present
+      desktop.capture("/tmp/rubyos-menu.bmp")
+      client.call("debug.event.inject", { kind: 4, x: 130, y: 34, button: 1 })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(compositor.focused_window.title == "Enumerable Pipeline",
+                       "Demos menu did not launch the first Ruby demo")
+      compositor.close(compositor.focused_window)
+      HAL.serial_write("[RubyOS] desktop smoke: menus and shortcuts checked\n")
       initial_terminal_position = [terminal_window.x, terminal_window.y]
       drag_x = terminal_window.x + 20
       drag_y = terminal_window.y + 10
@@ -107,7 +135,8 @@ module RubyOS
       jpeg_surface.blit_to(desktop.surface, x: 464, y: 26)
       desktop.present
       HAL.serial_write("[RubyOS] desktop smoke: first frame presented\n")
-      client.call("debug.event.inject", { kind: 4, x: 155, y: 280, button: 1 })
+      monitor_x, monitor_y = compositor.dock_item_center("Mon")
+      client.call("debug.event.inject", { kind: 4, x: monitor_x, y: monitor_y, button: 1 })
       desktop.events.each { |event| compositor.handle(event) }
       RubyOS.invariant(compositor.focused_window.title == "System Monitor",
                        "dock input did not launch System Monitor")
@@ -172,6 +201,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS] keyboard Terminal input: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] core desktop apps: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] categorized Ruby demo catalog: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] menus and global shortcuts: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] compositor desktop mechanics: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] SDL_ttf Ruby Font: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] PNG/JPEG image surfaces: PASS\n")
@@ -194,6 +224,7 @@ module RubyOS
         path: "/apps/live_hello.rb", runtime:, application_name: "Live Hello"),
         description: "Edit VFS files and transactionally reload Ruby applications",
         dock_label: "Edit")
+      Apps::Catalog.install_desktop(compositor, applications)
       applications.entries(category: :app).each do |entry|
         compositor.add_dock_item(entry.dock_label) { entry.application.launch(compositor) }
       end

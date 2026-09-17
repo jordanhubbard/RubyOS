@@ -11,7 +11,16 @@ module RubyOS
 
       def launch(compositor)
         @compositor = compositor
-        compositor.add_window(build_window)
+        window = build_window
+        window.application = self
+        compositor.add_window(window)
+      end
+
+      def menus(compositor)
+        [GUI::Menu.new(title: "Window", items: [
+          GUI::MenuItem.command("Minimize") { compositor.minimize(compositor.focused_window) },
+          GUI::MenuItem.command("Close", shortcut: "Ctrl+W") { compositor.close(compositor.focused_window) }
+        ])]
       end
 
       private

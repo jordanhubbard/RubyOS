@@ -18,6 +18,37 @@ module RubyOS
         registry
       end
 
+      def install_desktop(compositor, registry)
+        launch = ->(name) { registry.fetch(name).launch(compositor) }
+        category_menu = lambda do |title, category|
+          GUI::Menu.new(title:, items: registry.entries(category:).map do |entry|
+            GUI::MenuItem.command(entry.description.empty? ? entry.name : entry.description) do
+              entry.application.launch(compositor)
+            end
+          end)
+        end
+        compositor.set_system_menus([
+          GUI::Menu.new(title: "RubyOS", items: [
+            GUI::MenuItem.command("About RubyOS") { launch.call("About") },
+            GUI::MenuItem.command("Keyboard Shortcuts", shortcut: "F1") { launch.call("Keybindings") },
+            GUI::MenuItem.command("Applications", shortcut: "F2") { launch.call("Launcher") },
+            GUI::MenuItem.command("Ruby Inspector") { launch.call("Inspector") },
+            GUI::MenuItem.separator,
+            GUI::MenuItem.command("Ruby #{RUBY_VERSION}", enabled: false)
+          ]),
+          category_menu.call("Apps", :app),
+          category_menu.call("Demos", :demo),
+          category_menu.call("Games", :game)
+        ])
+        compositor
+          .bind_key(Input::KEY_F1, name: "Keyboard Shortcuts") { launch.call("Keybindings") }
+          .bind_key(Input::KEY_F2, name: "Applications") { launch.call("Launcher") }
+          .bind_key(Input::KEY_F3, name: "Terminal") { launch.call("Terminal") }
+          .bind_key(Input::KEY_F4, name: "Files") { launch.call("Files") }
+          .bind_key(119, mods: Input::MOD_CTRL,
+                    name: "Close Window") { compositor.close(compositor.focused_window) }
+      end
+
       def register_apps(registry, kernel)
         entries = [
           ["About", About, "RubyOS version, runtime, and design identity", "Info"],
@@ -28,7 +59,8 @@ module RubyOS
           ["Image", ImageViewer, "Ruby-generated bitmap and image surface viewer", "Image"],
           ["Media", MediaWorkbench, "Ruby bitmap, scene, sound, and motion workbench", "Media"],
           ["Clock", Clock, "Monotonic and session time", "Clock"],
-          ["Settings", Settings, "Desktop preferences", "Set"]
+          ["Settings", Settings, "Desktop preferences", "Set"],
+          ["Keybindings", Keybindings, "Inspect and rebind global desktop shortcuts", "Keys"]
         ]
         entries.each do |name, type, description, dock_label|
           registry.register(name, type.new(kernel:), description:, dock_label:)
