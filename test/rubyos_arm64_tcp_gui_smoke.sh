@@ -9,11 +9,12 @@ output="$(mktemp /tmp/rubyos-tcp-gui.XXXXXX)"
 service_output="$(mktemp /tmp/rubyos-tcp-gui-service.XXXXXX)"
 catalog_capture="/tmp/rubyos-catalog.bmp"
 menu_capture="/tmp/rubyos-menu.bmp"
+file_dialog_capture="/tmp/rubyos-file-dialog.bmp"
 
 cleanup() {
     kill "${qemu_pid:-}" 2>/dev/null || true
     kill "${service_pid:-}" 2>/dev/null || true
-    rm -f "$output" "$service_output" "$catalog_capture" "$menu_capture"
+    rm -f "$output" "$service_output" "$catalog_capture" "$menu_capture" "$file_dialog_capture"
 }
 trap cleanup EXIT
 
@@ -47,12 +48,16 @@ grep -q 'RemoteOS over native TCP: PASS' "$output"
 grep -q 'remote SDL desktop: PASS' "$output"
 grep -q 'categorized Ruby demo catalog: PASS' "$output"
 grep -q 'menus and global shortcuts: PASS' "$output"
+grep -q 'shared open/save dialog: PASS' "$output"
 test -s "$catalog_capture"
 file "$catalog_capture" | grep -q '480 x 300'
 cp "$catalog_capture" "$root/build/rubyos-catalog.bmp"
 test -s "$menu_capture"
 file "$menu_capture" | grep -q '480 x 300'
 cp "$menu_capture" "$root/build/rubyos-menu.bmp"
+test -s "$file_dialog_capture"
+file "$file_dialog_capture" | grep -q '480 x 300'
+cp "$file_dialog_capture" "$root/build/rubyos-file-dialog.bmp"
 grep -q 'negotiated protocol v2 with client=rubyos' "$service_output"
 ! grep -q 'FATAL\|EXCEPTION\|ASSERT\|\[BUG\]' "$output"
 echo 'RubyOS bare-metal RemoteOS native TCP desktop: PASS'

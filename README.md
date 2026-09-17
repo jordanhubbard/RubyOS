@@ -80,6 +80,9 @@ matching; their underlying examples are readable in `/examples`.
 The desktop menu bar is registry-driven and gains commands from the focused
 Ruby application. F1 opens the live-rebindable keymap, F2 opens Applications,
 F3 opens Terminal, and F4 opens Files; Ctrl-W closes the focused window.
+The editor's File menu uses a shared, keyboard-and-mouse navigable VFS dialog
+for Open and Save As. Its multiline Ruby buffer supports caret placement,
+vertical/page navigation, and wheel scrolling.
 
 These commands select the host CPU by default: ARM64 on ARM hosts, x86_64 on
 Intel/AMD hosts. Use `make run-gui TARGET_ARCH=x86_64` or `TARGET_ARCH=arm64`

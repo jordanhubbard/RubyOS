@@ -43,7 +43,7 @@ module RubyOS
                                               height: list_height,
                                               background: 0x1d2535,
                                               on_activate: method(:activate_entry),
-                                              on_cancel: method(:go_up)))
+                                              on_back: method(:go_up)))
         @status = @window.add(GUI::Label.new("", x: 8, y: 44 + list_height,
                                              width: content_width,
                                              height: 22, color: 0xa8d8ff))
@@ -310,7 +310,7 @@ module RubyOS
     end
 
     class Editor < Application
-      attr_reader :path, :content, :reload_error
+      attr_reader :path, :content, :reload_error, :file_dialog
 
       def initialize(path: "/home/welcome.txt", runtime: nil,
                      application_name: nil, **)
@@ -326,6 +326,43 @@ module RubyOS
       def save(text)
         @content = String(text)
         kernel.state.fetch(:vfs).write_file(path, @content)
+        show_status("Saved #{path}") if @status
+        self
+      end
+
+      def load_path(new_path)
+        contents = kernel.state.fetch(:vfs).read_file(new_path)
+        @path = String(new_path)
+        @content = contents
+        @input&.replace(contents, notify: false)&.move_cursor(0)
+        @window.title = "Editor - #{path}" if @window
+        show_status("Opened #{path}") if @status
+        self
+      rescue FS::Error => error
+        show_status("#{error.class}: #{error.message}", error: true) if @status
+        false
+      end
+
+      def open_dialog(*)
+        @file_dialog = GUI::FileDialog.new(
+          compositor: @compositor, vfs: kernel.state.fetch(:vfs), mode: :open,
+          path:, title: "Open Ruby or text file", extensions: [".rb", ".txt"],
+          on_accept: method(:load_path)
+        )
+      end
+
+      def save_as_dialog(*)
+        @file_dialog = GUI::FileDialog.new(
+          compositor: @compositor, vfs: kernel.state.fetch(:vfs), mode: :save,
+          path:, title: "Save Ruby or text file",
+          on_accept: method(:save_as)
+        )
+      end
+
+      def save_as(new_path)
+        @path = String(new_path)
+        save(@input ? @input.text : content)
+        @window.title = "Editor - #{path}" if @window
         self
       end
 
@@ -346,26 +383,45 @@ module RubyOS
       end
 
       def build_window
-        GUI::Window.new("Editor - #{path}", x: 72, y: 54, width: 350, height: 164,
-                        background: 0x171a24).tap do |window|
-          window.add(GUI::TextInput.new(text: content, x: 0, y: 0, width: 326, height: 88,
-                                        background: 0x11151e, multiline: true,
-                                        on_change: method(:save)))
+        @window = GUI::Window.new("Editor - #{path}", x: 72, y: 54, width: 350, height: 184,
+                                  background: 0x171a24).tap do |window|
+          @input = window.add(GUI::TextInput.new(text: content, x: 0, y: 0,
+                                                  width: 326, height: 108,
+                                                  background: 0x11151e, multiline: true,
+                                                  on_change: method(:save)))
+          @input.move_cursor(0)
           if @runtime
-            window.add(GUI::Button.new("Reload Ruby", x: 0, y: 92, width: 104,
+            window.add(GUI::Button.new("Reload Ruby", x: 0, y: 112, width: 104,
                                        height: 24, background: 0x553184,
                                        action: method(:reload)))
             @status = window.add(GUI::Label.new("Transactional reload ready",
-                                                x: 112, y: 96,
+                                                x: 112, y: 116, width: 212,
                                                 color: 0xa8d8ff))
+          else
+            @status = window.add(GUI::Label.new("Autosave enabled", x: 0, y: 116,
+                                                width: 326, color: 0xa8d8ff))
           end
         end
       end
 
       def menus(compositor)
-        items = [GUI::MenuItem.command("Autosave enabled", enabled: false)]
+        items = [
+          GUI::MenuItem.command("Open...") { open_dialog },
+          GUI::MenuItem.command("Save") { save(@input.text) },
+          GUI::MenuItem.command("Save As...") { save_as_dialog },
+          GUI::MenuItem.separator,
+          GUI::MenuItem.command("Autosave enabled", enabled: false)
+        ]
         items << GUI::MenuItem.command("Reload Ruby") { reload } if @runtime
         [GUI::Menu.new(title: "File", items:), *super]
+      end
+
+      private
+
+      def show_status(message, error: false)
+        @status.text = String(message)[0, 52]
+        @status.color = error ? 0xff668a : 0xc3e88d
+        @status.invalidate
       end
     end
 

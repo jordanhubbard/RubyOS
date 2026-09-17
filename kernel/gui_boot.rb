@@ -88,6 +88,21 @@ module RubyOS
       desktop.events.each { |event| compositor.handle(event) }
       RubyOS.invariant(compositor.focused_window == terminal_window,
                        "canonical Ctrl+W did not close the catalog")
+      editor = applications.fetch("Editor")
+      editor_window = editor.launch(compositor)
+      editor.open_dialog
+      RubyOS.invariant(compositor.focused_window.title == "Open Ruby or text file" &&
+                       editor.file_dialog.cwd == "/apps",
+                       "Editor did not launch the shared VFS file dialog")
+      compositor.draw(desktop.surface, uptime: "open / save")
+      desktop.present
+      desktop.capture("/tmp/rubyos-file-dialog.bmp")
+      client.call("debug.event.inject", { kind: 1, code: 27 })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(editor.file_dialog.done? && compositor.focused_window == editor_window,
+                       "Escape did not cancel the shared file dialog")
+      compositor.close(editor_window)
+      HAL.serial_write("[RubyOS] desktop smoke: file dialog checked\n")
       client.call("debug.event.inject", { kind: 4, x: 126, y: 10, button: 1 })
       desktop.events.each { |event| compositor.handle(event) }
       compositor.draw(desktop.surface, uptime: "menus")
@@ -202,6 +217,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS] core desktop apps: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] categorized Ruby demo catalog: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] menus and global shortcuts: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] shared open/save dialog: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] compositor desktop mechanics: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] SDL_ttf Ruby Font: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] PNG/JPEG image surfaces: PASS\n")

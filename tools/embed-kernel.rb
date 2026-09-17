@@ -34,6 +34,7 @@ paths = %w[
   kernel/rubyos/gui/ui.rb
   kernel/rubyos/gui/menu.rb
   kernel/rubyos/gui/compositor.rb
+  kernel/rubyos/gui/file_dialog.rb
   kernel/rubyos/apps/application.rb
   kernel/rubyos/apps/system_apps.rb
   kernel/rubyos/apps/games.rb

@@ -138,10 +138,14 @@ module RubyOS
     class TextInput < View
       LEFT_KEY = 1_073_741_904
       RIGHT_KEY = 1_073_741_903
+      UP_KEY = 1_073_741_906
+      DOWN_KEY = 1_073_741_905
       HOME_KEY = 1_073_741_898
       END_KEY = 1_073_741_897
+      PAGE_UP_KEY = 1_073_741_899
+      PAGE_DOWN_KEY = 1_073_741_900
 
-      attr_reader :text, :cursor
+      attr_reader :text, :cursor, :scroll_line, :scroll_column
 
       def initialize(text: "", color: 0xffffff, multiline: false,
                      on_change: nil, on_submit: nil, **options)
@@ -152,6 +156,9 @@ module RubyOS
         @multiline = multiline
         @on_change = on_change
         @on_submit = on_submit
+        @scroll_line = 0
+        @scroll_column = 0
+        ensure_cursor_visible
       end
 
       def draw(surface)
@@ -159,15 +166,23 @@ module RubyOS
         lines = visible_lines
         lines.each_with_index { |line, index| surface.draw_text(x + 4, y + 4 + index * 20, line, color: @color) }
         if focused
-          cursor_column = @multiline ? lines.last.to_s.each_char.count : visible_cursor_column
-          surface.draw_text(x + 4 + cursor_column * 8,
-                            y + 4 + (lines.length - 1) * 20, "_", color: 0xffd866)
+          line, column = cursor_position
+          row = @multiline ? line - scroll_line : 0
+          if row.between?(0, row_count - 1)
+            surface.draw_text(x + 4 + (column - scroll_column) * 8,
+                              y + 4 + row * 20, "_", color: 0xffd866)
+          end
         end
       end
 
       def handle(event)
         return false unless event.respond_to?(:fetch)
-        return false unless event.fetch("kind", 0) == 1
+        if event.fetch("kind", 0) == Input::POINTER_WHEEL && @multiline
+          delta = event.fetch("dy", 0)
+          delta = event.fetch("dx", 0) if delta.zero?
+          return scroll(delta.positive? ? -3 : 3)
+        end
+        return false unless event.fetch("kind", 0) == Input::KEY_DOWN
         code = event.fetch("code", 0)
         typed = event.fetch("text", "")
         if code == 8
@@ -185,10 +200,18 @@ module RubyOS
           @cursor = [cursor - 1, 0].max
         elsif code == RIGHT_KEY
           @cursor = [cursor + 1, text.each_char.count].min
+        elsif @multiline && code == UP_KEY
+          move_vertical(-1)
+        elsif @multiline && code == DOWN_KEY
+          move_vertical(1)
+        elsif @multiline && code == PAGE_UP_KEY
+          move_vertical(-row_count)
+        elsif @multiline && code == PAGE_DOWN_KEY
+          move_vertical(row_count)
         elsif code == HOME_KEY
-          @cursor = 0
+          @cursor = @multiline ? line_start(cursor_position.first) : 0
         elsif code == END_KEY
-          @cursor = text.each_char.count
+          @cursor = @multiline ? line_end(cursor_position.first) : text.each_char.count
         elsif code == 13
           @multiline ? insert("\n") : @on_submit&.call(text)
         elsif !typed.empty?
@@ -196,14 +219,41 @@ module RubyOS
         else
           return false
         end
+        ensure_cursor_visible
         invalidate
         true
       end
 
-      def replace(value)
+      def handle_pointer(local_x, local_y, _event)
+        return false unless contains?(local_x, local_y)
+
+        if @multiline
+          lines = logical_lines
+          line = [[scroll_line + (local_y - y - 4) / 20, 0].max, lines.length - 1].min
+          column = [[scroll_column + (local_x - x - 4) / 8, 0].max,
+                    lines.fetch(line).each_char.count].min
+          @cursor = line_start(line) + column
+        else
+          @cursor = [[scroll_column + (local_x - x - 4) / 8, 0].max,
+                    text.each_char.count].min
+        end
+        ensure_cursor_visible
+        invalidate
+        true
+      end
+
+      def replace(value, notify: true)
         @text = String(value)
         @cursor = [cursor, @text.each_char.count].min
-        @on_change&.call(@text)
+        ensure_cursor_visible
+        @on_change&.call(@text) if notify
+        self
+      end
+
+      def move_cursor(position)
+        @cursor = [[Integer(position), 0].max, text.each_char.count].min
+        ensure_cursor_visible
+        invalidate
         self
       end
 
@@ -211,20 +261,56 @@ module RubyOS
 
       private
 
-      def columns = [[(width - 8) / 8, 1].max, 1].max
+      def columns = [(width - 8) / 8, 1].max
+      def row_count = [(height - 8) / 20, 1].max
+
+      def logical_lines = text.split("\n", -1)
 
       def visible_lines
-        lines = text.split("\n", -1).last([height / 20, 1].max)
-        return lines if @multiline
-
-        characters = lines.last.to_s.each_char.to_a
-        start = [[cursor - columns + 1, 0].max, [characters.length - columns, 0].max].min
-        [characters.slice(start, columns).to_a.join]
+        lines = @multiline ? logical_lines.slice(scroll_line, row_count).to_a : [text]
+        lines.map { |line| line.each_char.drop(scroll_column).first(columns).join }
       end
 
-      def visible_cursor_column
-        start = [cursor - columns + 1, 0].max
-        cursor - start
+      def cursor_position
+        prefix = text.each_char.first(cursor).join
+        lines = prefix.split("\n", -1)
+        [lines.length - 1, lines.last.to_s.each_char.count]
+      end
+
+      def line_start(line)
+        logical_lines.first(line).sum { |value| value.each_char.count + 1 }
+      end
+
+      def line_end(line)
+        line_start(line) + logical_lines.fetch(line).each_char.count
+      end
+
+      def move_vertical(delta)
+        line, column = cursor_position
+        target = [[line + delta, 0].max, logical_lines.length - 1].min
+        @cursor = line_start(target) + [column, logical_lines.fetch(target).each_char.count].min
+      end
+
+      def ensure_cursor_visible
+        line, column = cursor_position
+        if @multiline
+          @scroll_line = line if line < scroll_line
+          @scroll_line = line - row_count + 1 if line >= scroll_line + row_count
+        else
+          @scroll_line = 0
+        end
+        @scroll_column = column if column < scroll_column
+        @scroll_column = column - columns + 1 if column >= scroll_column + columns
+        @scroll_line = [@scroll_line, 0].max
+        @scroll_column = [@scroll_column, 0].max
+      end
+
+      def scroll(delta)
+        maximum = [logical_lines.length - row_count, 0].max
+        previous = scroll_line
+        @scroll_line = [[scroll_line + delta, 0].max, maximum].min
+        invalidate if previous != scroll_line
+        previous != scroll_line
       end
 
       def insert(value)
@@ -244,11 +330,12 @@ module RubyOS
 
       attr_reader :items, :selected_index, :scroll_offset
 
-      def initialize(items: [], on_activate: nil, on_cancel: nil, **options)
+      def initialize(items: [], on_activate: nil, on_back: nil, on_cancel: nil, **options)
         super(**options)
         @items = items
         @selected_index = items.empty? ? nil : 0
         @on_activate = on_activate
+        @on_back = on_back
         @on_cancel = on_cancel
         @scroll_offset = 0
       end
@@ -306,7 +393,11 @@ module RubyOS
           move(1)
         elsif code == 13
           activate
-        elsif code == 8 || code == 27
+        elsif code == 8
+          (@on_back || @on_cancel)&.call
+          invalidate
+          true
+        elsif code == 27
           @on_cancel&.call
           invalidate
           true

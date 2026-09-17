@@ -209,15 +209,28 @@ assert(!input.handle(:click), "text input ignores window click notifications")
 input_window = RubyOS::GUI::Window.new("Input", x: 20, y: 30, width: 180, height: 90)
 input_window.add(input)
 compositor.add_window(input_window)
-assert(!input_window.handle("kind" => 4, "button" => 1,
-                            "x" => input_window.x + 12,
-                            "y" => input_window.y + RubyOS::GUI::Window::TITLE_HEIGHT + 11),
-       "window pointer dispatch does not synthesize clicks for text input")
+assert(input_window.handle("kind" => 4, "button" => 1,
+                           "x" => input_window.x + 26,
+                           "y" => input_window.y + RubyOS::GUI::Window::TITLE_HEIGHT + 11) &&
+       input.cursor == 1,
+       "window pointer dispatch places the text caret")
 input.handle("kind" => 1, "code" => 0, "text" => "uby")
 input.handle("kind" => 1, "code" => 8)
 input.handle("kind" => 1, "code" => 0, "text" => "y")
 input.handle("kind" => 1, "code" => 13)
 assert(submitted == "ruby", "text input insertion, backspace, and submit")
+
+multiline = RubyOS::GUI::TextInput.new(text: "zero\none\ntwo\nthree\nfour",
+                                        width: 120, height: 48, multiline: true)
+multiline.focused = true
+multiline.handle("kind" => RubyOS::Input::KEY_DOWN,
+                 "code" => RubyOS::GUI::TextInput::UP_KEY)
+assert(multiline.cursor == 17 && multiline.scroll_line == 3,
+       "multiline editor moves its caret vertically and keeps it visible")
+multiline.handle_pointer(12, 4, "kind" => RubyOS::Input::POINTER_DOWN)
+assert(multiline.cursor == 14, "pointer placement maps visible editor rows to the text caret")
+multiline.handle("kind" => RubyOS::Input::POINTER_WHEEL, "dy" => 1, "dx" => 0)
+assert(multiline.scroll_line == 0, "multiline editor supports wheel scrollback")
 
 menu_action = false
 menu_bar = RubyOS::GUI::MenuBar.new(width: 320, height: 200)
@@ -351,6 +364,43 @@ editor = RubyOS::Apps::Editor.new(path: "/home/editor.txt")
 editor.save("Edited by a Ruby object.\n")
 assert(state.fetch(:vfs).read_file("/home/editor.txt") == "Edited by a Ruby object.\n",
        "Editor persists through VFS")
+
+dialog_desktop = RubyOS::GUI::Compositor.new(width: 640, height: 480)
+opened_path = nil
+open_dialog = RubyOS::GUI::FileDialog.new(
+  compositor: dialog_desktop, vfs: state.fetch(:vfs), mode: :open,
+  path: "/home/editor.txt", extensions: [".txt"],
+  on_accept: ->(path) { opened_path = path }
+)
+assert(open_dialog.cwd == "/home" && dialog_desktop.focused_window == open_dialog.window,
+       "shared open dialog starts beside the requested path")
+dialog_desktop.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 9)
+dialog_desktop.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 13)
+assert(opened_path == "/home/editor.txt" &&
+       open_dialog.done? && !dialog_desktop.windows.include?(open_dialog.window),
+       "shared open dialog keyboard action returns a VFS file and closes")
+saved_path = nil
+save_dialog = RubyOS::GUI::FileDialog.new(
+  compositor: dialog_desktop, vfs: state.fetch(:vfs), mode: :save,
+  path: "/home/new.rb", on_accept: ->(path) { saved_path = path }
+)
+save_dialog.filename = "renamed.rb"
+assert(save_dialog.accept && saved_path == "/home/renamed.rb" && save_dialog.done?,
+       "shared save dialog accepts an edited filename")
+
+editor_window = editor.launch(dialog_desktop)
+editor.open_dialog
+assert(dialog_desktop.focused_window.title == "Open Ruby or text file",
+       "Editor exposes the shared open dialog")
+editor.file_dialog.accept("/home/editor.txt")
+assert(editor.path == "/home/editor.txt" && editor_window.title.include?(editor.path),
+       "Editor open workflow updates document and window identity")
+editor.save_as_dialog
+editor.file_dialog.filename = "editor-copy.rb"
+editor.file_dialog.accept
+assert(editor.path == "/home/editor-copy.rb" &&
+       state.fetch(:vfs).read_file(editor.path) == editor.content,
+       "Editor Save As writes the active buffer through the VFS")
 
 live_registry = RubyOS::Apps::Registry.new
 live_runtime = RubyOS::Live::Runtime.new(vfs: state.fetch(:vfs), registry: live_registry)
