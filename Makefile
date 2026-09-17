@@ -28,8 +28,9 @@ DISK_IMAGE := $(CURDIR)/build/disk.img
 RUBY_PC := PKG_CONFIG_PATH=$(CURDIR)/build/host-ruby/lib/pkgconfig pkg-config
 BUILDER_PLATFORM ?= linux/$(if $(filter aarch64 arm64,$(shell uname -m)),arm64,amd64)
 BUILDER_IMAGE := rubyos-builder-$(subst /,-,$(BUILDER_PLATFORM))
+CONTAINER_ENGINE ?= ./tools/container-engine.sh
 
-.PHONY: all ruby smoke test test-iseq teaching-examples test-ext2 test-network bridge test-bridge debug-smoke debug-session parity build-linux build-macos release release-linux release-macos docker-build validate-release embed-probe baremetal-arm64 baremetal-smoke ruby-arm64 ruby-x86_64 rubyos-x86_64 rubyos-x86_64-smoke rubyos-x86_64-input-smoke rubyos-x86_64-audio-smoke rubyos-x86_64-smp-smoke rubyos-arm64 rubyos-arm64-smoke rubyos-arm64-gui rubyos-arm64-gui-smoke rubyos-arm64-tcp-gui rubyos-arm64-tcp-gui-smoke rubyos-arm64-input-smoke rubyos-arm64-audio-smoke rubyos-arm64-smp-smoke rubyos-arm64-repl rubyos-arm64-repl-smoke rubyos-arm64-storage rubyos-arm64-storage-smoke rubyos-arm64-network rubyos-arm64-network-smoke rubyos-arm64-web rubyos-arm64-web-smoke disk \
+.PHONY: all ruby smoke test test-iseq teaching-examples test-ext2 test-network test-install bridge test-bridge debug-smoke debug-session parity build-linux build-macos release release-linux release-macos docker-build validate-release embed-probe baremetal-arm64 baremetal-smoke ruby-arm64 ruby-x86_64 rubyos-x86_64 rubyos-x86_64-smoke rubyos-x86_64-input-smoke rubyos-x86_64-audio-smoke rubyos-x86_64-smp-smoke rubyos-arm64 rubyos-arm64-smoke rubyos-arm64-gui rubyos-arm64-gui-smoke rubyos-arm64-tcp-gui rubyos-arm64-tcp-gui-smoke rubyos-arm64-input-smoke rubyos-arm64-audio-smoke rubyos-arm64-smp-smoke rubyos-arm64-repl rubyos-arm64-repl-smoke rubyos-arm64-storage rubyos-arm64-storage-smoke rubyos-arm64-network rubyos-arm64-network-smoke rubyos-arm64-web rubyos-arm64-web-smoke disk \
 	clean distclean provenance
 
 all: build
@@ -59,8 +60,17 @@ test-ext2: $(HOST_RUBY_STAMP)
 test-network: $(HOST_RUBY_STAMP)
 	$(HOST_RUBY) -I kernel test/network_test.rb
 
+test-install:
+	./test/install_host_test.sh
+
 bridge:
-	@test -f $(REMOTEOS_SDL_DIR)/Makefile || { echo "Initialize the display service: git submodule update --init --recursive" >&2; exit 1; }
+	@if ! test -f "$(REMOTEOS_SDL_DIR)/Makefile"; then \
+		if test "$(REMOTEOS_SDL_DIR)" = "services/remoteos-sdl" && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
+			echo "Initializing the display service submodule"; \
+			git submodule update --init --recursive -- services/remoteos-sdl; \
+		fi; \
+	fi
+	@test -f "$(REMOTEOS_SDL_DIR)/Makefile" || { echo "Display service not found at $(REMOTEOS_SDL_DIR)" >&2; exit 1; }
 	$(MAKE) -C $(REMOTEOS_SDL_DIR)
 
 .PHONY: test-media
@@ -78,7 +88,7 @@ debug-session: $(ARM64_GUI_ELF) bridge
 	./test/rubyos_debug_smoke.py --hold
 
 parity:
-	$(MAKE) provenance smoke test-host test-iseq teaching-examples test-ext2 test-network test-bridge test-media
+	$(MAKE) test-install provenance smoke test-host test-iseq teaching-examples test-ext2 test-network test-bridge test-media
 	$(MAKE) embed-probe baremetal-smoke
 	$(MAKE) rubyos-arm64-smoke rubyos-x86_64-smoke
 	$(MAKE) rubyos-arm64-gui-smoke rubyos-arm64-repl-smoke
@@ -93,12 +103,12 @@ parity:
 	$(MAKE) test-user-commands TARGET_ARCH=x86_64
 
 docker-build:
-	docker build --platform $(BUILDER_PLATFORM) -t $(BUILDER_IMAGE) -f tools/Dockerfile .
+	$(CONTAINER_ENGINE) build --platform $(BUILDER_PLATFORM) -t $(BUILDER_IMAGE) -f tools/Dockerfile .
 
 build-linux: parity
 
 build-macos:
-	$(MAKE) provenance smoke test-host test-iseq teaching-examples test-network test-bridge test-media
+	$(MAKE) test-install provenance smoke test-host test-iseq teaching-examples test-network test-bridge test-media
 
 release-linux: build-linux
 	./scripts/package-release.sh linux
@@ -123,7 +133,7 @@ baremetal-arm64: $(ARM64_ELF)
 
 $(ARM64_ELF): baremetal/arm64/boot.S baremetal/arm64/kernel.c \
 		baremetal/arm64/linker.ld tools/build-baremetal-arm64.sh
-	docker run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) \
+	$(CONTAINER_ENGINE) run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) \
 		-v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
 		./tools/build-baremetal-arm64.sh
 
@@ -132,35 +142,35 @@ baremetal-smoke: $(ARM64_ELF)
 
 ruby-arm64: $(ARM64_RUBY_STAMP)
 $(ARM64_RUBY_STAMP): $(HOST_RUBY_STAMP) tools/build-ruby-arm64.sh config/ruby.mk
-	docker run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) ./tools/build-ruby-arm64.sh
+	$(CONTAINER_ENGINE) run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) ./tools/build-ruby-arm64.sh
 
 ruby-x86_64: $(X86_64_RUBY_STAMP)
 $(X86_64_RUBY_STAMP): $(HOST_RUBY_STAMP) tools/build-ruby-x86_64.sh config/ruby.mk
-	docker run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) ./tools/build-ruby-x86_64.sh
+	$(CONTAINER_ENGINE) run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) ./tools/build-ruby-x86_64.sh
 
 rubyos-x86_64: $(X86_64_RUBYOS_ISO)
 $(X86_64_RUBYOS_ISO): $(X86_64_RUBY_STAMP) tools/build-rubyos-x86_64.sh $(shell find baremetal/x86_64 platform -type f) tools/embed-kernel.rb $(shell find kernel -type f -name '*.rb')
-	docker run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) ./tools/build-rubyos-x86_64.sh
+	$(CONTAINER_ENGINE) run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) ./tools/build-rubyos-x86_64.sh
 
 rubyos-x86_64-smoke: $(X86_64_RUBYOS_ISO)
 	./test/rubyos_x86_64_smoke.sh
 
 $(X86_64_INPUT_ISO): $(X86_64_RUBY_STAMP) tools/build-rubyos-x86_64.sh $(shell find baremetal/x86_64 platform -type f) tools/embed-kernel.rb $(shell find kernel -type f -name '*.rb')
-	docker run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
+	$(CONTAINER_ENGINE) run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
 		env RUBYOS_EMBED_INPUT=1 RUBYOS_X86_VARIANT=rubyos-x86_64-input ./tools/build-rubyos-x86_64.sh
 
 rubyos-x86_64-input-smoke: $(X86_64_INPUT_ISO)
 	./test/rubyos_x86_64_input_smoke.py
 
 $(X86_64_AUDIO_ISO): $(X86_64_RUBY_STAMP) tools/build-rubyos-x86_64.sh $(shell find baremetal/x86_64 platform -type f) tools/embed-kernel.rb $(shell find kernel -type f -name '*.rb')
-	docker run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
+	$(CONTAINER_ENGINE) run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
 		env RUBYOS_EMBED_AUDIO=1 RUBYOS_X86_VARIANT=rubyos-x86_64-audio ./tools/build-rubyos-x86_64.sh
 
 rubyos-x86_64-audio-smoke: $(X86_64_AUDIO_ISO)
 	./test/rubyos_x86_64_audio_smoke.sh
 
 $(X86_64_SMP_ISO): $(X86_64_RUBY_STAMP) tools/build-rubyos-x86_64.sh $(shell find baremetal/x86_64 platform -type f) tools/embed-kernel.rb $(shell find kernel -type f -name '*.rb')
-	docker run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
+	$(CONTAINER_ENGINE) run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
 		env RUBYOS_EMBED_SMP=1 RUBYOS_X86_VARIANT=rubyos-x86_64-smp ./tools/build-rubyos-x86_64.sh
 
 rubyos-x86_64-smp-smoke: $(X86_64_SMP_ISO)
@@ -173,7 +183,7 @@ $(ARM64_RUBYOS_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
 		baremetal/arm64/gic_timer.c baremetal/arm64/smp.c \
 		baremetal/arm64/linker.ld tools/embed-kernel.rb $(shell find kernel -type f -name '*.rb') \
 		$(wildcard platform/libc/*.c platform/libc/include/*.h platform/libc/include/sys/*.h platform/boot/*.h)
-	docker run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) ./tools/build-rubyos-arm64.sh
+	$(CONTAINER_ENGINE) run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) ./tools/build-rubyos-arm64.sh
 
 rubyos-arm64-smoke: $(ARM64_RUBYOS_ELF)
 	./test/rubyos_arm64_smoke.sh
@@ -185,7 +195,7 @@ $(ARM64_GUI_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
 		baremetal/arm64/gic_timer.c baremetal/arm64/smp.c \
 		baremetal/arm64/linker.ld tools/embed-kernel.rb $(shell find kernel -type f -name '*.rb') \
 		$(wildcard platform/libc/*.c platform/libc/include/*.h platform/libc/include/sys/*.h platform/boot/*.h)
-	docker run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
+	$(CONTAINER_ENGINE) run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
 		env RUBYOS_EMBED_DESKTOP=1 RUBYOS_ARM64_VARIANT=rubyos-arm64-gui ./tools/build-rubyos-arm64.sh
 
 rubyos-arm64-gui-smoke: $(ARM64_GUI_ELF) bridge
@@ -198,7 +208,7 @@ $(ARM64_TCP_GUI_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
 		baremetal/arm64/gic_timer.c baremetal/arm64/smp.c \
 		baremetal/arm64/linker.ld tools/embed-kernel.rb $(shell find kernel -type f -name '*.rb') \
 		$(wildcard platform/libc/*.c platform/libc/include/*.h platform/libc/include/sys/*.h platform/boot/*.h)
-	docker run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
+	$(CONTAINER_ENGINE) run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
 		env RUBYOS_EMBED_DESKTOP_TCP=1 RUBYOS_ARM64_VARIANT=rubyos-arm64-tcp-gui ./tools/build-rubyos-arm64.sh
 
 rubyos-arm64-tcp-gui-smoke: $(ARM64_TCP_GUI_ELF) bridge
@@ -210,7 +220,7 @@ $(ARM64_INPUT_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
 		baremetal/arm64/gic_timer.c baremetal/arm64/smp.c \
 		baremetal/arm64/linker.ld tools/embed-kernel.rb $(shell find kernel -type f -name '*.rb') \
 		$(wildcard platform/libc/*.c platform/libc/include/*.h platform/libc/include/sys/*.h platform/boot/*.h)
-	docker run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
+	$(CONTAINER_ENGINE) run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
 		env RUBYOS_EMBED_INPUT=1 RUBYOS_ARM64_VARIANT=rubyos-arm64-input ./tools/build-rubyos-arm64.sh
 
 rubyos-arm64-input-smoke: $(ARM64_INPUT_ELF)
@@ -222,7 +232,7 @@ $(ARM64_AUDIO_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
 		baremetal/arm64/gic_timer.c baremetal/arm64/smp.c \
 		baremetal/arm64/linker.ld tools/embed-kernel.rb $(shell find kernel -type f -name '*.rb') \
 		$(wildcard platform/libc/*.c platform/libc/include/*.h platform/libc/include/sys/*.h platform/boot/*.h)
-	docker run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
+	$(CONTAINER_ENGINE) run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
 		env RUBYOS_EMBED_AUDIO=1 RUBYOS_ARM64_VARIANT=rubyos-arm64-audio ./tools/build-rubyos-arm64.sh
 
 rubyos-arm64-audio-smoke: $(ARM64_AUDIO_ELF)
@@ -234,7 +244,7 @@ $(ARM64_SMP_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
 		baremetal/arm64/gic_timer.c baremetal/arm64/smp.c \
 		baremetal/arm64/linker.ld tools/embed-kernel.rb $(shell find kernel -type f -name '*.rb') \
 		$(wildcard platform/libc/*.c platform/libc/include/*.h platform/libc/include/sys/*.h platform/boot/*.h)
-	docker run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
+	$(CONTAINER_ENGINE) run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
 		env RUBYOS_EMBED_SMP=1 RUBYOS_ARM64_VARIANT=rubyos-arm64-smp ./tools/build-rubyos-arm64.sh
 
 rubyos-arm64-smp-smoke: $(ARM64_SMP_ELF)
@@ -247,7 +257,7 @@ $(ARM64_REPL_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
 		baremetal/arm64/gic_timer.c baremetal/arm64/smp.c \
 		baremetal/arm64/linker.ld tools/embed-kernel.rb $(shell find kernel -type f -name '*.rb') \
 		$(wildcard platform/libc/*.c platform/libc/include/*.h platform/libc/include/sys/*.h platform/boot/*.h)
-	docker run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
+	$(CONTAINER_ENGINE) run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
 		env RUBYOS_EMBED_REPL=1 RUBYOS_ARM64_VARIANT=rubyos-arm64-repl ./tools/build-rubyos-arm64.sh
 
 rubyos-arm64-repl-smoke: $(ARM64_REPL_ELF)
@@ -264,7 +274,7 @@ $(ARM64_STORAGE_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
 		baremetal/arm64/gic_timer.c baremetal/arm64/smp.c \
 		baremetal/arm64/linker.ld tools/embed-kernel.rb $(shell find kernel -type f -name '*.rb') \
 		$(wildcard platform/libc/*.c platform/libc/include/*.h platform/libc/include/sys/*.h platform/boot/*.h)
-	docker run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
+	$(CONTAINER_ENGINE) run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
 		env RUBYOS_EMBED_REPL=1 RUBYOS_EMBED_STORAGE=1 RUBYOS_ARM64_VARIANT=rubyos-arm64-storage ./tools/build-rubyos-arm64.sh
 
 rubyos-arm64-storage-smoke: $(ARM64_STORAGE_ELF) $(DISK_IMAGE)
@@ -277,7 +287,7 @@ $(ARM64_NETWORK_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
 		baremetal/arm64/gic_timer.c baremetal/arm64/smp.c \
 		baremetal/arm64/linker.ld tools/embed-kernel.rb $(shell find kernel -type f -name '*.rb') \
 		$(wildcard platform/libc/*.c platform/libc/include/*.h platform/libc/include/sys/*.h platform/boot/*.h)
-	docker run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
+	$(CONTAINER_ENGINE) run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
 		env RUBYOS_EMBED_NETWORK=1 RUBYOS_ARM64_VARIANT=rubyos-arm64-network ./tools/build-rubyos-arm64.sh
 
 rubyos-arm64-network-smoke: $(ARM64_NETWORK_ELF)
@@ -290,7 +300,7 @@ $(ARM64_WEB_ELF): $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh \
 		baremetal/arm64/gic_timer.c baremetal/arm64/smp.c \
 		baremetal/arm64/linker.ld tools/embed-kernel.rb $(shell find kernel -type f -name '*.rb') \
 		$(wildcard platform/libc/*.c platform/libc/include/*.h platform/libc/include/sys/*.h platform/boot/*.h)
-	docker run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
+	$(CONTAINER_ENGINE) run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
 		env RUBYOS_EMBED_WEB=1 RUBYOS_ARM64_VARIANT=rubyos-arm64-web ./tools/build-rubyos-arm64.sh
 
 rubyos-arm64-web-smoke: $(ARM64_WEB_ELF)

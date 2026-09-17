@@ -2,11 +2,14 @@
 
 ## Principle
 
-Assembly establishes the CPU execution environment. A small freestanding C
-substrate supplies allocation, stack discovery, interrupts, and the CRuby
-embedding boundary. After the supported `ruby_setup` plus `ruby_options`
-initialization sequence, Ruby is the kernel runtime rather than a userspace
-program.
+Assembly establishes the CPU execution environment. On ARM64 that includes an
+identity-mapped EL1 translation regime: MMIO below 1 GiB remains device memory,
+while QEMU RAM beginning at `0x40000000` is normal write-back memory so CRuby's
+valid unaligned scalar and SIMD accesses have architectural RAM semantics. A
+small freestanding C substrate supplies allocation, stack discovery,
+interrupts, and the CRuby embedding boundary. After the supported `ruby_setup`
+plus `ruby_options` initialization sequence, Ruby is the kernel runtime rather
+than a userspace program.
 
 ## Guest architecture boundary
 

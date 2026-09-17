@@ -7,7 +7,10 @@ GUEST_EXTENSION = $(if $(filter arm64,$(TARGET_ARCH)),elf,iso)
 PUBLIC_REPL = $(CURDIR)/build/baremetal/rubyos-$(TARGET_ARCH)-repl/rubyos.$(GUEST_EXTENSION)
 PUBLIC_DESKTOP = $(CURDIR)/build/baremetal/rubyos-$(TARGET_ARCH)-desktop/rubyos.$(GUEST_EXTENSION)
 
-.PHONY: help build build-gui run run-gui start stop restart test-host test-chipset test-gui package cleanall ensure-builder disk-image
+.PHONY: help install build build-gui run run-gui start stop restart test-host test-chipset test-gui package cleanall ensure-builder disk-image
+install:
+	./tools/install-host.sh
+	@if test "$${RUBYOS_SKIP_DOCKER:-0}" != 1; then $(MAKE) ensure-builder; fi
 build: $(PUBLIC_REPL)
 build-gui: $(PUBLIC_DESKTOP) bridge
 run: build
@@ -19,7 +22,7 @@ stop:
 	@if test -x "$(HOST_RUBY)"; then $(HOST_RUBY) tools/run.rb stop; else echo "RubyOS is not running"; fi
 restart: stop
 	$(MAKE) run
-test: test-host rubyos-$(TARGET_ARCH)-repl-smoke
+test: test-install test-host rubyos-$(TARGET_ARCH)-repl-smoke
 test-chipset: test-host
 test-gui: rubyos-$(TARGET_ARCH)-tcp-gui-smoke
 package: release
@@ -32,6 +35,7 @@ test-user-commands: build build-gui
 
 help:
 	@echo "RubyOS — everyday commands (guest: $(TARGET_ARCH); override TARGET_ARCH=arm64|x86_64)"
+	@echo "  make install        Install host dependencies, submodules, and builder"
 	@echo "  make / make build   Build the bootable Ruby console"
 	@echo "  make run            Boot the console in QEMU (Ctrl-C to stop)"
 	@echo "  make build-gui      Build the desktop and shared SDL service"
@@ -48,12 +52,12 @@ help:
 	@echo "Advanced architecture/probe targets: docs/build-targets.md."
 
 ensure-builder:
-	@docker image inspect $(BUILDER_IMAGE) >/dev/null 2>&1 || $(MAKE) docker-build
+	@$(CONTAINER_ENGINE) image inspect $(BUILDER_IMAGE) >/dev/null 2>&1 || $(MAKE) docker-build
 
 $(ARM64_ELF) $(ARM64_RUBY_STAMP) $(X86_64_RUBY_STAMP): | ensure-builder
 
 $(CURDIR)/build/baremetal/rubyos-arm64-desktop/rubyos.elf: $(ARM64_RUBY_STAMP) tools/build-rubyos-arm64.sh tools/embed-kernel.rb $(shell find kernel baremetal/arm64 platform -type f)
-	docker run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
+	$(CONTAINER_ENGINE) run --rm --platform $(BUILDER_PLATFORM) --user $$(id -u):$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
 		env RUBYOS_EMBED_INTERACTIVE_DESKTOP=1 RUBYOS_ARM64_VARIANT=rubyos-arm64-desktop ./tools/build-rubyos-arm64.sh
 
 # Private variants share one build rule; keep the public interface small.
@@ -65,7 +69,7 @@ X86_FEATURE_tcp-gui = RUBYOS_EMBED_DESKTOP_TCP=1
 X86_FEATURE_desktop = RUBYOS_EMBED_INTERACTIVE_DESKTOP=1
 define x86_variant
 $(CURDIR)/build/baremetal/rubyos-x86_64-$(1)/rubyos.iso: $(X86_64_RUBY_STAMP) tools/build-rubyos-x86_64.sh tools/embed-kernel.rb $(shell find kernel baremetal/x86_64 platform -type f)
-	docker run --rm --platform $(BUILDER_PLATFORM) --user $$$$(id -u):$$$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
+	$(CONTAINER_ENGINE) run --rm --platform $(BUILDER_PLATFORM) --user $$$$(id -u):$$$$(id -g) -v $(CURDIR):/work -w /work $(BUILDER_IMAGE) \
 		env $(X86_FEATURE_$(1)) RUBYOS_X86_VARIANT=rubyos-x86_64-$(1) ./tools/build-rubyos-x86_64.sh
 .PHONY: rubyos-x86_64-$(1) rubyos-x86_64-$(1)-smoke
 rubyos-x86_64-$(1): $(CURDIR)/build/baremetal/rubyos-x86_64-$(1)/rubyos.iso

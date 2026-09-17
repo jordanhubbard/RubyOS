@@ -41,6 +41,8 @@ _start:
     str xzr, [x1], #8
     b 2b
 3:
+    bl rubyos_enable_mmu
+
     /* Install the initial thread pointer before any C or Ruby code uses TLS. */
     ldr x0, =tls_tcb_start
     str x0, [x0]
@@ -114,11 +116,50 @@ rubyos_ap_entry:
     add x0, x0, :lo12:rubyos_ap_stack_top
     ldr x0, [x0, x19, lsl #3]
     mov sp, x0
+    bl rubyos_enable_mmu
     mov x0, x19
     bl rubyos_ap_main
 12:
     wfe
     b 12b
+
+/*
+ * QEMU's virt machine starts with stage-1 translation disabled.  In that
+ * state AArch64 treats data accesses as device memory, where otherwise valid
+ * unaligned CRuby loads and SIMD stores fault.  Identity-map the first 2 GiB:
+ * MMIO below 1 GiB remains Device-nGnRnE and RAM at 0x40000000 is Normal WB.
+ */
+rubyos_enable_mmu:
+    ldr x0, =rubyos_l0_table
+    ldr x1, =rubyos_l1_table
+    orr x2, x1, #3
+    str x2, [x0]
+
+    /* L1[0]: 0x00000000..0x3fffffff, AttrIdx 1 (device), AF set. */
+    mov x2, #0x405
+    str x2, [x1]
+
+    /* L1[1]: 0x40000000..0x7fffffff, AttrIdx 0 (normal), inner-shareable. */
+    ldr x2, =0x40000701
+    str x2, [x1, #8]
+    dsb sy
+
+    /* Attr0 = Normal WB RA/WA; Attr1 = Device-nGnRnE. */
+    mov x2, #0xff
+    msr mair_el1, x2
+    ldr x2, =0x0000000200803510
+    msr tcr_el1, x2
+    msr ttbr0_el1, x0
+    tlbi vmalle1
+    dsb sy
+    isb
+
+    mrs x0, sctlr_el1
+    mov x1, #0x1005
+    orr x0, x0, x1
+    msr sctlr_el1, x0
+    isb
+    ret
 
 .balign 2048
 .global exception_vectors
@@ -194,3 +235,10 @@ rubyos_irq_entry:
     ldr x29, [sp, #160]
     add sp, sp, #176
     eret
+
+.section .bss
+.balign 4096
+rubyos_l0_table:
+    .space 4096
+rubyos_l1_table:
+    .space 4096

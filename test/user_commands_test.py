@@ -31,7 +31,7 @@ def wait_for(process, path, marker):
 
 assert not (ROOT / "build/run/control.sock").exists(), "stop the existing session before testing"
 help_text = make("help")
-for target in ("build", "build-gui", "run", "run-gui", "stop", "restart", "test", "package", "cleanall"):
+for target in ("install", "build", "build-gui", "run", "run-gui", "stop", "restart", "test", "package", "cleanall"):
     assert target in help_text, target
 extension = "elf" if ARCH == "arm64" else "iso"
 assert f"build: {ROOT}/build/baremetal/rubyos-{ARCH}-repl/rubyos.{extension}" in make("-np", "build")

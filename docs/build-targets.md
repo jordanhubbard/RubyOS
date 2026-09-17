@@ -1,8 +1,9 @@
 # Advanced build targets
 
-Start with `make help`. The normal interface is `build`, `build-gui`, `run`,
-`run-gui`, `stop`, `start`, `restart`, `test`, `test-gui`, `package`, `clean`,
-and `cleanall`. Bare `make` means `build`, not a hosted demonstration.
+Start with `make install`, then `make help`. The normal interface is `install`,
+`build`, `build-gui`, `run`, `run-gui`, `stop`, `start`, `restart`, `test`,
+`test-gui`, `package`, `clean`, and `cleanall`. Bare `make` means `build`, not a
+hosted demonstration.
 `restart` always starts the console; use `make stop run-gui` sequentially
 (not `make -j`) to switch to the desktop.
 

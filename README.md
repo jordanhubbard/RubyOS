@@ -14,22 +14,23 @@ and [the three-repository alignment guide](docs/remoteos-alignment.md).
 ## Getting started
 
 ```sh
-git clone --recurse-submodules https://github.com/jordanhubbard/RubyOS.git
+git clone https://github.com/jordanhubbard/RubyOS.git
 cd RubyOS
-# For an existing clone:
-git submodule update --init --recursive
+make install
 ```
 
-On Debian/Ubuntu, install `build-essential curl xz-utils pkg-config file
-e2fsprogs qemu-system-arm qemu-system-x86 qemu-utils libsdl2-dev
-libsdl2-image-dev libsdl2-ttf-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev libgl-dev ffmpeg`. Freestanding builds also need Docker.
-On macOS, install Xcode command-line tools and run
-`brew install pkg-config sdl2 sdl2_image sdl2_ttf ffmpeg libyaml qemu`.
-With Docker running, use the same `make`, `make run`, and `make run-gui`
-entry points below. `make build-macos` remains a hosted-only development suite.
+`make install` is the supported bootstrap on ARM64 and x86_64 macOS or
+Debian/Ubuntu Linux. It installs Homebrew packages on macOS, apt packages on
+Linux, initializes submodules, starts Docker when possible, and builds the
+native-host cross-toolchain container. Xcode command-line tools are required
+on macOS.
 
-For Windows, use these Linux instructions inside WSL2 with Docker integration
-enabled. Visible SDL windows require WSLg or another working display server.
+On Windows, run `make install` inside an ARM64 or x86_64 WSL2 Debian/Ubuntu
+distribution. Docker Desktop WSL integration or a running in-WSL Docker
+service is required; visible SDL windows also require WSLg.
+
+After installation, use the same `make`, `make run`, and `make run-gui` entry
+points below. `make build-macos` remains a hosted-only development suite.
 
 ## What runs today
 
