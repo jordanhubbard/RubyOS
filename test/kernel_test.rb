@@ -196,6 +196,14 @@ assert(!compositor.windows.include?(first_window), "window close hit target")
 submitted = nil
 input = RubyOS::GUI::TextInput.new(text: "r", width: 120, height: 24,
                                     on_submit: ->(text) { submitted = text })
+assert(!input.handle(:click), "text input ignores window click notifications")
+input_window = RubyOS::GUI::Window.new("Input", x: 20, y: 30, width: 180, height: 90)
+input_window.add(input)
+compositor.add_window(input_window)
+assert(!input_window.handle("kind" => 4, "button" => 1,
+                            "x" => input_window.x + 12,
+                            "y" => input_window.y + RubyOS::GUI::Window::TITLE_HEIGHT + 11),
+       "window pointer dispatch does not synthesize clicks for text input")
 input.handle("kind" => 1, "code" => 0, "text" => "uby")
 input.handle("kind" => 1, "code" => 8)
 input.handle("kind" => 1, "code" => 0, "text" => "y")

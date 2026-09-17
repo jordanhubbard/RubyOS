@@ -65,7 +65,7 @@ module RubyOS
           local_x = event.fetch("x") - x - 10
           local_y = event.fetch("y") - y - TITLE_HEIGHT - 9
           child = children.reverse.find { |candidate| candidate.contains?(local_x, local_y) }
-          return true if child&.enabled && child.handle(:click)
+          return true if child&.enabled && child.is_a?(Button) && child.handle(:click)
         end
         children.reverse_each { |child| return true if child.enabled && child.handle(event) }
         false

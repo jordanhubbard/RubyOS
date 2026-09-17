@@ -31,12 +31,17 @@ children = []
 stopping = false
 stop_client = nil
 status = 0
+serial_log = nil
+serial_offset = 0
+serial_tail = ""
+fatal_markers = ["FATAL", "EXCEPTION", "ASSERT", "[BUG]"]
 %w[INT TERM].each { |signal| Signal.trap(signal) { stopping = true } }
 begin
+  qemu = ENV["RUBYOS_QEMU_BIN"]
   command = if arch == "arm64"
-    ["qemu-system-aarch64", "-M", "virt", "-cpu", "cortex-a72"]
+    [qemu || "qemu-system-aarch64", "-M", "virt", "-cpu", "cortex-a72"]
   else
-    ["qemu-system-x86_64", "-M", "pc"]
+    [qemu || "qemu-system-x86_64", "-M", "pc"]
   end
   command += ["-m", "512M", "-display", "none", "-monitor", "none", "-no-reboot"]
   variant = mode == "console" ? "repl" : "desktop"
@@ -52,7 +57,9 @@ begin
     # to somebody else's guest. QEMU will also reject a later bind race.
     TCPServer.open("127.0.0.1", port) { |probe| probe.close }
     network_device = arch == "arm64" ? "virtio-net-device" : "virtio-net-pci,disable-legacy=on"
-    command += ["-serial", "file:#{directory}/serial.log",
+    serial_log = File.join(directory, "serial.log")
+    FileUtils.rm_f(serial_log)
+    command += ["-serial", "file:#{serial_log}",
                 "-netdev", "user,id=net,hostfwd=tcp:127.0.0.1:#{port}-:5001",
                 "-device", "#{network_device},netdev=net,mac=52:54:00:12:34:57"]
     children << Process.spawn(*command, in: File::NULL)
@@ -72,6 +79,21 @@ begin
       status = $?.success? ? 0 : 1
       children.delete(pid)
       stopping = true
+    end
+    if serial_log && File.file?(serial_log)
+      File.open(serial_log, "rb") do |stream|
+        stream.seek(serial_offset)
+        output = stream.read.to_s
+        serial_offset = stream.pos
+        scan = serial_tail + output
+        tail_size = [fatal_markers.map(&:bytesize).max - 1, scan.bytesize].min
+        serial_tail = scan.byteslice(scan.bytesize - tail_size, tail_size).to_s
+        if fatal_markers.any? { |marker| scan.include?(marker) }
+          warn "RubyOS guest reported a fatal error; see #{serial_log}"
+          status = 1
+          stopping = true
+        end
+      end
     end
   end
 ensure

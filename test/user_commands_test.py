@@ -76,4 +76,31 @@ try:
 finally:
     unrelated.terminate()
     unrelated.wait(timeout=5)
+
+with tempfile.TemporaryDirectory(prefix="rubyos-fatal-launcher-") as temporary:
+    temporary = Path(temporary)
+    fake_qemu = temporary / "qemu"
+    fake_service = temporary / "remoteos-sdl"
+    fake_qemu.write_text("""#!/usr/bin/env python3
+import pathlib
+import sys
+import time
+
+serial = sys.argv[sys.argv.index("-serial") + 1].removeprefix("file:")
+pathlib.Path(serial).write_text("[RubyOS/test] FA" + "TAL: injected failure\\n")
+time.sleep(120)
+""")
+    fake_service.write_text("""#!/usr/bin/env python3
+import time
+time.sleep(120)
+""")
+    fake_qemu.chmod(0o755)
+    fake_service.chmod(0o755)
+    fatal_environment = dict(environment, RUBYOS_QEMU_BIN=str(fake_qemu),
+                             REMOTEOS_SDL_BIN=str(fake_service), RUBYOS_REMOTEOS_PORT="17013")
+    fatal = subprocess.run([RUBY, "tools/run.rb", "gui"], capture_output=True, text=True,
+                           env=fatal_environment, timeout=5)
+    assert fatal.returncode != 0, fatal.stdout + fatal.stderr
+    assert "guest reported a fatal error" in fatal.stderr, fatal.stderr
+    assert not (ROOT / "build/run/control.sock").exists()
 print(f"RubyOS public commands and lifecycle ({ARCH}): PASS")

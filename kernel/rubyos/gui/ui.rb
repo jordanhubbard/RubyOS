@@ -112,6 +112,7 @@ module RubyOS
       end
 
       def handle(event)
+        return false unless event.respond_to?(:fetch)
         return false unless event.fetch("kind", 0) == 1
         code = event.fetch("code", 0)
         typed = event.fetch("text", "")

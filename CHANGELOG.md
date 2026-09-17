@@ -4,6 +4,25 @@ All notable RubyOS changes are documented here.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-16
+
+- Add `make install` as the supported self-bootstrap path for ARM64 and x86_64
+  macOS, Debian/Ubuntu Linux and Windows WSL2 hosts.
+- Install Homebrew or apt dependencies, initialize recursive submodules, start
+  Docker where possible and prepare the native-host cross-toolchain image.
+- Route container commands through a Linux sudo fallback for newly installed
+  Docker services whose group membership is not active in the current shell.
+- Identity-map ARM64 MMIO as device memory and RAM as normal write-back memory
+  before entering CRuby, fixing alignment faults in valid scalar and SIMD
+  accesses during console and desktop boot.
+- Exercise the installer matrix in local/release gates and use the public
+  bootstrap path in Linux ARM64, Linux x86_64 and macOS CI.
+- Keep pointer clicks on text inputs and other non-button views from being
+  dispatched as synthetic button events, preventing an interactive desktop
+  exception after clicking the Terminal or Editor.
+- Make the public GUI supervisor detect fatal guest logs, stop its QEMU and SDL
+  children, and exit unsuccessfully instead of appearing to hang forever.
+
 ## [0.3.0] - 2026-09-15
 
 - Add block-scoped Ruby SDL resources, capability checks, bounded batching,

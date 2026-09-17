@@ -1,42 +1,47 @@
-# RubyOS v0.3.0
+# RubyOS v0.3.1
 
-## Ruby gets a studio, not a commemorative chipset
+## A fresh checkout now knows how to become a development machine
 
-RubyOS now has block-scoped SDL resources, 2D scenes, perspective 3D meshes,
-seekable property animation, PCM composition, video playback and audiovisual
-recording. Ruby objects describe what happens. RemoteOS-SDL handles host
-rendering and codecs. Nobody has to pretend a copper list is a personality.
+`make install` is the supported bootstrap entry point on ARM64 and x86_64
+macOS, Debian/Ubuntu Linux and Windows WSL2. It installs the SDL, FFmpeg, QEMU,
+Ruby build and filesystem dependencies through Homebrew or apt, initializes
+the shared RemoteOS-SDL submodule, starts Docker where the host permits it and
+prepares the native-host cross-toolchain image.
 
-The old chipset hierarchy is removed. Invaders and Snake retain their gameplay
-while rendering through ordinary bitmap objects. The desktop's Media Workbench
-replaces its hardware-homage laboratory.
+The regular build also initializes the display-service submodule if an
+existing clone omitted it. Linux container commands can fall back through
+`sudo` immediately after Docker installation, rather than requiring a logout
+before the first RubyOS build. WSL2 keeps the same build surface on both host
+architectures; interactive windows require WSLg, while headless tests do not.
 
-## Make something, then play it back
+## ARM64 RAM is RAM now
 
-The source-built CRuby 4.0.6 runtime remains the language engine. Run
-`examples/studio.rb` for an animated cube with text, or `examples/movie.rb`
-to record a two-second audiovisual scene, export it as Matroska and play it.
-[The multimedia guide](docs/multimedia.md) supplies complete launch commands.
+The ARM64 bootstrap establishes an EL1 identity map before CRuby starts. QEMU
+MMIO below 1 GiB retains device-memory semantics, while RAM beginning at
+`0x40000000` is normal write-back memory. This fixes the alignment exceptions
+previously raised by valid CRuby scalar and SIMD accesses during ractor and
+Prism initialization.
 
-`Studio#record` advances its timeline in fixed steps. A Ruby audio callback
-supplies PCM per frame; the service encodes MPEG-4 video and muxes both tracks.
-`Video#play`, `pause`, `seek` and `tick` expose host audio-clocked playback.
-Resources close with their blocks; drawing batches obey negotiated limits and
-report errors. Small pleasures, such as not leaking a font every frame.
+The same translation setup runs on application processors. Console boot, the
+persistent desktop, native-TCP GUI/media, and four-core worker paths now pass
+on ARM64. The x86_64 console and desktop paths remain covered independently.
 
-## Platforms and honest limits
+## The interactive desktop fails clearly instead of hanging
 
-Hosted integration and ARM64/x86_64 bare-metal native-TCP tests cover 3D,
-export and playback. Linux ARM64, Linux x86_64 and macOS ARM64 release gates
-use the pinned shared service. Linux bundles retain both guest architectures.
-Windows uses WSL2, not a native Windows kernel build.
+Pointer clicks on text fields and other non-button views no longer arrive as
+synthetic button events. This fixes the guest exception previously triggered
+by clicking the Terminal or Editor after the desktop reported itself ready.
 
-The framework is not a finished video editor. Clip bytes cap at 16 MiB,
-audio predecode/export at 60 seconds, and export uses even dimensions up to
-2048 with fixed integer frame rates. OpenGL has readback and a software fallback;
-textures, lighting and streaming remain outside this release. See the guide
-for ownership, clock precision, codec and transport boundaries.
+The public GUI supervisor now watches the guest serial log for fatal markers.
+If the guest raises unexpectedly, it terminates the checkout's QEMU and SDL
+children and returns a failing status with the diagnostic log path instead of
+leaving an apparently live window forever.
 
-Executive summary: a Ruby-focused multimedia foundation, two real guest CPU
-architectures, and substantially fewer reasons to role-play a 1980s chipset.
-[RubyOS v0.3.0](https://github.com/jordanhubbard/RubyOS/releases/tag/v0.3.0).
+## Installation is part of the release gate
+
+Installer routing is tested for macOS, Debian/Ubuntu Linux and WSL2 on both
+ARM64 and x86_64. Release CI now invokes `make install` instead of maintaining
+a second handwritten dependency list, so the documented first-run path and
+the path used to create release artifacts cannot silently diverge.
+
+[RubyOS v0.3.1](https://github.com/jordanhubbard/RubyOS/releases/tag/v0.3.1).
