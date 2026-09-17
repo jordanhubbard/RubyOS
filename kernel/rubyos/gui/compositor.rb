@@ -246,7 +246,7 @@ module RubyOS
       MENU_HEIGHT = 24
       DOCK_HEIGHT = 42
 
-      attr_reader :width, :height, :windows, :file_transfer
+      attr_reader :width, :height, :windows, :file_transfer, :source_workspace
 
       def initialize(width:, height:, title: "RubyOS")
         @width = width
@@ -274,6 +274,32 @@ module RubyOS
         @file_transfer = service
         @file_drop_handler = fallback
         self
+      end
+
+      def install_source_workspace(workspace)
+        @source_workspace = workspace
+        self
+      end
+
+      def open_focused_source
+        return false unless source_workspace
+
+        source_workspace.open(focused_window)
+        true
+      rescue RubyOS::Error, KeyError
+        false
+      end
+
+      def replace_application(name, previous, replacement)
+        name = String(name)
+        @dock_items.map! do |item|
+          next item unless item.name == name || item.application.equal?(previous)
+
+          DockItem.new(name: item.name, label: item.label, application: replacement,
+                       action: -> { replacement.launch(self) }).freeze
+        end
+        refresh_menus
+        replacement
       end
 
       def add_window(window)

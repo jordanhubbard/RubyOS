@@ -24,11 +24,11 @@ module RubyOS
       applications.register("Editor", Apps::Editor.new(
         path: "/apps/live_hello.rb", runtime:, application_name: "Live Hello"
       ), description: "Edit VFS files and transactionally reload Ruby applications",
-         dock_label: "Edit")
-      Apps::Catalog.install_desktop(compositor, applications, file_transfer:)
+         dock_label: "Edit", source_path: Apps::Catalog::SYSTEM_SOURCE)
+      Apps::Catalog.install_desktop(compositor, applications, file_transfer:, runtime:)
       compositor.add_shortcut("Clock", x: 8, y: 42) { applications.fetch("Clock").launch(compositor) }
       compositor.add_shortcut("Files", x: 8, y: 104) { applications.fetch("Files").launch(compositor) }
-      applications.fetch("About").launch(compositor)
+      about_window = applications.fetch("About").launch(compositor)
       applications.fetch("Files").launch(compositor)
       applications.fetch("Media").launch(compositor)
       terminal_window = applications.fetch("Terminal").launch(compositor)
@@ -77,6 +77,26 @@ module RubyOS
                          "/examples/concurrency/README.txt"
                        ).include?("native_workers"),
                        "frozen categorized Ruby curriculum is not executable and readable")
+      compositor.focus(about_window)
+      RubyOS.invariant(compositor.open_focused_source,
+                       "focused built-in application did not expose its Ruby source")
+      source_editor = compositor.source_workspace.last_editor
+      RubyOS.invariant(source_editor.path == "/apps/about.rb" &&
+                       source_editor.content.include?("class About < Application"),
+                       "frozen app source archive did not populate the source editor")
+      compositor.draw(desktop.surface, uptime: "focused Ruby source")
+      desktop.present
+      desktop.capture("/tmp/rubyos-source-editor.bmp")
+      edited_source = source_editor.content.sub('GUI::Window.new("About RubyOS"',
+                                                'GUI::Window.new("About RubyOS Reloaded"')
+      source_editor.input.replace(edited_source)
+      RubyOS.invariant(source_editor.reload && !compositor.windows.include?(about_window) &&
+                       applications.fetch("About").class != Apps::About &&
+                       compositor.focused_window.title == "About RubyOS Reloaded" &&
+                       state.fetch(:vfs).read_file("/apps/about.rb").include?(
+                         "About RubyOS Reloaded"
+                       ), "focused Ruby source did not transactionally replace the application")
+      compositor.focus(terminal_window)
       launcher_window = applications.fetch("Launcher").launch(compositor)
       compositor.draw(desktop.surface, uptime: "catalog")
       desktop.present
@@ -461,6 +481,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS] host file transfer: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] text selection and guest clipboard: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] editor navigation and explicit persistence: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] focused source edit and transactional reload: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] compositor desktop mechanics: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] SDL_ttf Ruby Font: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] PNG/JPEG image surfaces: PASS\n")
@@ -483,8 +504,8 @@ module RubyOS
       applications.register("Editor", Apps::Editor.new(
         path: "/apps/live_hello.rb", runtime:, application_name: "Live Hello"),
         description: "Edit VFS files and transactionally reload Ruby applications",
-        dock_label: "Edit")
-      Apps::Catalog.install_desktop(compositor, applications, file_transfer:)
+        dock_label: "Edit", source_path: Apps::Catalog::SYSTEM_SOURCE)
+      Apps::Catalog.install_desktop(compositor, applications, file_transfer:, runtime:)
       applications.fetch("Terminal").launch(compositor)
       ready = false
       loop do

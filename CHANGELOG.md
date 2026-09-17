@@ -4,6 +4,10 @@ All notable RubyOS changes are documented here.
 
 ## [Unreleased]
 
+- Add focused-window source editing on F5: built-in application source is
+  archived into frozen guests, copied to a writable `/apps` overlay, evaluated
+  under an isolated Ruby namespace, and transactionally swapped into the live
+  registry, dock, and desktop only after successful compilation and validation.
 - Add bounded host-to-VFS file drops and VFS-to-host exports to Files and the
   shared Open/Save dialogs, with collision-safe names, partial-import cleanup,
   host-policy export paths, and ARM64/x86_64 frozen-guest acceptance.

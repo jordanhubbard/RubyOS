@@ -23,6 +23,7 @@ arcade_capture="/tmp/rubyos-arcade.bmp"
 plasma_capture="/tmp/rubyos-plasma.bmp"
 sprites_capture="/tmp/rubyos-sprites.bmp"
 image_viewer_capture="/tmp/rubyos-image-viewer.bmp"
+source_editor_capture="/tmp/rubyos-source-editor.bmp"
 
 cleanup() {
     kill "${qemu_pid:-}" 2>/dev/null || true
@@ -38,7 +39,7 @@ cleanup() {
     rm -f "$terminal_capture"
     rm -f "$arcade_capture"
     rm -f "$plasma_capture"
-    rm -f "$sprites_capture" "$image_viewer_capture"
+    rm -f "$sprites_capture" "$image_viewer_capture" "$source_editor_capture"
     rm -rf "$export_dir"
 }
 trap cleanup EXIT
@@ -81,6 +82,7 @@ grep -q 'shared open/save dialog: PASS' "$output"
 grep -q 'host file transfer: PASS' "$output"
 grep -q 'text selection and guest clipboard: PASS' "$output"
 grep -q 'editor navigation and explicit persistence: PASS' "$output"
+grep -q 'focused source edit and transactional reload: PASS' "$output"
 grep -q 'persistent shortcut keymap: PASS' "$output"
 grep -q 'desktop/window/text context menus: PASS' "$output"
 grep -q 'dynamic persistent dock: PASS' "$output"
@@ -101,6 +103,9 @@ cp "$resized_window_capture" "$root/build/rubyos-resized-window.bmp"
 test -s "$editor_selection_capture"
 file "$editor_selection_capture" | grep -q '480 x 300'
 cp "$editor_selection_capture" "$root/build/rubyos-editor-selection.bmp"
+test -s "$source_editor_capture"
+file "$source_editor_capture" | grep -q '480 x 300'
+cp "$source_editor_capture" "$root/build/rubyos-source-editor.bmp"
 test -s "$persistent_keymap_capture"
 file "$persistent_keymap_capture" | grep -q '480 x 300'
 cp "$persistent_keymap_capture" "$root/build/rubyos-persistent-keymap.bmp"

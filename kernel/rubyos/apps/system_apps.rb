@@ -405,6 +405,10 @@ module RubyOS
         @defaults = nil
       end
 
+      def rebuild_as(application_class)
+        application_class.new(kernel:, store:)
+      end
+
       def restore(compositor)
         @compositor = compositor
         @defaults ||= compositor.keybindings.to_h { |binding| [binding.name, [binding.code, binding.mods]] }
@@ -515,7 +519,7 @@ module RubyOS
         parts << "Ctrl" if (mods & Input::MOD_CTRL) != 0
         parts << "Alt" if (mods & Input::MOD_ALT) != 0
         parts << "Meta" if (mods & Input::MOD_META) != 0
-        key = if code.between?(Input::KEY_F1, Input::KEY_F4)
+        key = if code.between?(Input::KEY_F1, Input::KEY_F5)
                 "F#{code - Input::KEY_F1 + 1}"
               elsif code.between?(32, 126)
                 code.chr.upcase
@@ -530,14 +534,19 @@ module RubyOS
       attr_reader :path, :content, :reload_error, :file_dialog, :input, :dirty
 
       def initialize(path: "/home/welcome.txt", runtime: nil,
-                     application_name: nil, **)
+                     application_name: nil, initial_content: nil,
+                     target_window: nil, title_prefix: "Editor",
+                     source_mode: false, **)
         super(**)
         @path = path
         @runtime = runtime
         @application_name = application_name
+        @target_window = target_window
+        @title_prefix = String(title_prefix)
+        @source_mode = source_mode
         @content = kernel.state.fetch(:vfs).read_file(path)
       rescue FS::NotFound
-        @content = +""
+        @content = String(initial_content || "")
       ensure
         @saved_content = @content.to_s.dup
         @dirty = false
@@ -601,8 +610,14 @@ module RubyOS
 
       def reload(*)
         raise RubyOS::Error, "editor is not attached to a live application" unless @runtime
+        previous = @runtime.registry.fetch(@application_name)
         save
         @runtime.reload(@application_name, path:)
+        replacement = @runtime.registry.fetch(@application_name)
+        @compositor.replace_application(@application_name, previous, replacement)
+        @compositor.close(@target_window) if @target_window &&
+                                              @compositor.windows.include?(@target_window)
+        replacement.launch(@compositor)
         @reload_error = nil
         @status.text = "Reloaded #{@application_name}"
         @status.color = 0xc3e88d
@@ -617,7 +632,8 @@ module RubyOS
       end
 
       def build_window
-        @window = GUI::Window.new("Editor - #{path}", x: 72, y: 54, width: 350, height: 184,
+        @window = GUI::Window.new("#{@title_prefix} - #{path}", x: 72, y: 54,
+                                  width: 350, height: 184,
                                   background: 0x171a24).tap do |window|
           @input = window.add(GUI::EditorInput.new(text: content, x: 0, y: 0,
                                                     width: 326, height: 108,
@@ -646,13 +662,12 @@ module RubyOS
       end
 
       def menus(compositor)
-        items = [
-          GUI::MenuItem.command("Open...") { open_dialog },
-          GUI::MenuItem.command("Save", shortcut: "Ctrl+S") { save },
-          GUI::MenuItem.command("Save As...") { save_as_dialog },
-          GUI::MenuItem.separator,
-          GUI::MenuItem.command("Cancel Changes") { cancel_changes }
-        ]
+        items = []
+        items << GUI::MenuItem.command("Open...") { open_dialog } unless @source_mode
+        items << GUI::MenuItem.command("Save", shortcut: "Ctrl+S") { save }
+        items << GUI::MenuItem.command("Save As...") { save_as_dialog } unless @source_mode
+        items << GUI::MenuItem.separator
+        items << GUI::MenuItem.command("Cancel Changes") { cancel_changes }
         items << GUI::MenuItem.command("Reload Ruby") { reload } if @runtime
         edit_items = [
           GUI::MenuItem.command("Cut") { @input.cut },
@@ -685,6 +700,14 @@ module RubyOS
          GUI::Menu.new(title: "Navigate", items: navigation_items), *super]
       end
 
+      def rebuild_as(application_class)
+        application_class.new(
+          kernel:, path:, runtime: @runtime, application_name: @application_name,
+          initial_content: @saved_content, target_window: @target_window,
+          title_prefix: @title_prefix, source_mode: @source_mode
+        )
+      end
+
       private
 
       def buffer_changed(text)
@@ -710,13 +733,39 @@ module RubyOS
       end
 
       def refresh_title
-        @window.title = "Editor - #{path}#{dirty ? ' *' : ''}" if @window
+        @window.title = "#{@title_prefix} - #{path}#{dirty ? ' *' : ''}" if @window
       end
 
       def show_status(message, error: false)
         @status.text = String(message)[0, 52]
         @status.color = error ? 0xff668a : 0xc3e88d
         @status.invalidate
+      end
+    end
+
+    class SourceWorkspace
+      attr_reader :runtime, :registry, :compositor, :last_editor
+
+      def initialize(runtime:, registry:, compositor:)
+        @runtime = runtime
+        @registry = registry
+        @compositor = compositor
+      end
+
+      def open(window = compositor.focused_window)
+        raise RubyOS::Error, "focus an application window first" unless window&.application
+
+        entry = registry.entry_for(window.application)
+        raise RubyOS::Error, "source is unavailable for #{entry.name}" unless entry.source_path
+
+        @last_editor = Editor.new(
+          kernel: entry.application.kernel,
+          path: runtime.overlay_path(entry.name),
+          initial_content: runtime.source_for(entry.name),
+          runtime:, application_name: entry.name, target_window: window,
+          title_prefix: "Source", source_mode: true
+        )
+        last_editor.launch(compositor)
       end
     end
 

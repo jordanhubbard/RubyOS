@@ -23,7 +23,7 @@ claims, not certification for arbitrary physical hardware.
 | Remote display | RemoteOS-SDL v2 over bare-metal TCP/UART | shared service over hosted TCP, VirtIO console, and RubyOS-native bare-metal TCP | Complete |
 | GUI API | SDL-compatible surfaces, events, images, fonts, menus, scrolling, resizing, drag/drop, clipboard | Ruby `Surface`, owned SDL_ttf `Font`, focusable widgets, bounded labels, scrollable text views, caret-aware multiline editing with keyboard/pointer selection, shared guest clipboard, and editor-specific character/word/sentence/paragraph/page/buffer command composition, wheel-scrollable lists and text, declarative edge anchors, resizable windows, close hooks, meters, app menus, keyboard/pointer dispatch, routed host-file drop events, decoded-surface composition, revision-tracked bitmaps, and per-window animation ticks | In progress |
 | Desktop | compositor, windows, app-aware menu bar, dynamic dock, wallpaper, shortcuts, context menus | Ruby compositor with focus/z-order, close/minimize/drag/resize, responsive anchored windows, app-aware menus, desktop/window/text context menus, versioned VFS-persistent shortcuts and dock pins, transient running-app dock entries, wallpaper, status bar, and catalog launcher | In progress |
-| Apps | terminal, live editor, files, image viewer, monitor, clock, settings, keybindings, polished shared choosers | About, history/scrollback Terminal, transactional Live Editor with explicit save/dirty/cancel state, composable navigation commands and shared VFS Open/Save As dialog, navigable Files, VFS-backed BMP/PNG/JPEG Image Viewer, live System Monitor, Clock, Settings, Keybindings, drill-down Ruby Inspector, Media, and metadata-driven Launcher; Files and dialogs stream bounded host imports/exports | In progress |
+| Apps | terminal, live editor, files, image viewer, monitor, clock, settings, keybindings, polished shared choosers | About, history/scrollback Terminal, transactional Live Editor with explicit save/dirty/cancel state, composable navigation commands and shared VFS Open/Save As dialog, navigable Files, VFS-backed BMP/PNG/JPEG Image Viewer, live System Monitor, Clock, Settings, Keybindings, drill-down Ruby Inspector, Media, and metadata-driven Launcher; Files and dialogs stream bounded host imports/exports; F5 opens archived built-in source in a writable overlay and atomically replaces the validated Ruby application class | In progress |
 | Demos and games | fifteen graphical/audio demos and arcade games | Thirteen Ruby-centric demos span Enumerable, Fiber, pattern matching, Life, Complex/Mandelbrot, Spirograph, Paint, immutable-Data starfield and rain, Plasma, Event Scope, Sprite Layers, and Tone Lab; five tick-driven games cover Invaders, Snake, Maze, Raiders, and Defender | In progress (13 demos, 5 games) |
 | Input | PS/2 and VirtIO input, canonical event queue, configurable persistent desktop shortcuts | bounded canonical Ruby event queue fed by SDL, native x86 PS/2 keyboard/mouse, ARM64 VirtIO keyboard/mouse, normalized SDL modifiers/function keys, and a live-rebindable keymap persisted through the VFS | Complete |
 | Audio | Intel HDA/VirtIO/bridge mixer and sound API | Ruby PCM/waveform mixer, bare-metal SDL bridge, native ARM64 VirtIO Sound, and native x86_64 Intel HDA DMA | Complete |
@@ -38,11 +38,10 @@ claims, not certification for arbitrary physical hardware.
 The status column is deliberately evidence-based. A booting counterpart does
 not by itself establish equal depth. The largest remaining gaps are:
 
-- richer in-guest drag workflows and broader source-opening workflows; host
+- richer in-guest drag workflows; host
   clipboard synchronization would be a shared-protocol extension beyond the
   current PythonOS baseline;
-- the remaining graphical/media catalog scenarios and deeper app-source
-  browsing/editing workflows;
+- the remaining graphical/media catalog scenarios;
 - desktop visual regression baselines and interaction tests covering every
   catalog entry on both guest architectures.
 
@@ -51,7 +50,7 @@ not by itself establish equal depth. The largest remaining gaps are:
 1. Keep the metadata-driven catalog and public example surface reachable from
    hosted Ruby, serial/TCP shells, and the graphical desktop.
 2. Close the remaining shared desktop primitives before multiplying bespoke
-   apps: richer in-guest drag workflows and broader source-opening behavior.
+   apps, especially richer in-guest drag workflows.
 3. Grow Ruby-native demos around Enumerable, Fiber, pattern matching,
    metaprogramming, refinements, object graphs, Rack-style composition, and
    live class replacement while matching PythonOS's graphical breadth.

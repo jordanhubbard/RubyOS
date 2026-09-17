@@ -64,7 +64,24 @@ if ENV["RUBYOS_EMBED_LIST"] == "1"
   exit
 end
 
-source = paths.map do |path|
+archived_paths = %w[
+  kernel/rubyos/apps/system_apps.rb
+  kernel/rubyos/apps/ruby_demos.rb
+  kernel/rubyos/apps/graphical_demos.rb
+  kernel/rubyos/apps/games.rb
+].freeze
+archived_sources = archived_paths.to_h do |path|
+  [path, File.binread(File.join(root, path))]
+end
+
+source = <<~RUBY
+  module RubyOS
+    module Live
+      EMBEDDED_SOURCES = #{archived_sources.inspect}.freeze
+    end
+  end
+RUBY
+source << paths.map do |path|
   File.readlines(File.join(root, path)).reject do |line|
     line.match?(/^require "rubyos(?:\/|"$)/)
   end.join

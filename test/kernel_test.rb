@@ -45,6 +45,7 @@ assert(ps2.feed(0x93).kind == RubyOS::Input::KEY_UP, "PS/2 break-code translatio
 ps2.feed(0xaa)
 assert(ps2.mods.zero?, "PS/2 modifier release")
 assert(ps2.feed(0x3b).code == RubyOS::Input::KEY_F1, "PS/2 function-key normalization")
+assert(ps2.feed(0x3f).code == RubyOS::Input::KEY_F5, "PS/2 source-key normalization")
 ps2_mouse = RubyOS::Input::PS2Mouse.new(x: 10, y: 10)
 mouse_events = [0x29, 5, 0xfd].flat_map { |byte| ps2_mouse.feed(byte) }
 assert([mouse_events.first.dx, mouse_events.first.dy] == [5, 3], "PS/2 signed pointer motion")
@@ -58,6 +59,8 @@ assert(virtio_keys.translate(1, 19, 0).kind == RubyOS::Input::KEY_UP,
 virtio_keys.translate(1, 42, 0)
 assert(virtio_keys.translate(1, 59, 1).code == RubyOS::Input::KEY_F1,
        "VirtIO function-key normalization")
+assert(virtio_keys.translate(1, 63, 1).code == RubyOS::Input::KEY_F5,
+       "VirtIO source-key normalization")
 virtio_keys.translate(2, 0, 12)
 virtio_keys.translate(2, 1, 0xffff_fffb)
 pointer_event = virtio_keys.translate(0, 0, 0)
@@ -670,6 +673,9 @@ assert(graphics_surface.operations.count { |operation| operation.first == :draw_
 graphics_desktop.close(defender_window)
 
 enumerable_entry = catalog.entry("Enumerable Lab")
+assert(catalog.entries.all? { |entry| entry.source_path && entry.source_constant } &&
+       catalog.entries.map(&:source_path).uniq.all? { |path| RubyOS::Live::SourceArchive.include?(path) },
+       "built-in applications expose archived Ruby source metadata")
 catalog.replace("Enumerable Lab", RubyOS::Apps::EnumerableLab.new)
 assert(catalog.entry("Enumerable Lab").description == enumerable_entry.description &&
        catalog.entry("Enumerable Lab").category == :demo,
@@ -677,6 +683,34 @@ assert(catalog.entry("Enumerable Lab").description == enumerable_entry.descripti
 RubyOS::Apps::Catalog.install_desktop(compositor, catalog)
 assert(compositor.pinned_dock_names == %w[Launcher Files Terminal Inspector Monitor],
        "catalog installs a compact core dock instead of pinning every application")
+about_before = catalog.fetch("About")
+about_window = about_before.launch(compositor)
+compositor.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => RubyOS::Input::KEY_F5,
+                  "mods" => 0)
+source_editor = compositor.source_workspace.last_editor
+assert(source_editor.path == "/apps/about.rb" &&
+       source_editor.content.include?("class About < Application") &&
+       compositor.focused_window.title.start_with?("Source - /apps/about.rb"),
+       "F5 opens the focused built-in application source in a Ruby editor")
+reloaded_source = source_editor.content.sub('GUI::Window.new("About RubyOS"',
+                                             'GUI::Window.new("Reloaded RubyOS"')
+source_editor.input.replace(reloaded_source)
+assert(source_editor.reload, "focused source editor transactionally reloads valid Ruby")
+about_after = catalog.fetch("About")
+assert(!about_after.equal?(about_before) && !compositor.windows.include?(about_window) &&
+       compositor.focused_window.title == "Reloaded RubyOS" &&
+       state.fetch(:vfs).read_file("/apps/about.rb").include?("Reloaded RubyOS"),
+       "source reload swaps the registry application, target window, and VFS overlay")
+state.fetch(:vfs).write_file("/apps/about.rb", "class Broken <")
+begin
+  compositor.source_workspace.runtime.reload("About", path: "/apps/about.rb")
+  invalid_source_rejected = false
+rescue SyntaxError
+  invalid_source_rejected = true
+end
+assert(invalid_source_rejected && catalog.fetch("About").equal?(about_after),
+       "invalid focused source leaves the running application registration intact")
+state.fetch(:vfs).write_file("/apps/about.rb", reloaded_source)
 clock_app = catalog.fetch("Clock")
 transient_clock = clock_app.launch(compositor)
 assert(compositor.visible_dock_labels.include?("Clock"),

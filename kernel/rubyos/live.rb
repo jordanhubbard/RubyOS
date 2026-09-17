@@ -5,13 +5,83 @@ module RubyOS
   # generic debugger facade: Modules are reload sandboxes, methods are patched
   # transactionally, and object graphs retain real class and ivar names.
   module Live
-    Reload = Data.define(:name, :application_class, :generation, :source_bytes)
+    EMBEDDED_SOURCES = {}.freeze unless const_defined?(:EMBEDDED_SOURCES, false)
+
+    Reload = Data.define(:name, :application_class, :generation, :source_bytes, :path)
     Patch = Data.define(:target, :generation, :methods, :source)
 
     module_function
 
     def compile(source, filename = "(rubyos-live)")
       RubyVM::InstructionSequence.compile(String(source), filename, filename, 1)
+    end
+
+    module SourceArchive
+      module_function
+
+      def fetch(path)
+        path = String(path)
+        return EMBEDDED_SOURCES.fetch(path) if EMBEDDED_SOURCES.key?(path)
+
+        root = File.expand_path("../..", __dir__)
+        File.binread(File.join(root, path))
+      rescue Errno::ENOENT
+        raise KeyError, "source is not archived: #{path}"
+      end
+
+      def include?(path)
+        EMBEDDED_SOURCES.key?(String(path)) ||
+          File.file?(File.join(File.expand_path("../..", __dir__), String(path)))
+      rescue NameError
+        false
+      end
+    end
+
+    # Evaluate one complete app source file under an isolated RubyOS namespace.
+    # Constant lookup delegates to the running kernel for dependencies, while
+    # class/module declarations create fresh values inside the sandbox. A failed
+    # compile or evaluation therefore cannot mutate the live application class.
+    class SourceSandbox
+      attr_reader :rubyos
+
+      def initialize(source, path)
+        source = String(source)
+        @root = Module.new
+        @rubyos = Module.new
+        running_rubyos = RubyOS
+        @rubyos.define_singleton_method(:const_missing) do |name|
+          running_rubyos.const_get(name, false)
+        end
+        declared_namespaces = source.scan(/^  module ([A-Z]\w*)\b/).flatten.uniq
+        running_rubyos.constants(false).each do |name|
+          next if declared_namespaces.include?(name.to_s)
+
+          @rubyos.const_set(name, running_rubyos.const_get(name, false))
+        end
+        declared_constants = source.scan(/^    (?:class|module) ([A-Z]\w*)\b/).flatten
+        declared_constants.concat(source.scan(/^    ([A-Z]\w*)\s*=/).flatten).uniq!
+        declared_namespaces.each do |namespace_name|
+          namespace = Module.new
+          running_namespace = running_rubyos.const_get(namespace_name, false)
+          namespace.define_singleton_method(:const_missing) do |name|
+            running_namespace.const_get(name, false)
+          end
+          running_namespace.constants(false).each do |name|
+            next if declared_constants.include?(name.to_s)
+
+            namespace.const_set(name, running_namespace.const_get(name, false))
+          end
+          @rubyos.const_set(namespace_name, namespace)
+        end
+        @root.const_set(:RubyOS, @rubyos)
+        @root.module_eval(source, String(path), 1)
+      end
+
+      def fetch(constant_path)
+        String(constant_path).split("::").reject(&:empty?).inject(rubyos) do |scope, name|
+          scope.const_get(name, false)
+        end
+      end
     end
 
     class Runtime
@@ -35,17 +105,54 @@ module RubyOS
         RubyOS.invariant(application_class <= Apps::Application,
                          "#{constant} must inherit RubyOS::Apps::Application")
         application = application_class.new(kernel: @kernel)
-        registry.replace(name, application)
         vfs.write_file(path, source)
+        registry.replace(name, application, source_path: path,
+                          source_constant: constant.to_s)
         reload = Reload.new(name:, application_class:,
                             generation: history.length + 1,
-                            source_bytes: source.bytesize)
+                            source_bytes: source.bytesize, path:)
         history << reload
         reload
       end
 
-      def reload(name, path:, constant: :App)
-        install(name, source: vfs.read_file(path), path:, constant:)
+      def reload(name, path:, constant: nil)
+        entry = registry.entry(name)
+        constant ||= entry.source_constant || :App
+        source = vfs.read_file(path)
+        return install(name, source:, path:, constant:) if constant.to_s == "App"
+
+        install_archived(name, source:, path:, constant_path: constant)
+      end
+
+      def source_for(name)
+        entry = registry.entry(name)
+        overlay = overlay_path(name)
+        vfs.read_file(overlay)
+      rescue FS::NotFound
+        SourceArchive.fetch(entry.source_path)
+      end
+
+      def overlay_path(name)
+        slug = String(name).downcase.gsub(/[^a-z0-9]+/, "_").gsub(/\A_|_\z/, "")
+        "/apps/#{slug}.rb"
+      end
+
+      def install_archived(name, source:, path:, constant_path:)
+        name = String(name)
+        source = String(source)
+        Live.compile(source, path)
+        application_class = SourceSandbox.new(source, path).fetch(constant_path)
+        RubyOS.invariant(application_class <= Apps::Application,
+                         "#{constant_path} must inherit RubyOS::Apps::Application")
+        previous = registry.fetch(name)
+        application = previous.rebuild_as(application_class)
+        vfs.write_file(path, source)
+        registry.replace(name, application)
+        reload = Reload.new(name:, application_class:,
+                            generation: history.length + 1,
+                            source_bytes: source.bytesize, path:)
+        history << reload
+        reload
       end
     end
 

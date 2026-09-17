@@ -103,6 +103,10 @@ module RubyOS
         ])]
       end
 
+      def rebuild_as(application_class)
+        application_class.new(kernel:)
+      end
+
       private
 
       def spacious_desktop?
@@ -113,23 +117,28 @@ module RubyOS
     class Registry
       include Enumerable
 
-      Entry = Data.define(:name, :application, :description, :category, :dock_label)
+      Entry = Data.define(:name, :application, :description, :category, :dock_label,
+                          :source_path, :source_constant)
 
       def initialize
         @entries = {}
       end
 
-      def register(name, application, description: "", category: :app, dock_label: nil)
+      def register(name, application, description: "", category: :app, dock_label: nil,
+                   source_path: nil, source_constant: nil)
         key = String(name)
         raise ArgumentError, "application already registered: #{key}" if @entries.key?(key)
         validate(application, category)
+        source_constant ||= application.class.name&.delete_prefix("RubyOS::") if source_path
         @entries[key] = Entry.new(name: key, application:, description: String(description),
                                   category: category.to_sym,
-                                  dock_label: String(dock_label || key[0, 5])).freeze
+                                  dock_label: String(dock_label || key[0, 5]),
+                                  source_path: source_path && String(source_path),
+                                  source_constant: source_constant && String(source_constant)).freeze
         self
       end
 
-      def replace(name, application)
+      def replace(name, application, source_path: nil, source_constant: nil)
         key = String(name)
         validate(application, :app)
         previous = @entries[key]
@@ -137,10 +146,14 @@ module RubyOS
                           Entry.new(name: key, application:,
                                     description: previous.description,
                                     category: previous.category,
-                                    dock_label: previous.dock_label).freeze
+                                    dock_label: previous.dock_label,
+                                    source_path: source_path || previous.source_path,
+                                    source_constant: source_constant || previous.source_constant).freeze
                         else
                           Entry.new(name: key, application:, description: "Live Ruby application",
-                                    category: :app, dock_label: key[0, 5]).freeze
+                                    category: :app, dock_label: key[0, 5],
+                                    source_path: source_path && String(source_path),
+                                    source_constant: source_constant && String(source_constant)).freeze
                         end
         self
       end
@@ -151,6 +164,11 @@ module RubyOS
 
       def entry(name)
         @entries.fetch(String(name))
+      end
+
+      def entry_for(application)
+        @entries.each_value.find { |entry| entry.application.equal?(application) } ||
+          raise(KeyError, "application is not registered")
       end
 
       def entries(category: nil)

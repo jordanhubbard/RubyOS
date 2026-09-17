@@ -11,6 +11,10 @@ module RubyOS
         @registry = registry
       end
 
+      def rebuild_as(application_class)
+        application_class.new(kernel:, registry: @registry)
+      end
+
       def build_window
         window_x, window_y = spacious_desktop? ? [116, 44] : [74, 34]
         window_width, window_height = spacious_desktop? ? [408, 300] : [360, 210]

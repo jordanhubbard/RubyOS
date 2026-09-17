@@ -98,7 +98,8 @@ arrow/wheel panning, and releases decoded bridge surfaces when its window
 closes. Files routes recognized image extensions directly to that viewer.
 The desktop menu bar is registry-driven and gains commands from the focused
 Ruby application. F1 opens the live-rebindable keymap, F2 opens Applications,
-F3 opens Terminal, and F4 opens Files; Ctrl-W closes the focused window.
+F3 opens Terminal, F4 opens Files, and F5 opens the focused application's Ruby
+source; Ctrl-W closes the focused window.
 Terminal retains bounded scrollback, supports wheel/Page navigation and Up/Down
 command history, and evaluates shell commands and Ruby expressions through the
 same prompt. System Monitor updates live from compositor ticks. Ruby Inspector
@@ -241,7 +242,11 @@ widgets, including a live Terminal evaluator and explicitly persisted Editor. Th
 bare-metal smoke types into Terminal and clicks the dock to launch and focus the
 System Monitor. The dock also exposes Ruby Inspector and a Live Ruby app whose
 source lives at `/apps/live_hello.rb`; Editor recompiles it in an anonymous
-Module and swaps the application only after successful evaluation. Ruby sine
+Module and swaps the application only after successful evaluation. Built-in
+apps use the same workflow: their full source files are archived in the frozen
+guest, opened through F5 into writable `/apps` overlays, evaluated under an
+isolated RubyOS namespace, and swapped into the registry, dock, and desktop
+only after the replacement class validates. Ruby sine
 generators and a saturating PCM mixer stream stereo
 audio through the same companion. The SDL companion remains a rendering,
 input, and audio device.
