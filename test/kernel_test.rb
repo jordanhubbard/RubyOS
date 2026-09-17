@@ -293,6 +293,40 @@ assert(status_draw && status_draw.fetch(3) != "long status value" &&
        status_draw.fetch(1) + status_draw.fetch(3).length * 8 <= 320,
        "compact menu bar truncates status text instead of overlapping menus")
 
+context_launched = false
+context_desktop = RubyOS::GUI::Compositor.new(width: 320, height: 240)
+context_desktop.set_desktop_context_menu([
+  RubyOS::GUI::MenuItem.command("Applications") { context_launched = true }
+])
+context_desktop.handle("kind" => RubyOS::Input::POINTER_DOWN, "button" => 3,
+                       "x" => 10, "y" => 170)
+assert(context_desktop.context_menu_open?, "desktop right-click opens a context menu")
+context_x, context_y = context_desktop.context_item_center(0)
+context_desktop.handle("kind" => RubyOS::Input::POINTER_DOWN, "button" => 1,
+                       "x" => context_x, "y" => context_y)
+assert(context_launched && !context_desktop.context_menu_open?,
+       "context menu pointer activation invokes and dismisses its Ruby block")
+context_window = context_desktop.add_window(
+  RubyOS::GUI::Window.new("Context", x: 60, y: 50, width: 160, height: 110)
+)
+context_desktop.handle("kind" => RubyOS::Input::POINTER_DOWN, "button" => 3,
+                       "x" => 80, "y" => 90)
+context_desktop.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 13)
+assert(context_window.minimized, "window context menu exposes keyboard-driven controls")
+
+context_clipboard = RubyOS::GUI::Clipboard.new.write("Ruby")
+context_input = RubyOS::GUI::TextInput.new(width: 100, height: 24, clipboard: context_clipboard)
+context_window = context_desktop.add_window(
+  RubyOS::GUI::Window.new("Text", x: 40, y: 40, width: 150, height: 90).tap do |window|
+    window.add(context_input)
+  end
+)
+context_desktop.handle("kind" => RubyOS::Input::POINTER_DOWN, "button" => 3,
+                       "x" => context_window.x + 14,
+                       "y" => context_window.y + RubyOS::GUI::Window::TITLE_HEIGHT + 13)
+context_desktop.handle("kind" => RubyOS::Input::KEY_DOWN, "code" => 13)
+assert(context_input.text == "Ruby", "text context menu enables the first available edit action")
+
 scroll_items = 10.times.map { |index| { label: "item #{index}", kind: :file } }
 scroll_list = RubyOS::GUI::ListView.new(items: scroll_items, width: 160, height: 52)
 scroll_list.focused = true

@@ -68,6 +68,20 @@ module RubyOS
                        "Snake growth and scoring failed")
       compositor.close(snake_window)
       HAL.serial_write("[RubyOS] desktop smoke: games checked\n")
+      client.call("debug.event.inject", { kind: 4, x: 10, y: 200, button: 3 })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(compositor.context_menu_open?,
+                       "desktop right-click did not open the launch menu")
+      compositor.draw(desktop.surface, uptime: "context menu")
+      desktop.present
+      desktop.capture("/tmp/rubyos-context-menu.bmp")
+      context_x, context_y = compositor.context_item_center(0)
+      client.call("debug.event.inject", { kind: 4, x: context_x, y: context_y, button: 1 })
+      desktop.events.each { |event| compositor.handle(event) }
+      RubyOS.invariant(compositor.focused_window.title == "RubyOS Applications",
+                       "desktop context menu did not launch Applications")
+      compositor.close(compositor.focused_window)
+      HAL.serial_write("[RubyOS] desktop smoke: context menu checked\n")
       client.call("debug.event.inject", { kind: 1, code: 0, text: "6" })
       client.call("debug.event.inject", { kind: 1, code: 13 })
       desktop.events.each { |event| compositor.handle(event) }
@@ -261,6 +275,7 @@ module RubyOS
       RubyOS::HAL.serial_write("[RubyOS] categorized Ruby demo catalog: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] menus and global shortcuts: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] persistent shortcut keymap: PASS\n")
+      RubyOS::HAL.serial_write("[RubyOS] desktop/window/text context menus: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] shared open/save dialog: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] text selection and guest clipboard: PASS\n")
       RubyOS::HAL.serial_write("[RubyOS] compositor desktop mechanics: PASS\n")

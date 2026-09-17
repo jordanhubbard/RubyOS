@@ -41,6 +41,11 @@ module RubyOS
           category_menu.call("Demos", :demo),
           category_menu.call("Games", :game)
         ])
+        compositor.set_desktop_context_menu([
+          GUI::MenuItem.command("Applications", shortcut: "F2") { launch.call("Launcher") },
+          GUI::MenuItem.command("Terminal", shortcut: "F3") { launch.call("Terminal") },
+          GUI::MenuItem.command("Files", shortcut: "F4") { launch.call("Files") }
+        ])
         compositor
           .bind_key(Input::KEY_F1, name: "Keyboard Shortcuts") { launch.call("Keybindings") }
           .bind_key(Input::KEY_F2, name: "Applications") { launch.call("Launcher") }

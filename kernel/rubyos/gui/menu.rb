@@ -244,5 +244,179 @@ module RubyOS
         true
       end
     end
+
+    class ContextMenu
+      ROW_HEIGHT = 22
+      GLYPH_WIDTH = 8
+      PADDING = 8
+
+      attr_reader :items, :x, :y, :hot_index
+
+      def initialize(width:, height:, bottom_margin: 0)
+        @screen_width = Integer(width)
+        @screen_height = Integer(height)
+        @bottom_margin = Integer(bottom_margin)
+        dismiss
+      end
+
+      def open? = !@items.empty?
+
+      def show(point_x, point_y, items)
+        @items = Array(items)
+        return dismiss if @items.empty?
+
+        @scroll_offset = 0
+        @hot_index = next_enabled(-1, 1)
+        @x = [[Integer(point_x), 4].max, @screen_width - popup_width - 4].min
+        available_bottom = @screen_height - @bottom_margin
+        @y = [[Integer(point_y), MenuBar::HEIGHT].max, available_bottom - popup_height - 2].min
+        @x = [@x, 4].max
+        @y = [@y, MenuBar::HEIGHT].max
+        true
+      end
+
+      def dismiss
+        @items = []
+        @hot_index = nil
+        @scroll_offset = 0
+        false
+      end
+
+      def draw(surface)
+        return self unless open?
+
+        surface.fill_rect(x + 3, y + 4, popup_width, popup_height, 0x0b0910)
+        surface.fill_rect(x, y, popup_width, popup_height, 0x8f63c7)
+        surface.fill_rect(x + 2, y + 2, popup_width - 4, popup_height - 4, 0x181522)
+        visible_items.each_with_index do |(item, index), row|
+          row_y = y + 2 + row * ROW_HEIGHT
+          if item.separator
+            surface.fill_rect(x + 8, row_y + ROW_HEIGHT / 2, popup_width - 16, 1, 0x493d59)
+            next
+          end
+          surface.fill_rect(x + 3, row_y, popup_width - 6, ROW_HEIGHT, 0x553184) if index == hot_index
+          color = item.enabled ? 0xf2eaf7 : 0x746b7c
+          surface.draw_text(x + PADDING, row_y + 6, item.label, color:)
+          next unless item.shortcut
+
+          shortcut_x = x + popup_width - PADDING - item.shortcut.each_char.count * GLYPH_WIDTH
+          surface.draw_text(shortcut_x, row_y + 6, item.shortcut, color: 0xa99bb8)
+        end
+        self
+      end
+
+      def handle(event)
+        return false unless open?
+
+        kind = event.fetch("kind", 0)
+        if kind == Input::KEY_DOWN
+          return handle_key(event.fetch("code", 0))
+        elsif kind == Input::POINTER_MOVE
+          index = item_index_at(event.fetch("x", 0), event.fetch("y", 0))
+          @hot_index = index if index && selectable?(index)
+          return true
+        elsif kind == Input::POINTER_WHEEL
+          delta = event.fetch("dy", 0)
+          delta = event.fetch("dx", 0) if delta.zero?
+          scroll(delta.positive? ? -3 : 3)
+          return true
+        elsif kind == Input::POINTER_DOWN
+          index = item_index_at(event.fetch("x", 0), event.fetch("y", 0))
+          event.fetch("button", 0) == 1 && index ? activate(index) : dismiss
+          return true
+        end
+        false
+      end
+
+      def item_center(index)
+        raise IndexError, "context menu item is not visible" unless open? &&
+          index.between?(@scroll_offset, @scroll_offset + visible_rows - 1)
+
+        [x + popup_width / 2, y + 2 + (index - @scroll_offset) * ROW_HEIGHT + ROW_HEIGHT / 2]
+      end
+
+      private
+
+      def popup_width
+        longest = items.map do |item|
+          item.label.each_char.count + (item.shortcut ? item.shortcut.each_char.count + 3 : 0)
+        end.max || 1
+        [[longest * GLYPH_WIDTH + PADDING * 2, 128].max, @screen_width - 8].min
+      end
+
+      def visible_rows
+        [(@screen_height - @bottom_margin - MenuBar::HEIGHT - 8) / ROW_HEIGHT, 1].max
+      end
+
+      def popup_height = [items.length, visible_rows].min * ROW_HEIGHT + 4
+
+      def visible_items
+        items.each_with_index.drop(@scroll_offset).first(visible_rows)
+      end
+
+      def item_index_at(point_x, point_y)
+        return nil unless x <= point_x && point_x < x + popup_width &&
+          y <= point_y && point_y < y + popup_height
+
+        index = @scroll_offset + (point_y - y - 2) / ROW_HEIGHT
+        index if index >= 0 && index < items.length
+      end
+
+      def selectable?(index)
+        item = items.fetch(index)
+        item.enabled && !item.separator
+      end
+
+      def next_enabled(start, delta)
+        return nil if items.empty?
+
+        items.length.times do |step|
+          index = (start + delta * (step + 1)) % items.length
+          return index if selectable?(index)
+        end
+        nil
+      end
+
+      def scroll(delta)
+        maximum = [items.length - visible_rows, 0].max
+        @scroll_offset = [[@scroll_offset + delta, 0].max, maximum].min
+      end
+
+      def handle_key(code)
+        case code
+        when 27
+          dismiss
+        when 1_073_741_906
+          @hot_index = next_enabled(hot_index || 0, -1)
+          keep_hot_visible
+        when 1_073_741_905
+          @hot_index = next_enabled(hot_index || -1, 1)
+          keep_hot_visible
+        when 13
+          activate(hot_index) if hot_index
+        else
+          return false
+        end
+        true
+      end
+
+      def keep_hot_visible
+        return unless hot_index
+
+        @scroll_offset = hot_index if hot_index < @scroll_offset
+        if hot_index >= @scroll_offset + visible_rows
+          @scroll_offset = hot_index - visible_rows + 1
+        end
+      end
+
+      def activate(index)
+        return false unless index && selectable?(index)
+
+        action = items.fetch(index).action
+        dismiss
+        action&.call
+        true
+      end
+    end
   end
 end

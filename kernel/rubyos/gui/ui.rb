@@ -326,6 +326,17 @@ module RubyOS
         self
       end
 
+      def context_menu_items
+        has_selection = !selection_range.nil?
+        [
+          MenuItem.command("Cut", shortcut: "Ctrl+X", enabled: has_selection) { cut },
+          MenuItem.command("Copy", shortcut: "Ctrl+C", enabled: has_selection) { copy },
+          MenuItem.command("Paste", shortcut: "Ctrl+V", enabled: !clipboard.empty?) { paste },
+          MenuItem.separator,
+          MenuItem.command("Select All", shortcut: "Ctrl+A", enabled: !text.empty?) { select_all }
+        ]
+      end
+
       def focusable? = true
       def pointer_capture? = @pointer_selecting
 

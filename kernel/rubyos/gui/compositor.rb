@@ -136,6 +136,16 @@ module RubyOS
         false
       end
 
+      def context_menu_items(point_x, point_y)
+        local_x = point_x - x - 10
+        local_y = point_y - y - TITLE_HEIGHT - 9
+        child = children.reverse.find { |candidate| candidate.contains?(local_x, local_y) }
+        return [] unless child&.enabled && child.respond_to?(:context_menu_items)
+
+        focus_child(child) if child.focusable?
+        Array(child.context_menu_items)
+      end
+
       def focus_child(child)
         return unless child&.focusable? && children.include?(child)
 
@@ -203,6 +213,8 @@ module RubyOS
         @resizing = nil
         @system_menus = []
         @menu_bar = MenuBar.new(width:, height:)
+        @context_menu = ContextMenu.new(width:, height:, bottom_margin: DOCK_HEIGHT)
+        @desktop_context_items = []
         @keybindings = {}
         @bindings_by_name = {}
         @key_capture = nil
@@ -277,6 +289,14 @@ module RubyOS
 
       def menus = @menu_bar.menus
 
+      def set_desktop_context_menu(items)
+        @desktop_context_items = Array(items)
+        self
+      end
+
+      def context_menu_open? = @context_menu.open?
+      def context_item_center(index) = @context_menu.item_center(index)
+
       def bind_key(code, mods: 0, name: nil, &action)
         raise ArgumentError, "key binding action required" unless action
 
@@ -308,6 +328,7 @@ module RubyOS
 
       def handle(event)
         kind = event.fetch("kind", 0)
+        return true if @context_menu.handle(event)
         return true if @menu_bar.handle(event)
         if kind == Input::KEY_DOWN
           if @key_capture
@@ -326,6 +347,9 @@ module RubyOS
         if kind == Input::POINTER_WHEEL
           window = window_at(event.fetch("x", 0), event.fetch("y", 0))
           return window&.handle(event) || false
+        end
+        if kind == Input::POINTER_DOWN && event.fetch("button", 0) == 3
+          return open_context_menu(event.fetch("x"), event.fetch("y"))
         end
         if kind == Input::POINTER_MOVE && @resizing
           window, start_x, start_y, start_width, start_height = @resizing
@@ -395,10 +419,32 @@ module RubyOS
         draw_dock(surface)
         @menu_bar.draw(surface, active_title: focused_window&.title,
                        status: uptime || "Ruby 4")
+        @context_menu.draw(surface)
         self
       end
 
       private
+
+      def open_context_menu(point_x, point_y)
+        @menu_bar.dismiss
+        window = window_at(point_x, point_y)
+        items = if window
+                  focus(window)
+                  window.context_menu_items(point_x, point_y).then do |child_items|
+                    child_items.empty? ? window_context_items(window) : child_items
+                  end
+                else
+                  @desktop_context_items
+                end
+        @context_menu.show(point_x, point_y, items)
+      end
+
+      def window_context_items(window)
+        [
+          MenuItem.command("Minimize") { minimize(window) },
+          MenuItem.command("Close", shortcut: "Ctrl+W") { close(window) }
+        ]
+      end
 
       def refresh_menus
         application_menus = focused_window&.application&.menus(self) || []
