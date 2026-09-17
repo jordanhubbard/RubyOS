@@ -4,6 +4,7 @@ module RubyOS
   class Shell
     COMMANDS = {
       "help" => "show RubyOS shell commands",
+      "ruby" => "show the interactive Ruby runtime",
       "version" => "show the running Ruby implementation",
       "devices" => "list devices and bound drivers",
       "tasks" => "list scheduler tasks and states",
@@ -55,6 +56,9 @@ module RubyOS
         @output.puts "Any other line is evaluated as Ruby."
       when "version"
         @output.puts RUBY_DESCRIPTION
+      when "ruby"
+        @output.puts RUBY_DESCRIPTION
+        @output.puts "Ruby is already live here; enter any Ruby expression at this prompt."
       when "devices"
         devices = RubyOS::Kernel.state&.fetch(:bus, nil)
         devices&.each do |device|

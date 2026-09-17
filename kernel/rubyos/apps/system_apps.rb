@@ -15,37 +15,151 @@ module RubyOS
     end
 
     class Files < Application
+      attr_reader :path
+
+      def initialize(path: "/", **options)
+        super(**options)
+        @path = path
+      end
+
       def build_window
-        entries = kernel.state.fetch(:vfs).readdir("/").reject { |entry| [".", ".."].include?(entry) }
-        GUI::Window.new("Files - /", x: 196, y: 68, width: 254, height: 170,
-                        background: 0x1d2535).tap do |window|
-          entries.each_with_index do |entry, index|
-            window.add(GUI::Label.new("[DIR] #{entry}", x: 4, y: index * 24, color: 0xb9dcff))
-          end
+        window_x, window_y = spacious_desktop? ? [110, 42] : [170, 38]
+        window_width, window_height = spacious_desktop? ? [420, 300] : [300, 190]
+        content_width = window_width - 36
+        list_height = window_height - 118
+        @window = GUI::Window.new("Files", x: window_x, y: window_y,
+                                  width: window_width, height: window_height,
+                                  background: 0x151c29)
+        @path_label = @window.add(GUI::Label.new(path, x: 8, y: 6,
+                                                 width: content_width - 120,
+                                                 color: 0xffffff))
+        @window.add(GUI::Button.new("Up", x: content_width - 104, y: 0,
+                                    width: 48, height: 24,
+                                    action: ->(*) { go_up }))
+        @window.add(GUI::Button.new("Home", x: content_width - 50, y: 0,
+                                    width: 56, height: 24,
+                                    action: ->(*) { navigate("/home") }))
+        @list = @window.add(GUI::ListView.new(x: 8, y: 34, width: content_width,
+                                              height: list_height,
+                                              background: 0x1d2535,
+                                              on_activate: method(:activate_entry),
+                                              on_cancel: method(:go_up)))
+        @status = @window.add(GUI::Label.new("", x: 8, y: 44 + list_height,
+                                             width: content_width,
+                                             height: 22, color: 0xa8d8ff))
+        refresh
+        @window.focus_child(@list)
+        @window
+      end
+
+      def navigate(destination)
+        kernel.state.fetch(:vfs).readdir(destination)
+        @path = normalize(destination)
+        refresh
+        true
+      rescue FS::Error => error
+        @status.text = "#{error.class}: #{error.message}"
+        @status.color = 0xff668a
+        @status.invalidate
+        false
+      end
+
+      def go_up(*)
+        return false if path == "/"
+
+        parts = path.split("/").reject(&:empty?)
+        parts.pop
+        navigate("/" + parts.join("/"))
+      end
+
+      def activate_entry(item)
+        return navigate(item.fetch(:path)) if item.fetch(:kind) == :directory
+
+        stat = kernel.state.fetch(:vfs).stat(item.fetch(:path))
+        @status.text = "Opening #{item.fetch(:label)}  -  #{stat.size} bytes"
+        @status.color = 0xc3e88d
+        @status.invalidate
+        Editor.new(path: item.fetch(:path)).launch(@compositor)
+        true
+      end
+
+      private
+
+      def refresh
+        vfs = kernel.state.fetch(:vfs)
+        entries = vfs.readdir(path).reject { |entry| [".", ".."].include?(entry) }
+        items = entries.sort.map do |entry|
+          entry_path = path == "/" ? "/#{entry}" : "#{path}/#{entry}"
+          { label: entry, path: entry_path, kind: vfs.stat(entry_path).type }
         end
+        @window.title = "Files - #{path}"
+        @path_label.text = path
+        @list.replace(items)
+        @status.text = "#{items.length} item#{items.length == 1 ? '' : 's'}  |  arrows + Enter  |  Backspace: up"
+        @status.color = 0xa8d8ff
+        @window.invalidate
+      end
+
+      def normalize(value)
+        parts = []
+        String(value).split("/").each do |part|
+          next if part.empty? || part == "."
+          part == ".." ? parts.pop : parts << part
+        end
+        "/" + parts.join("/")
       end
     end
 
     class Terminal < Application
       attr_reader :last_result
 
+      class OutputBuffer
+        attr_reader :string
+
+        def initialize = (@string = +"")
+        def clear = @string.clear
+        def write(value) = (@string << String(value))
+        def puts(value = "") = (@string << String(value) << "\n")
+      end
+
       def build_window
-        GUI::Window.new("Ruby Console", x: 54, y: 150, width: 336, height: 106,
-                        background: 0x121017).tap do |window|
-          @result_label = window.add(GUI::Label.new("Type Ruby and press Enter", x: 0, y: 28, color: 0xc3e88d))
-          @input = window.add(GUI::TextInput.new(x: 0, y: 0, width: 310, height: 24,
+        window_x, window_y = spacious_desktop? ? [72, 88] : [54, 40]
+        window_width, window_height = spacious_desktop? ? [460, 270] : [400, 210]
+        content_width = window_width - 36
+        transcript_height = window_height - 98
+        prompt_y = window_height - 74
+        @output = OutputBuffer.new
+        @shell = Shell.new(output: @output)
+        @transcript = ["RubyOS console", "Commands and Ruby expressions share this prompt. Type help to begin."]
+        GUI::Window.new("Terminal", x: window_x, y: window_y,
+                        width: window_width, height: window_height,
+                        background: 0x10131a).tap do |window|
+          @result_label = window.add(GUI::Label.new(@transcript.join("\n"), x: 8, y: 8,
+                                                     width: content_width,
+                                                     height: transcript_height,
+                                                     wrap: true, color: 0xc3e88d))
+          window.add(GUI::Label.new("rubyos>", x: 8, y: prompt_y, width: 64,
+                                    color: 0xffd866))
+          @input = window.add(GUI::TextInput.new(x: 72, y: prompt_y - 6,
+                                                 width: window_width - 100, height: 28,
                                                  background: 0x211a29,
                                                  on_submit: method(:evaluate)))
         end
       end
 
       def evaluate(source)
-        @last_result = begin
-          "=> #{eval(source, TOPLEVEL_BINDING).inspect}"
-        rescue Exception => error
-          "#{error.class}: #{error.message}"
-        end
-        @result_label.text = @last_result
+        source = String(source).strip
+        return nil if source.empty?
+
+        @output.clear
+        @shell.execute_line(source)
+        @last_result = @output.string.sub(/\n\z/, "")
+        @transcript << "rubyos> #{source}"
+        @transcript.concat(@last_result.split("\n")) unless @last_result.empty?
+        visible_rows = [(@result_label.height / GUI::Label::LINE_HEIGHT), 1].max
+        @transcript = @transcript.last(visible_rows)
+        @result_label.text = @transcript.join("\n")
+        @input.replace("")
         @result_label.invalidate
         @last_result
       end
@@ -179,25 +293,49 @@ module RubyOS
 
     class RubyInspector < Application
       def build_window
+        @window = GUI::Window.new("Ruby Inspector", x: 94, y: 40, width: 452, height: 308,
+                                  background: 0x151522)
+        @window.add(GUI::Label.new("RUNTIME", x: 8, y: 4, width: 100, color: 0x8f7cff))
+        @fibers = @window.add(GUI::Label.new("", x: 8, y: 28, width: 196,
+                                             color: 0x78dce8))
+        @drivers = @window.add(GUI::Label.new("", x: 220, y: 28, width: 196,
+                                              color: 0xa9dc76))
+        @window.add(GUI::Label.new("OBJECT MODEL", x: 8, y: 62, width: 130,
+                                   color: 0x8f7cff))
+        @ancestors = @window.add(GUI::Label.new("", x: 8, y: 86, width: 416,
+                                                height: 42, wrap: true, color: 0xffd866))
+        @window.add(GUI::Label.new("LIVE HEAP", x: 8, y: 136, width: 100,
+                                   color: 0x8f7cff))
+        @heap_meters = 3.times.map do |index|
+          @window.add(GUI::Meter.new(value: 0, maximum: 1, x: 8,
+                                     y: 160 + index * 28, width: 416, height: 22,
+                                     color: [0x7048a8, 0x536d9b, 0x3e8178].fetch(index)))
+        end
+        @window.add(GUI::Button.new("Refresh", x: 340, y: 250, width: 84, height: 24,
+                                    action: method(:refresh)))
+        refresh
+        @window
+      end
+
+      def refresh(*)
         state = kernel.state
         fibers = Introspection.fibers(state.fetch(:scheduler))
         drivers = Introspection.drivers(state.fetch(:bus))
         shape = Introspection.class_shape(GUI::View)
         heap = Introspection.heap_summary(limit: 3)
-        GUI::Window.new("Ruby Inspector", x: 110, y: 46, width: 326, height: 168,
-                        background: 0x181425).tap do |window|
-          window.add(GUI::Label.new("Fibers: #{fibers.length} #{fibers.map { |f| f[:state] }.uniq.join('/')}",
-                                    x: 0, y: 0, color: 0x78dce8))
-          window.add(GUI::Label.new("Drivers: #{drivers.count { |d| d[:bound] }}/#{drivers.length} bound",
-                                    x: 0, y: 26, color: 0xa9dc76))
-          window.add(GUI::Label.new("View ancestors: #{shape[:ancestors].first(3).join(' < ')}",
-                                    x: 0, y: 52, color: 0xffd866))
-          window.add(GUI::Label.new("Heap leaders:", x: 0, y: 78, color: 0xe8b4ff))
-          heap.each_with_index do |(name, count), index|
-            window.add(GUI::Label.new("#{name}: #{count}", x: 12,
-                                      y: 102 + index * 20, color: 0xe8dff5))
-          end
+        states = fibers.map { |fiber| fiber[:state] }.tally.map { |name, count| "#{count} #{name}" }
+        @fibers.text = "Fibers  #{fibers.length}  (#{states.join(', ')})"
+        @drivers.text = "Drivers  #{drivers.count { |driver| driver[:bound] }} / #{drivers.length} bound"
+        @ancestors.text = shape[:ancestors].first(4).join("  <  ")
+        maximum = [heap.map(&:last).max || 1, 1].max
+        @heap_meters.each_with_index do |meter, index|
+          name, count = heap.fetch(index, ["-", 0])
+          meter.maximum = maximum
+          meter.value = count
+          meter.label = "#{name}   #{count}"
         end
+        @window.invalidate
+        true
       end
     end
 

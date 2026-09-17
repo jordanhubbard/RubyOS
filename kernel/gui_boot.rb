@@ -46,7 +46,7 @@ module RubyOS
       applications.fetch("About").launch(compositor)
       applications.fetch("Files").launch(compositor)
       applications.fetch("Media").launch(compositor)
-      applications.fetch("Terminal").launch(compositor)
+      terminal_window = applications.fetch("Terminal").launch(compositor)
       HAL.serial_write("[RubyOS] desktop smoke: applications launched\n")
       invaders = applications.fetch("Invaders")
       game_window = invaders.launch(compositor)
@@ -67,11 +67,16 @@ module RubyOS
       client.call("debug.event.inject", { kind: 1, code: 13 })
       desktop.events.each { |event| compositor.handle(event) }
       RubyOS.invariant(terminal.last_result == "=> 6", "keyboard input did not reach Terminal")
-      client.call("debug.event.inject", { kind: 4, x: 80, y: 160, button: 1 })
-      client.call("debug.event.inject", { kind: 3, x: 100, y: 140 })
-      client.call("debug.event.inject", { kind: 5, x: 100, y: 140, button: 1 })
+      initial_terminal_position = [terminal_window.x, terminal_window.y]
+      drag_x = terminal_window.x + 20
+      drag_y = terminal_window.y + 10
+      client.call("debug.event.inject", { kind: 4, x: drag_x, y: drag_y, button: 1 })
+      client.call("debug.event.inject", { kind: 3, x: drag_x + 20, y: drag_y + 20 })
+      client.call("debug.event.inject", { kind: 5, x: drag_x + 20, y: drag_y + 20, button: 1 })
       desktop.events.each { |event| compositor.handle(event) }
-      RubyOS.invariant(compositor.focused_window.x == 74 && compositor.focused_window.y == 130,
+      expected_terminal_position = [initial_terminal_position.fetch(0) + 20,
+                                    initial_terminal_position.fetch(1) + 20]
+      RubyOS.invariant([compositor.focused_window.x, compositor.focused_window.y] == expected_terminal_position,
                        "window title drag did not move Terminal")
       clock_window = applications.fetch("Clock").launch(compositor)
       settings_window = settings.launch(compositor)
@@ -187,8 +192,12 @@ module RubyOS
       runtime.install("Live Hello", source: Apps::LIVE_HELLO_SOURCE, path: "/apps/live_hello.rb")
       applications.register("Editor", Apps::Editor.new(
         path: "/apps/live_hello.rb", runtime:, application_name: "Live Hello"))
+      dock_labels = { "About" => "Info", "Files" => "Files", "Terminal" => "Term",
+                      "Monitor" => "Mon", "Inspector" => "Ruby", "Clock" => "Clock",
+                      "Settings" => "Set", "Invaders" => "Inv", "Snake" => "Snake",
+                      "Live Hello" => "Live", "Editor" => "Edit" }
       applications.each do |name, application|
-        compositor.add_dock_item(name[0, 4]) { application.launch(compositor) }
+        compositor.add_dock_item(dock_labels.fetch(name, name[0, 4])) { application.launch(compositor) }
       end
       applications.fetch("Terminal").launch(compositor)
       ready = false

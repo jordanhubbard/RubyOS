@@ -10,7 +10,14 @@ module RubyOS
       end
 
       def launch(compositor)
+        @compositor = compositor
         compositor.add_window(build_window)
+      end
+
+      private
+
+      def spacious_desktop?
+        @compositor.nil? || @compositor.width >= 600
       end
     end
 

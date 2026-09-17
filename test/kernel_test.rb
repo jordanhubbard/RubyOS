@@ -210,6 +210,34 @@ input.handle("kind" => 1, "code" => 0, "text" => "y")
 input.handle("kind" => 1, "code" => 13)
 assert(submitted == "ruby", "text input insertion, backspace, and submit")
 
+terminal = RubyOS::Apps::Terminal.new
+terminal_window = terminal.launch(compositor)
+"ruby".each_char do |character|
+  compositor.handle("kind" => 1, "code" => character.ord, "text" => character)
+end
+compositor.handle("kind" => 1, "code" => 13, "text" => "\n")
+assert(terminal.last_result.include?("Ruby is already live here"),
+       "desktop Terminal routes commands through the RubyOS shell")
+compositor.close(terminal_window)
+
+files = RubyOS::Apps::Files.new
+files_window = files.launch(compositor)
+compositor.handle("kind" => 1, "code" => RubyOS::GUI::ListView::DOWN_KEYS.first)
+compositor.handle("kind" => 1, "code" => 13)
+assert(files.path == "/home", "Files keyboard selection opens a VFS directory")
+compositor.handle("kind" => 1, "code" => 8)
+assert(files.path == "/", "Files Backspace navigation returns to the parent directory")
+home_row_y = files_window.y + RubyOS::GUI::Window::TITLE_HEIGHT + 9 + 34 + 26 + 8
+compositor.handle("kind" => 4, "button" => 1,
+                  "x" => files_window.x + 24, "y" => home_row_y)
+assert(files.path == "/home", "Files pointer selection opens a VFS directory")
+home_file = state.fetch(:vfs).readdir("/home").reject { |entry| [".", ".."].include?(entry) }.first
+files.activate_entry(label: home_file, path: "/home/#{home_file}", kind: :file)
+assert(compositor.focused_window.title == "Editor - /home/#{home_file}",
+       "Files opens regular files in the VFS-backed Editor")
+compositor.close(compositor.focused_window)
+compositor.close(files_window)
+
 settings = RubyOS::Apps::Settings.new
 settings_window = settings.launch(compositor)
 compositor.handle("kind" => 4, "button" => 1,

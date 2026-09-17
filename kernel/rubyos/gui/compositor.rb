@@ -22,7 +22,8 @@ module RubyOS
       TITLE_HEIGHT = 24
       BORDER = 2
 
-      attr_reader :title
+      attr_accessor :title
+      attr_reader :focused_child
       attr_accessor :focused, :minimized
 
       def initialize(title, **options)
@@ -38,13 +39,21 @@ module RubyOS
         surface.fill_rect(x, y, width, height, focused ? 0x9b6dff : 0x655b70)
         surface.fill_rect(x + BORDER, y + BORDER, width - BORDER * 2,
                           TITLE_HEIGHT - BORDER, focused ? 0x553184 : 0x393140)
-        surface.draw_text(x + 10, y + 7, title, color: focused ? 0xffffff : 0xc5bacb)
+        display_title = title.each_char.first([(width - 72) / 8, 1].max).join
+        surface.draw_text(x + 10, y + 7, display_title, color: focused ? 0xffffff : 0xc5bacb)
+        surface.fill_rect(x + width - 38, y + 10, 8, 3, focused ? 0xd8cae5 : 0x806774)
         surface.fill_rect(x + width - 18, y + 8, 8, 8, focused ? 0xff668a : 0x806774)
         body_y = y + TITLE_HEIGHT
         surface.fill_rect(x + BORDER, body_y, width - BORDER * 2,
                           height - TITLE_HEIGHT - BORDER, background || 0x201a28)
         translated = TranslatedSurface.new(surface, x + 10, body_y + 9)
         children.each { |child| child.draw(translated) if child.visible }
+      end
+
+      def add(child)
+        result = super
+        focus_child(child) if focused_child.nil? && child.focusable?
+        result
       end
 
       def close_hit?(point_x, point_y)
@@ -65,10 +74,38 @@ module RubyOS
           local_x = event.fetch("x") - x - 10
           local_y = event.fetch("y") - y - TITLE_HEIGHT - 9
           child = children.reverse.find { |candidate| candidate.contains?(local_x, local_y) }
-          return true if child&.enabled && child.is_a?(Button) && child.handle(:click)
+          if child&.enabled
+            focus_child(child) if child.focusable?
+            return child.handle_pointer(local_x, local_y, event) if child.respond_to?(:handle_pointer)
+            return child.handle(:click) if child.is_a?(Button)
+          end
         end
-        children.reverse_each { |child| return true if child.enabled && child.handle(event) }
+        if event.fetch("kind", 0) == 1 && event.fetch("code", 0) == 9
+          cycle_focus
+          return true
+        end
+        return true if focused_child&.enabled && focused_child.handle(event)
         false
+      end
+
+      def focus_child(child)
+        return unless child&.focusable? && children.include?(child)
+
+        children.each { |candidate| candidate.focused = false }
+        @focused_child = child
+        child.focused = true
+        invalidate
+        child
+      end
+
+      private
+
+      def cycle_focus
+        candidates = children.select { |child| child.visible && child.enabled && child.focusable? }
+        return if candidates.empty?
+
+        index = focused_child ? candidates.index(focused_child) : nil
+        focus_child(candidates.fetch(index ? (index + 1) % candidates.length : 0))
       end
     end
 
@@ -178,6 +215,9 @@ module RubyOS
         draw_wallpaper(surface)
         surface.fill_rect(0, 0, width, MENU_HEIGHT, 0x2a1f35)
         surface.draw_text(10, 6, @title, color: 0xffd866)
+        if focused_window
+          surface.draw_text(88, 6, focused_window.title.each_char.first(32).join, color: 0xa99bb8)
+        end
         surface.draw_text(width - 104, 6, uptime || "Ruby 4", color: 0xd8cae5)
         windows.each { |window| window.draw(surface) }
         draw_dock(surface)
@@ -187,12 +227,11 @@ module RubyOS
       private
 
       def draw_wallpaper(surface)
-        0.step(height - 1, 32) do |row|
-          0.step(width - 1, 32) do |column|
-            color = ((row / 32 + column / 32).even? ? 0x1b1627 : 0x21192f)
-            surface.fill_rect(column, row, 32, 32, color)
-          end
+        surface.fill_rect(0, MENU_HEIGHT, width, height - MENU_HEIGHT, 0x191624)
+        MENU_HEIGHT.step(height - DOCK_HEIGHT, 48) do |row|
+          surface.fill_rect(0, row, width, 1, 0x211c30)
         end
+        0.step(width - 1, 48) { |column| surface.fill_rect(column, MENU_HEIGHT, 1, height, 0x1e1a2b) }
         @shortcuts.each do |label, x, y, _action|
           surface.fill_rect(x + 8, y, 28, 28, 0x553184)
           surface.draw_text(x, y + 34, label, color: 0xe8dff5)
@@ -201,7 +240,8 @@ module RubyOS
 
       def draw_dock(surface)
         y = height - DOCK_HEIGHT
-        surface.fill_rect(0, y, width, DOCK_HEIGHT, 0x241a2d)
+        surface.fill_rect(0, y, width, DOCK_HEIGHT, 0x17131d)
+        surface.fill_rect(0, y, width, 2, 0x49325f)
         @dock_items.each_with_index do |(label, _), index|
           x = 12 + index * dock_slot_width
           surface.fill_rect(x, y + 6, dock_slot_width - 8, 28, 0x49325f)
