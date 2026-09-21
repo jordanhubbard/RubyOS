@@ -57,8 +57,24 @@ begin
          "bitmap draw reports 8px per glyph")
 
   # --- Anti-aliased path ---------------------------------------------------
+  # A host with no font at all is a supported configuration -- the whole
+  # point of the fallback -- so it must not fail the run. Every other reason
+  # for refusing to enable is a defect and still does: a proportional face, a
+  # zero advance, a broken handle. Distinguish them rather than skipping on
+  # any failure, which would let a real regression pass quietly.
   enabled = RubyOS::GUI::Text.enable!(client)
-  assert(enabled, "host font opened: #{RubyOS::GUI::Text.failure.inspect}")
+  unless enabled
+    failure = RubyOS::GUI::Text.failure.to_s
+    assert(failure.include?("no default font"),
+           "renderer refused a font that exists: #{failure.inspect}")
+    warn "gui_text_test: host has no usable font; TTF assertions skipped"
+    puts "RubyOS GUI text rendering: PASS (bitmap fallback only)"
+    surface.destroy
+    client.call("shutdown")
+    client.close
+    Process.wait(bridge_pid)
+    exit(0)
+  end
   assert(RubyOS::GUI::Text.available?, "enabled renderer reports available")
   advance = RubyOS::GUI::Text.advance
   assert(advance.positive?, "measured advance is positive")
@@ -67,7 +83,7 @@ begin
   # not truly fixed-pitch has to be rejected rather than laid out on a grid
   # it does not honour.
   # Differencing two runs of the same glyph cancels the ink overhang that
-  # makes a lone glyph — or a run ending in one — measure wide.
+  # makes a lone glyph -- or a run ending in one -- measure wide.
   font = RubyOS::Bridge::Font.open_default(client, point_size: RubyOS::GUI::Text.point_size)
   glyph_advance = lambda do |glyph|
     short, = font.measure(glyph * 16)
