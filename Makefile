@@ -47,6 +47,7 @@ test-host: $(HOST_RUBY_STAMP)
 	$(HOST_RUBY) -I kernel test/kernel_test.rb
 	$(HOST_RUBY) test/embed_manifest_test.rb
 	$(HOST_RUBY) test/visual_golden_unit_test.rb
+	$(HOST_RUBY) -I kernel test/gui_dock_test.rb
 	$(HOST_RUBY) -I kernel test/virtio_transport_test.rb
 	$(HOST_RUBY) -I kernel test/media_test.rb
 
@@ -82,6 +83,7 @@ test-media: $(HOST_RUBY_STAMP) bridge
 test-bridge: $(HOST_RUBY_STAMP) bridge
 	mkdir -p build
 	$(HOST_RUBY) -I kernel test/remote_desktop_smoke.rb
+	$(HOST_RUBY) -I kernel test/gui_text_test.rb
 
 debug-smoke: $(ARM64_GUI_ELF) bridge
 	./test/rubyos_debug_smoke.py

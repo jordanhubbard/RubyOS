@@ -16,8 +16,8 @@ module RubyOS
       end
 
       def build_window
-        window_x, window_y = spacious_desktop? ? [116, 44] : [74, 34]
-        window_width, window_height = spacious_desktop? ? [408, 300] : [360, 210]
+        window_x, window_y = spacious_desktop? ? [140, 56] : [74, 34]
+        window_width, window_height = spacious_desktop? ? [600, 470] : [360, 210]
         content_width = window_width - 36
         list_height = window_height - 110
         window = GUI::Window.new("RubyOS Applications", x: window_x, y: window_y,

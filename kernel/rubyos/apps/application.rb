@@ -89,11 +89,46 @@ module RubyOS
         @kernel = kernel
       end
 
+      # The desktop the window geometry in build_window is written against.
+      # A larger desktop scales those numbers up rather than leaving every
+      # app marooned at its design size; a smaller one is left alone,
+      # because the compact branch of #spacious_desktop? already targets it.
+      REFERENCE_WIDTH = 1_024
+      REFERENCE_HEIGHT = 768
+      # Past this, windows stop growing. A 4K desktop wants more room than a
+      # 1080p one, but not four times the font-sized chrome.
+      MAXIMUM_SCALE = 2
+
       def launch(compositor)
         @compositor = compositor
         window = build_window
         window.application = self
+        fit_to_desktop(window)
         compositor.add_window(window)
+      end
+
+      # Grow +window+ in proportion to how much bigger the desktop is than
+      # the reference. Children ride along: #resize_to relayouts them through
+      # the same anchors that handle a user drag of the resize grip.
+      def fit_to_desktop(window)
+        scale = desktop_scale
+        return window if scale <= 1
+
+        window.x = (window.x * scale).to_i
+        window.y = (window.y * scale).to_i
+        window.resize_to((window.width * scale).to_i, (window.height * scale).to_i,
+                         maximum_width: @compositor.width - window.x,
+                         maximum_height: @compositor.height - @compositor.dock_height - window.y)
+      end
+
+      # Whole-number-ish scale for the current desktop, 1 when it is at or
+      # below the reference size.
+      def desktop_scale
+        return 1 if @compositor.nil?
+
+        scale = [@compositor.width.to_f / REFERENCE_WIDTH,
+                 @compositor.height.to_f / REFERENCE_HEIGHT].min
+        scale.clamp(1, MAXIMUM_SCALE)
       end
 
       def menus(compositor)

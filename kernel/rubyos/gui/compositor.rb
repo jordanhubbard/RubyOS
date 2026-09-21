@@ -88,7 +88,7 @@ module RubyOS
         surface.fill_rect(x, y, width, height, focused ? 0x9b6dff : 0x655b70)
         surface.fill_rect(x + BORDER, y + BORDER, width - BORDER * 2,
                           TITLE_HEIGHT - BORDER, focused ? 0x553184 : 0x393140)
-        display_title = title.each_char.first([(width - 72) / 8, 1].max).join
+        display_title = GUI::Text.truncate(title, [width - 72, 0].max)
         surface.draw_text(x + 10, y + 7, display_title, color: focused ? 0xffffff : 0xc5bacb)
         surface.fill_rect(x + width - 38, y + 10, 8, 3, focused ? 0xd8cae5 : 0x806774)
         surface.fill_rect(x + width - 18, y + 8, 8, 8, focused ? 0xff668a : 0x806774)
@@ -245,13 +245,31 @@ module RubyOS
       Binding = Data.define(:name, :code, :mods, :action)
       DockItem = Data.define(:name, :label, :application, :action)
       MENU_HEIGHT = 24
-      DOCK_HEIGHT = 42
+      # Icon edge, and the breathing room above and below it. A compact
+      # desktop gets a genuinely smaller icon rather than a shrunken one --
+      # GUI::Icons renders each spec at whichever edge it is handed.
+      DOCK_ICON_SPACIOUS = 48
+      DOCK_ICON_COMPACT = 28
+      DOCK_ICON_GAP = 12
+      # Above this width the desktop is treated as roomy enough for the full
+      # icon; it matches Apps::Application#spacious_desktop? so the dock and
+      # the windows agree about which desktop they are on.
+      SPACIOUS_WIDTH = 600
 
       attr_reader :width, :height, :windows, :file_transfer, :source_workspace, :audio_output
+      attr_reader :dock_icon_size, :dock_height, :dock_padding
 
       def initialize(width:, height:, title: "RubyOS")
         @width = width
         @height = height
+        @dock_icon_size = width >= SPACIOUS_WIDTH ? DOCK_ICON_SPACIOUS : DOCK_ICON_COMPACT
+        # A quarter of the icon above and below it: 72px tall for a 48px
+        # icon, and 42px for a 28px one, which is exactly the height the
+        # label dock used -- so a compact desktop keeps the window bounds it
+        # already had.
+        @dock_padding = @dock_icon_size / 4
+        @dock_height = @dock_icon_size + @dock_padding * 2
+        @dock_hot = nil
         @title = title
         @windows = []
         @dock_items = []
@@ -262,7 +280,7 @@ module RubyOS
         @resizing = nil
         @system_menus = []
         @menu_bar = MenuBar.new(width:, height:)
-        @context_menu = ContextMenu.new(width:, height:, bottom_margin: DOCK_HEIGHT)
+        @context_menu = ContextMenu.new(width:, height:, bottom_margin: @dock_height)
         @desktop_context_items = []
         @keybindings = {}
         @bindings_by_name = {}
@@ -400,16 +418,14 @@ module RubyOS
         index = visible_dock_items.index { |item| item.label == String(label) }
         raise KeyError, "dock item not found: #{label}" unless index
 
-        x = 12 + index * dock_slot_width
-        [x + (dock_slot_width - 8) / 2, height - DOCK_HEIGHT + 20]
+        dock_slot_center(index)
       end
 
       def dock_item_center_by_name(name)
         index = visible_dock_items.index { |item| item.name == String(name) }
         raise KeyError, "dock item not found: #{name}" unless index
 
-        x = 12 + index * dock_slot_width
-        [x + (dock_slot_width - 8) / 2, height - DOCK_HEIGHT + 20]
+        dock_slot_center(index)
       end
 
       def add_shortcut(label, x:, y:, &action)
@@ -494,20 +510,25 @@ module RubyOS
         if kind == Input::POINTER_DOWN && event.fetch("button", 0) == 3
           return open_context_menu(event.fetch("x"), event.fetch("y"))
         end
+        # Dock hover, tracked before the drag branches so moving a window
+        # over the dock does not light up the slot underneath it.
+        if kind == Input::POINTER_MOVE && @dragging.nil? && @resizing.nil?
+          @dock_hot = dock_slot_index_at(event.fetch("x", 0), event.fetch("y", 0))
+        end
         if kind == Input::POINTER_MOVE && @resizing
           window, start_x, start_y, start_width, start_height = @resizing
           window.resize_to(
             start_width + event.fetch("x") - start_x,
             start_height + event.fetch("y") - start_y,
             maximum_width: width - window.x,
-            maximum_height: height - DOCK_HEIGHT - window.y
+            maximum_height: height - dock_height - window.y
           )
           return true
         end
         if kind == Input::POINTER_MOVE && @dragging
           window, offset_x, offset_y = @dragging
           window.x = [[event.fetch("x") - offset_x, 0].max, width - window.width].min
-          maximum_y = [height - DOCK_HEIGHT - window.height, MENU_HEIGHT].max
+          maximum_y = [height - dock_height - window.height, MENU_HEIGHT].max
           window.y = [[event.fetch("y") - offset_y, MENU_HEIGHT].max,
                       maximum_y].min
           return true
@@ -526,7 +547,7 @@ module RubyOS
         return false unless kind == 4 && event.fetch("button", 0) == 1
         point_x = event.fetch("x")
         point_y = event.fetch("y")
-        if point_y >= height - DOCK_HEIGHT
+        if point_y >= height - dock_height
           item = dock_item_at(point_x, point_y)
           activate_dock_item(item) if item
           return !item.nil?
@@ -612,34 +633,99 @@ module RubyOS
         @menu_bar.replace(@system_menus + application_menus)
       end
 
+      # Wallpaper gradient endpoints, top to bottom, and the number of bands
+      # it is painted in. Bands rather than per-pixel because the guest
+      # composites over a bridge: 40 fill_rects cost 40 messages, where a
+      # 1024x768 pixel buffer would cost megabytes a frame and a per-row
+      # gradient would cost one message per scanline for no visible gain.
+      WALLPAPER_TOP = 0x241a38
+      WALLPAPER_BOTTOM = 0x0d0b14
+      WALLPAPER_BANDS = 40
+
       def draw_wallpaper(surface)
-        surface.fill_rect(0, MENU_HEIGHT, width, height - MENU_HEIGHT, 0x191624)
-        MENU_HEIGHT.step(height - DOCK_HEIGHT, 48) do |row|
-          surface.fill_rect(0, row, width, 1, 0x211c30)
+        top = MENU_HEIGHT
+        span = height - MENU_HEIGHT
+        # Integer band edges, so rounding cannot leave a seam of background
+        # showing between two bands.
+        WALLPAPER_BANDS.times do |band|
+          from = top + span * band / WALLPAPER_BANDS
+          to = top + span * (band + 1) / WALLPAPER_BANDS
+          next if to <= from
+
+          surface.fill_rect(0, from, width, to - from,
+                            blend(WALLPAPER_TOP, WALLPAPER_BOTTOM, band, WALLPAPER_BANDS - 1))
         end
-        0.step(width - 1, 48) { |column| surface.fill_rect(column, MENU_HEIGHT, 1, height, 0x1e1a2b) }
         @shortcuts.each do |label, x, y, _action|
           surface.fill_rect(x + 8, y, 28, 28, 0x553184)
           surface.draw_text(x, y + 34, label, color: 0xe8dff5)
         end
       end
 
-      def draw_dock(surface)
-        y = height - DOCK_HEIGHT
-        surface.fill_rect(0, y, width, DOCK_HEIGHT, 0x17131d)
-        surface.fill_rect(0, y, width, 2, 0x49325f)
-        visible_dock_items.each_with_index do |item, index|
-          x = 12 + index * dock_slot_width
-          active = item.application && windows.any? do |window|
-            window.application.equal?(item.application)
-          end
-          surface.fill_rect(x, y + 6, dock_slot_width - 8, 28,
-                            active ? 0x7048a8 : 0x49325f)
-          columns = [[(dock_slot_width - 14) / 8, 1].max, item.label.each_char.count].min
-          surface.draw_text(x + 7, y + 14, item.label.each_char.first(columns).join,
-                            color: 0xf2eaf7)
-          surface.fill_rect(x + 5, y + 35, dock_slot_width - 14, 2, 0xb792ff) if active
+      # Mix two 0xRRGGBB colours, +step+ of +steps+ of the way from +from+ to
+      # +to+. Channels are interpolated separately; blending the packed
+      # integers would bleed carries between them.
+      def blend(from, to, step, steps)
+        steps = [steps, 1].max
+        step = [[step, 0].max, steps].min
+        [16, 8, 0].sum do |shift|
+          source = (from >> shift) & 0xff
+          target = (to >> shift) & 0xff
+          (source + (target - source) * step / steps) << shift
         end
+      end
+
+      def draw_dock(surface)
+        items = visible_dock_items
+        dock_y = height - dock_height
+        surface.fill_rect(0, dock_y, width, dock_height, 0x17131d)
+        surface.fill_rect(0, dock_y, width, 2, 0x49325f)
+        return if items.empty?
+
+        icon_y = dock_y + dock_padding
+        items.each_with_index do |item, index|
+          icon_x = dock_slot_x(index)
+          next if icon_x.nil?
+
+          if index == @dock_hot
+            surface.fill_rect(icon_x - 4, icon_y - 4, dock_icon_size + 8,
+                              dock_icon_size + 8, 0x3a2a55)
+          end
+          surface.draw_bitmap(icon_x, icon_y, Icons.for(item.name, size: dock_icon_size))
+          # Generated placeholders carry no glyph of their own -- the guest
+          # has no font in pixel space -- so stamp the initial on top.
+          if Icons.placeholder?(item.name) && !item.label.empty?
+            surface.draw_text(icon_x + (dock_icon_size - GUI::Text.advance) / 2,
+                              icon_y + (dock_icon_size - GUI::Text.height) / 2 + 4,
+                              item.label[0].upcase, color: 0xf2eaf7)
+          end
+          next unless running?(item)
+
+          # Running-app pip, below the icon in the padding band.
+          surface.fill_rect(icon_x + dock_icon_size / 2 - 3,
+                            dock_y + dock_height - 7, 6, 3, 0xb792ff)
+        end
+        draw_dock_tooltip(surface, items, dock_y)
+      end
+
+      # macOS-style hover label, floated above the icon it belongs to and
+      # kept inside the screen so an edge slot stays readable.
+      def draw_dock_tooltip(surface, items, dock_y)
+        item = @dock_hot && items[@dock_hot]
+        return unless item
+
+        icon_x = dock_slot_x(@dock_hot)
+        return if icon_x.nil?
+
+        label = item.name
+        label_width = GUI::Text.width(label) + 12
+        label_height = GUI::Text.height + 6
+        label_x = icon_x + (dock_icon_size - label_width) / 2
+        label_x = [[label_x, 4].max, width - 4 - label_width].min
+        label_y = dock_y - label_height - 4
+        surface.fill_rect(label_x, label_y, label_width, label_height, 0x0b0910)
+        surface.fill_rect(label_x, label_y, label_width, 1, 0x553184)
+        surface.draw_text(label_x + 6, label_y + 3 + (label_height - 6 - 8) / 2,
+                          label, color: 0xf2eaf7)
       end
 
       def visible_dock_items
@@ -650,10 +736,50 @@ module RubyOS
       end
 
       def dock_item_at(point_x, point_y)
-        return nil unless point_y >= height - DOCK_HEIGHT && point_x >= 12
+        index = dock_slot_index_at(point_x, point_y)
+        index && visible_dock_items[index]
+      end
 
-        index = (point_x - 12) / dock_slot_width
-        visible_dock_items[index] if index >= 0
+      # Index of the hovered slot, or nil. Slots are centred as a group, so
+      # this walks from the first icon rather than from the screen edge, and
+      # the gaps between icons deliberately do not belong to either
+      # neighbour.
+      def dock_slot_index_at(point_x, point_y)
+        return nil unless point_y >= height - dock_height
+
+        count = visible_dock_items.length
+        return nil if count.zero?
+
+        first_x = dock_first_x(count)
+        offset = point_x - first_x
+        return nil if offset.negative?
+
+        index = offset / (dock_icon_size + DOCK_ICON_GAP)
+        return nil if index >= count
+        return nil if offset % (dock_icon_size + DOCK_ICON_GAP) >= dock_icon_size
+
+        index
+      end
+
+      def dock_first_x(count)
+        span = count * dock_icon_size + (count - 1) * DOCK_ICON_GAP
+        [(width - span) / 2, dock_padding].max
+      end
+
+      def dock_slot_x(index)
+        count = visible_dock_items.length
+        return nil if index.nil? || index.negative? || index >= count
+
+        dock_first_x(count) + index * (dock_icon_size + DOCK_ICON_GAP)
+      end
+
+      def dock_slot_center(index)
+        x = dock_slot_x(index)
+        [x + dock_icon_size / 2, height - dock_height + dock_padding + dock_icon_size / 2]
+      end
+
+      def running?(item)
+        item.application && windows.any? { |window| window.application.equal?(item.application) }
       end
 
       def activate_dock_item(item)
@@ -672,9 +798,7 @@ module RubyOS
         @dock_change&.call(pinned_dock_names)
       end
 
-      def dock_slot_width
-        [[(@width - 24) / [visible_dock_items.length, 1].max, 32].max, 96].min
-      end
+
     end
   end
 end

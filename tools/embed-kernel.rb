@@ -32,6 +32,8 @@ paths = %w[
   kernel/rubyos/net/stack.rb
   kernel/rubyos/net/repl.rb
   kernel/rubyos/http.rb
+  kernel/rubyos/gui/text.rb
+  kernel/rubyos/gui/icons.rb
   kernel/rubyos/gui/ui.rb
   kernel/rubyos/gui/menu.rb
   kernel/rubyos/gui/compositor.rb
@@ -83,9 +85,17 @@ source = <<~RUBY
   end
 RUBY
 source << paths.map do |path|
-  File.readlines(File.join(root, path)).reject do |line|
-    line.match?(/^require "rubyos(?:\/|"$)/)
-  end.join
+  # Kernel sources are embedded as a C string literal and re-read by the
+  # guest, which has no locale to speak of, so they have to stay 7-bit. Say
+  # which file broke that rather than letting String#match? raise a bare
+  # "invalid byte sequence in US-ASCII" with no clue where it came from.
+  lines = File.readlines(File.join(root, path), encoding: "BINARY")
+  offender = lines.index { |line| line.each_byte.any? { |byte| byte > 127 } }
+  if offender
+    abort "embed-kernel: #{path}:#{offender + 1} has non-ASCII bytes; " \
+          "kernel sources must be 7-bit ASCII"
+  end
+  lines.reject { |line| line.match?(/^require "rubyos(?:\/|"$)/) }.join
 end.join("\n")
 source << "\nRubyOS::Kernel.boot\n"
 if ENV["RUBYOS_EMBED_STORAGE"] == "1"

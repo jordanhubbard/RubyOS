@@ -79,7 +79,16 @@ module RubyOS
         self
       end
 
+      # Anti-aliased when the host has a usable monospace face, bitmap
+      # otherwise; see GUI::Text for why the choice is invisible to callers.
       def draw_text(x, y, text, color: 0xffffff, background: nil)
+        GUI::Text.draw(self, x, y, text, color:, background:)
+        self
+      end
+
+      # The embedded 8x8 face, addressed directly. GUI::Text falls back to
+      # this; prefer #draw_text everywhere else.
+      def draw_bitmap_text(x, y, text, color: 0xffffff, background: nil)
         parameters = { handle:, x:, y:, text: String(text), fg: Integer(color) }
         parameters[:bg] = Integer(background) unless background.nil?
         client.cast("text.draw", parameters)
@@ -156,13 +165,29 @@ module RubyOS
     class RemoteDesktop
       attr_reader :client, :surface, :width, :height
 
-      def initialize(client, width: 1_024, height: 768, title: "RubyOS")
+      # +text+ selects the face the desktop draws with:
+      #   :auto   -- anti-aliased via the host's monospace font, bitmap if
+      #             none is usable. What interactive sessions want.
+      #   :bitmap -- force the embedded 8x8 face. Visual goldens use this so
+      #             tile hashes stay identical across hosts, which they would
+      #             not be once rendering depends on whichever font the host
+      #             happens to ship (Menlo on macOS, DejaVu on Linux).
+      def initialize(client, width: 1_024, height: 768, title: "RubyOS", text: :auto)
         @client = client
-        @width = Integer(width)
-        @height = Integer(height)
-        opened = client.call("display.open", { w: @width, h: @height, title: })
+        opened = client.call("display.open", { w: Integer(width), h: Integer(height), title: })
+        # The size we asked for is a request, not a guarantee: the host may
+        # open something else -- a screen-appropriate size chosen by whoever
+        # launched the service, say. Adopt what it reports so the compositor
+        # never paints to coordinates the framebuffer does not have.
+        @width = Integer(opened.fetch("w", width))
+        @height = Integer(opened.fetch("h", height))
         @surface = Surface.new(client, handle: opened.fetch("fb_handle"),
                                width: @width, height: @height)
+        case text
+        when :auto then GUI::Text.enable!(client)
+        when :bitmap then GUI::Text.disable!
+        else raise ArgumentError, "text must be :auto or :bitmap"
+        end
         @pending_events = []
       end
 

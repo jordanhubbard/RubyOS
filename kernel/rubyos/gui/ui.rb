@@ -324,7 +324,7 @@ module RubyOS
           line, column = cursor_position
           row = @multiline ? line - scroll_line : 0
           if row.between?(0, row_count - 1)
-            surface.draw_text(x + 4 + (column - scroll_column) * 8,
+            surface.draw_text(x + 4 + (column - scroll_column) * GUI::Text.advance,
                               y + 4 + row * 20, "_", color: 0xffd866)
           end
         end
@@ -583,7 +583,7 @@ module RubyOS
 
       private
 
-      def columns = [(width - 8) / 8, 1].max
+      def columns = [(width - 8) / GUI::Text.advance, 1].max
       def row_count = [(height - 8) / 20, 1].max
 
       def word_character?(character) = character.match?(/[[:alnum:]_]/)
@@ -611,8 +611,9 @@ module RubyOS
           visible_to = [to - scroll_column, columns].min
           next unless visible_to > visible_from
 
-          surface.fill_rect(x + 4 + visible_from * 8, y + 4 + row * 20,
-                            (visible_to - visible_from) * 8, 16, 0x553184)
+          advance = GUI::Text.advance
+          surface.fill_rect(x + 4 + visible_from * advance, y + 4 + row * 20,
+                            (visible_to - visible_from) * advance, 16, 0x553184)
         end
       end
 
@@ -641,11 +642,11 @@ module RubyOS
           lines = logical_lines
           row = (local_y - y - 4) / 20
           line = [[scroll_line + row, 0].max, lines.length - 1].min
-          column = [[scroll_column + (local_x - x - 4) / 8, 0].max,
+          column = [[scroll_column + (local_x - x - 4) / GUI::Text.advance, 0].max,
                     lines.fetch(line).each_char.count].min
           line_start(line) + column
         else
-          [[scroll_column + (local_x - x - 4) / 8, 0].max,
+          [[scroll_column + (local_x - x - 4) / GUI::Text.advance, 0].max,
            text.each_char.count].min
         end
       end
