@@ -305,7 +305,13 @@ int tcsetattr(int fd, int act, const struct termios *t) {
 #define MAP_ANON    0x20
 #define MAP_FAILED  ((void *)-1)
 
-#define MMAP_MAX_RECORDS 128
+/* One slot per live mapping. CRuby's GC takes a mapping per heap page, so
+ * this bounds how much object heap the guest can hold -- at 128 slots it ran
+ * out after a few megabytes of pages and mmap started returning MAP_FAILED
+ * with memory still plentiful, which CRuby reports as "failed to allocate
+ * memory" and dies on. 16384 slots covers a gigabyte of 64 KiB pages and
+ * costs 512 KiB of BSS. */
+#define MMAP_MAX_RECORDS 16384
 #define MMAP_PAGE_SIZE 4096UL
 
 typedef struct {
