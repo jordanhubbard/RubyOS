@@ -22,8 +22,8 @@ module RubyOS
                       x1 + @offset_x, y1 + @offset_y, color)
       end
 
-      def draw_bitmap(x, y, bitmap, scale: 1)
-        @surface.draw_bitmap(x + @offset_x, y + @offset_y, bitmap, scale:)
+      def draw_bitmap(x, y, bitmap, scale: 1, retain: false)
+        @surface.draw_bitmap(x + @offset_x, y + @offset_y, bitmap, scale:, retain:)
       end
 
       def draw_surface(x, y, source, source_rect: nil)
@@ -690,7 +690,8 @@ module RubyOS
             surface.fill_rect(icon_x - 4, icon_y - 4, dock_icon_size + 8,
                               dock_icon_size + 8, 0x3a2a55)
           end
-          surface.draw_bitmap(icon_x, icon_y, Icons.for(item.name, size: dock_icon_size))
+          surface.draw_bitmap(icon_x, icon_y, Icons.for(item.name, size: dock_icon_size),
+                              retain: true)
           # Generated placeholders carry no glyph of their own -- the guest
           # has no font in pixel space -- so stamp the initial on top.
           if Icons.placeholder?(item.name) && !item.label.empty?

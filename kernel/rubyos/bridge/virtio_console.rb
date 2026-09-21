@@ -162,9 +162,9 @@ module RubyOS
           return self if bytes.empty?
           descriptor = @transmit.next_descriptor
           buffer = transmit_buffer(bytes.bytesize)
-          bytes.each_byte.with_index do |byte, index|
-            RubyOS::HAL.mmio_write8(buffer + index, byte)
-          end
+          # One memcpy, not one Ruby call per byte: a framebuffer upload is
+          # tens of kilobytes and this is the bridge's hot path.
+          RubyOS::HAL.dma_write(buffer, bytes)
           @transmit.descriptor(descriptor, buffer, bytes.bytesize)
           @transmit.push(descriptor)
           @transmit.notify
@@ -198,7 +198,11 @@ module RubyOS
             sleep_until { @receive.used_index != @receive.last_used }
             descriptor, received = @receive.pop
             buffer = @receive_buffers.fetch(descriptor)
-            received.times { |index| @pending << RubyOS::HAL.mmio_read8(buffer + index) }
+            if received > BUFFER_SIZE
+              RubyOS::HAL.serial_write("[probe] oversized received=#{received}\n")
+              received = BUFFER_SIZE
+            end
+            @pending << RubyOS::HAL.dma_read(buffer, received)
             @receive.push(descriptor)
             @receive.notify
           end

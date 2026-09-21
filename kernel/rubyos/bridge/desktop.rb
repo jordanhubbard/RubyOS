@@ -103,20 +103,26 @@ module RubyOS
         self
       end
 
-      def draw_bitmap(x, y, bitmap, scale: 1)
+      # +retain+ picks which cache the uploaded copy lives in. Application
+      # bitmaps go in the default one, which #clear_bitmap_cache empties
+      # between screens so a demo's pixels do not outlive it. Compositor
+      # chrome -- dock icons, which are immutable and few -- passes true and
+      # survives, because re-uploading them for every screen is pure cost:
+      # the golden capture alone would push the same six icons 33 times.
+      def draw_bitmap(x, y, bitmap, scale: 1, retain: false)
         scale = Integer(scale)
         raise ArgumentError, "bitmap scale must be positive" unless scale.positive?
 
-        @bitmap_cache ||= {}
+        store = retain ? (@retained_bitmap_cache ||= {}) : (@bitmap_cache ||= {})
         key = [bitmap.object_id, scale]
-        cached = @bitmap_cache[key]
+        cached = store[key]
         unless cached
           cached = {
             surface: Surface.create(client, width: bitmap.width * scale,
                                     height: bitmap.height * scale),
             revision: nil
           }
-          @bitmap_cache[key] = cached
+          store[key] = cached
         end
         if cached[:revision] != bitmap.revision
           target = cached.fetch(:surface)
@@ -139,6 +145,8 @@ module RubyOS
         self
       end
 
+      # Drops application bitmaps. Retained chrome is left alone -- see
+      # #draw_bitmap -- and is released by #destroy along with the surface.
       def clear_bitmap_cache
         @bitmap_cache&.each_value { |cached| cached.fetch(:surface).destroy }
         @bitmap_cache = {}
@@ -155,6 +163,8 @@ module RubyOS
 
       def destroy
         clear_bitmap_cache
+        @retained_bitmap_cache&.each_value { |cached| cached.fetch(:surface).destroy }
+        @retained_bitmap_cache = {}
         return self unless @owned
         client.cast("surface.destroy", { handle: })
         @owned = false
