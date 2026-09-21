@@ -126,6 +126,8 @@ module RubyOS
           @base = base
           @receive_buffers = []
           @pending = +"".b
+          @transmit_buffer = nil
+          @transmit_buffer_size = 0
         end
 
         def probe
@@ -159,10 +161,10 @@ module RubyOS
           bytes = String(bytes).b
           return self if bytes.empty?
           descriptor = @transmit.next_descriptor
-          buffer = RubyOS::HAL.dma_alloc(bytes.bytesize)
-          bytes.each_byte.with_index do |byte, index|
-            RubyOS::HAL.mmio_write8(buffer + index, byte)
-          end
+          buffer = transmit_buffer(bytes.bytesize)
+          # One memcpy, not one Ruby call per byte: a framebuffer upload is
+          # tens of kilobytes and this is the bridge's hot path.
+          RubyOS::HAL.dma_write(buffer, bytes)
           @transmit.descriptor(descriptor, buffer, bytes.bytesize)
           @transmit.push(descriptor)
           @transmit.notify
@@ -171,12 +173,36 @@ module RubyOS
           self
         end
 
+        # One bounce buffer, reused for every message and grown when a larger
+        # one arrives.
+        #
+        # This used to dma_alloc per write and never free, leaking a
+        # page-rounded buffer per bridge message; a session that draws enough
+        # frames exhausts the guest heap and dies in whatever happens to
+        # allocate next. Freeing each buffer instead would fix the leak but
+        # hand the buddy allocator a churn of odd-sized blocks to fragment
+        # over, so hold one instead. Writes are synchronous -- #write does not
+        # return until the device has consumed the descriptor -- so there is
+        # never a second message in flight to alias it.
+        def transmit_buffer(size)
+          if @transmit_buffer_size.to_i < size
+            RubyOS::HAL.dma_free(@transmit_buffer) if @transmit_buffer
+            @transmit_buffer = RubyOS::HAL.dma_alloc(size)
+            @transmit_buffer_size = size
+          end
+          @transmit_buffer
+        end
+
         def read_exact(length)
           while @pending.bytesize < length
             sleep_until { @receive.used_index != @receive.last_used }
             descriptor, received = @receive.pop
             buffer = @receive_buffers.fetch(descriptor)
-            received.times { |index| @pending << RubyOS::HAL.mmio_read8(buffer + index) }
+            if received > BUFFER_SIZE
+              RubyOS::HAL.serial_write("[probe] oversized received=#{received}\n")
+              received = BUFFER_SIZE
+            end
+            @pending << RubyOS::HAL.dma_read(buffer, received)
             @receive.push(descriptor)
             @receive.notify
           end

@@ -40,6 +40,7 @@ help:
 	@echo "  make run            Boot the console in QEMU (Ctrl-C to stop)"
 	@echo "  make build-gui      Build the desktop and shared SDL service"
 	@echo "  make run-gui        Open a persistent native-TCP SDL desktop"
+	@echo "                      RUBYOS_DESKTOP_SIZE=1920x1080 picks the resolution"
 	@echo "  make stop           Stop only this checkout's supervised session"
 	@echo "  make restart        Stop, then run the console; start aliases run"
 	@echo "  make test           Hosted tests plus bare-metal console smoke"

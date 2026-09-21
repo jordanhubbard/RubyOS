@@ -65,6 +65,12 @@ begin
     children << Process.spawn(*command, in: File::NULL)
     service = ENV.fetch("REMOTEOS_SDL_BIN", "#{root}/services/remoteos-sdl/remoteos-sdl")
     environment = { "REMOTEOS_SDL_MODE" => ENV.fetch("REMOTEOS_SDL_MODE", "interactive") }
+    # The guest cannot see this checkout's environment, so desktop size is
+    # settled host-side and reported back over display.open.
+    if (size = ENV["RUBYOS_DESKTOP_SIZE"])
+      abort "RUBYOS_DESKTOP_SIZE must look like 1440x900" unless size.match?(/\A\d{3,5}x\d{3,5}\z/)
+      environment["REMOTEOS_SDL_SIZE"] = size
+    end
     children << Process.spawn(environment, service, "--connect-tcp", "127.0.0.1:#{port}",
                               "--connect-timeout-ms", "30000")
     puts "RubyOS desktop; guest log: #{directory}/serial.log"

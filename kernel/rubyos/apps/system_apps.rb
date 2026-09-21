@@ -731,11 +731,23 @@ module RubyOS
       end
 
       def build_window
-        @window = GUI::Window.new("#{@title_prefix} - #{path}", x: 72, y: 54,
-                                  width: 350, height: 184,
+        # A source editor is only useful if a line of Ruby fits on it, so on a
+        # full desktop open wide enough to show one rather than keeping the
+        # geometry that suited a 480x300 screen. Everything below the window
+        # size is derived, so the compact case stays exactly as it was.
+        spacious = spacious_desktop?
+        window_x, window_y = spacious ? [96, 60] : [72, 54]
+        window_width, window_height = spacious ? [720, 480] : [350, 184]
+        content_width = window_width - 20
+        content_height = window_height - GUI::Window::TITLE_HEIGHT - 18
+        input_height = content_height - 34
+        controls_y = input_height + 4
+        status_y = controls_y + 4
+        @window = GUI::Window.new("#{@title_prefix} - #{path}", x: window_x, y: window_y,
+                                  width: window_width, height: window_height,
                                   background: 0x171a24).tap do |window|
           @input = window.add(GUI::EditorInput.new(text: content, x: 0, y: 0,
-                                                    width: 326, height: 108,
+                                                    width: content_width - 4, height: input_height,
                                                     background: 0x11151e,
                                                     on_change: method(:buffer_changed),
                                                     on_save: method(:save),
@@ -745,16 +757,16 @@ module RubyOS
                               minimum_width: 100, minimum_height: 40)
           @input.move_cursor(0)
           if @runtime
-            window.add(GUI::Button.new("Reload Ruby", x: 0, y: 112, width: 104,
+            window.add(GUI::Button.new("Reload Ruby", x: 0, y: controls_y, width: 104,
                                        height: 24, background: 0x553184,
                                        action: method(:reload)), anchors: [:left, :bottom])
             @status = window.add(GUI::Label.new("Transactional reload ready",
-                                                x: 112, y: 116, width: 212,
+                                                x: 112, y: status_y, width: content_width - 118,
                                                 color: 0xa8d8ff),
                                  anchors: [:left, :right, :bottom], minimum_width: 40)
           else
-            @status = window.add(GUI::Label.new("L1 C1  Saved", x: 0, y: 116,
-                                                width: 326, color: 0xa8d8ff),
+            @status = window.add(GUI::Label.new("L1 C1  Saved", x: 0, y: status_y,
+                                                width: content_width - 4, color: 0xa8d8ff),
                                  anchors: [:left, :right, :bottom], minimum_width: 80)
           end
         end
@@ -896,8 +908,8 @@ module RubyOS
 
       def build_window
         spacious = spacious_desktop?
-        x, y = spacious ? [70, 38] : [20, 28]
-        width, height = spacious ? [560, 350] : [440, 236]
+        x, y = spacious ? [84, 48] : [20, 28]
+        width, height = spacious ? [740, 520] : [440, 236]
         content_width = width - 36
         pane_height = height - 92
         sidebar_width = spacious ? 176 : 142

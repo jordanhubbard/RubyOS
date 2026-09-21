@@ -154,6 +154,36 @@ static VALUE hal_dma_free(VALUE self, VALUE address)
     return Qnil;
 }
 
+/* Bulk copies in and out of a DMA buffer.
+ *
+ * The virtio transports used to move payloads a byte at a time through
+ * mmio_write8/mmio_read8, which costs one Ruby method call per byte -- fine
+ * for a descriptor header, ruinous for a framebuffer upload. These do the
+ * same work as a memcpy. x86_64 has had dma_write since it was written; this
+ * brings arm64 level and adds the read direction to both.
+ *
+ * The barrier after a write publishes the bytes before the caller rings the
+ * device's doorbell; the barrier before a read orders against the device
+ * having filled the buffer. */
+static VALUE hal_dma_write(VALUE self, VALUE address, VALUE bytes)
+{
+    (void)self;
+    StringValue(bytes);
+    memcpy((void *)(uintptr_t)NUM2ULL(address), RSTRING_PTR(bytes),
+           (size_t)RSTRING_LEN(bytes));
+    __asm__ volatile("dmb sy" ::: "memory");
+    return LONG2NUM(RSTRING_LEN(bytes));
+}
+
+static VALUE hal_dma_read(VALUE self, VALUE address, VALUE length)
+{
+    long size = NUM2LONG(length);
+    (void)self;
+    if (size < 0) rb_raise(rb_eArgError, "invalid DMA length");
+    __asm__ volatile("dmb sy" ::: "memory");
+    return rb_str_new((const char *)(uintptr_t)NUM2ULL(address), size);
+}
+
 static VALUE hal_heap_total_bytes(VALUE self)
 {
     (void)self;
@@ -287,6 +317,8 @@ void rubyos_kernel_main(uint64_t dtb_address)
     rb_define_module_function(hal, "mmio_write8", hal_mmio_write8, 2);
     rb_define_module_function(hal, "dma_alloc", hal_dma_alloc, 1);
     rb_define_module_function(hal, "dma_free", hal_dma_free, 1);
+    rb_define_module_function(hal, "dma_write", hal_dma_write, 2);
+    rb_define_module_function(hal, "dma_read", hal_dma_read, 2);
     rb_define_module_function(hal, "heap_total_bytes", hal_heap_total_bytes, 0);
     rb_define_module_function(hal, "heap_free_bytes", hal_heap_free_bytes, 0);
     rb_define_module_function(hal, "heap_page_probe", hal_heap_page_probe, 0);

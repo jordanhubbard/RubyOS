@@ -43,6 +43,7 @@ static VALUE sleep_us(VALUE self, VALUE us) { uint64_t delay = (NUM2ULL(us) + 99
 static VALUE dma_alloc(VALUE self, VALUE n) { size_t size = (NUM2ULL(n) + 4095) & ~(size_t)4095; (void)self; void *p = aligned_alloc(4096, size); if (!p) rb_raise(rb_eNoMemError, "DMA allocation failed"); memset(p, 0, size); return ULL2NUM((uintptr_t)p); }
 static VALUE dma_free(VALUE self, VALUE address) { (void)self; free((void *)(uintptr_t)NUM2ULL(address)); return Qnil; }
 static VALUE dma_write(VALUE self, VALUE address, VALUE bytes) { (void)self; StringValue(bytes); memcpy((void *)(uintptr_t)NUM2ULL(address), RSTRING_PTR(bytes), (size_t)RSTRING_LEN(bytes)); return LONG2NUM(RSTRING_LEN(bytes)); }
+static VALUE dma_read(VALUE self, VALUE address, VALUE length) { long size = NUM2LONG(length); (void)self; if (size < 0) rb_raise(rb_eArgError, "invalid DMA length"); return rb_str_new((const char *)(uintptr_t)NUM2ULL(address), size); }
 static VALUE heap_total_bytes(VALUE self) { (void)self; return ULL2NUM(malloc_total_bytes()); }
 static VALUE heap_free_bytes(VALUE self) { (void)self; return ULL2NUM(malloc_free_bytes()); }
 static VALUE heap_page_probe(VALUE self) { (void)self; return rubyos_heap_page_probe() ? Qtrue : Qfalse; }
@@ -103,6 +104,7 @@ void rubyos_x86_64_start(uint64_t magic, uint64_t info) {
     rb_define_module_function(hal,"dma_alloc",dma_alloc,1);
     rb_define_module_function(hal,"dma_free",dma_free,1);
     rb_define_module_function(hal,"dma_write",dma_write,2);
+    rb_define_module_function(hal,"dma_read",dma_read,2);
     rb_define_module_function(hal,"heap_total_bytes",heap_total_bytes,0);
     rb_define_module_function(hal,"heap_free_bytes",heap_free_bytes,0);
     rb_define_module_function(hal,"heap_page_probe",heap_page_probe,0);

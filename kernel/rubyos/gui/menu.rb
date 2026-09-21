@@ -21,8 +21,11 @@ module RubyOS
     class MenuBar
       HEIGHT = 24
       ROW_HEIGHT = 22
-      GLYPH_WIDTH = 8
       PADDING = 8
+
+      # Menus are laid out on a character grid, so the cell width has to come
+      # from the face actually being drawn with rather than a baked-in 8.
+      def glyph_width = GUI::Text.advance
 
       attr_reader :menus, :open_index, :hot_index
 
@@ -58,12 +61,12 @@ module RubyOS
         end
         menu_end = rectangles.last&.then { |x, width| x + width } || PADDING
         if active_title && menu_end + 16 < @width - 112
-          available = [(@width - 120 - menu_end - 16) / GLYPH_WIDTH, 0].max
+          available = [(@width - 120 - menu_end - 16) / glyph_width, 0].max
           surface.draw_text(menu_end + 16, 6, active_title.each_char.first(available).join,
                             color: 0x91869f)
         end
         status_x = [[@width - 104, menu_end + 8].max, @width].min
-        status_columns = [(@width - status_x - 4) / GLYPH_WIDTH, 0].max
+        status_columns = [(@width - status_x - 4) / glyph_width, 0].max
         if status_columns.positive?
           display_status = String(status || "Ruby 4").each_char.first(status_columns).join
           surface.draw_text(status_x, 6, display_status, color: 0xd8cae5)
@@ -104,7 +107,7 @@ module RubyOS
       def title_rects
         x = 4
         menus.map do |menu|
-          width = menu.title.each_char.count * GLYPH_WIDTH + PADDING * 2
+          width = menu.title.each_char.count * glyph_width + PADDING * 2
           rect = [x, width]
           x += width
           rect
@@ -116,7 +119,7 @@ module RubyOS
         longest = menu.items.map do |item|
           item.label.each_char.count + (item.shortcut ? item.shortcut.each_char.count + 3 : 0)
         end.max || 1
-        [[longest * GLYPH_WIDTH + PADDING * 2, 128].max, @width - 8].min
+        [[longest * glyph_width + PADDING * 2, 128].max, @width - 8].min
       end
 
       def visible_rows
@@ -146,7 +149,7 @@ module RubyOS
           color = item.enabled ? 0xf2eaf7 : 0x746b7c
           surface.draw_text(x + PADDING, row_y + 6, item.label, color:)
           if item.shortcut
-            shortcut_x = x + width - PADDING - item.shortcut.each_char.count * GLYPH_WIDTH
+            shortcut_x = x + width - PADDING - item.shortcut.each_char.count * glyph_width
             surface.draw_text(shortcut_x, row_y + 6, item.shortcut, color: 0xa99bb8)
           end
         end
@@ -247,8 +250,9 @@ module RubyOS
 
     class ContextMenu
       ROW_HEIGHT = 22
-      GLYPH_WIDTH = 8
       PADDING = 8
+
+      def glyph_width = GUI::Text.advance
 
       attr_reader :items, :x, :y, :hot_index
 
@@ -299,7 +303,7 @@ module RubyOS
           surface.draw_text(x + PADDING, row_y + 6, item.label, color:)
           next unless item.shortcut
 
-          shortcut_x = x + popup_width - PADDING - item.shortcut.each_char.count * GLYPH_WIDTH
+          shortcut_x = x + popup_width - PADDING - item.shortcut.each_char.count * glyph_width
           surface.draw_text(shortcut_x, row_y + 6, item.shortcut, color: 0xa99bb8)
         end
         self
@@ -341,7 +345,7 @@ module RubyOS
         longest = items.map do |item|
           item.label.each_char.count + (item.shortcut ? item.shortcut.each_char.count + 3 : 0)
         end.max || 1
-        [[longest * GLYPH_WIDTH + PADDING * 2, 128].max, @screen_width - 8].min
+        [[longest * glyph_width + PADDING * 2, 128].max, @screen_width - 8].min
       end
 
       def visible_rows

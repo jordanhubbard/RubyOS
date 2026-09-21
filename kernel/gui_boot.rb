@@ -13,8 +13,11 @@ module RubyOS
       RubyOS.invariant(hello.fetch("service") == "remoteos-sdl",
                        "unexpected remote desktop service")
 
+      # Bitmap face: this path feeds the visual goldens, whose tile hashes
+      # have to match on every host. See RemoteDesktop#initialize.
       desktop = Bridge::RemoteDesktop.new(client, width: 480, height: 300,
-                                           title: "RubyOS Bare-Metal Desktop")
+                                           title: "RubyOS Bare-Metal Desktop",
+                                           text: :bitmap)
       compositor = GUI::Compositor.new(width: 480, height: 300, title: "RubyOS")
       file_transfer = Bridge::FileTransfer.new(client:, vfs: state.fetch(:vfs))
       applications = Apps::Catalog.build(kernel: self)
@@ -417,7 +420,7 @@ module RubyOS
       desktop.events.each { |event| compositor.handle(event) }
       expected_terminal_position = [initial_terminal_position.fetch(0) + 20,
                                     [initial_terminal_position.fetch(1) + 20,
-                                     compositor.height - GUI::Compositor::DOCK_HEIGHT - terminal_window.height].min]
+                                     compositor.height - compositor.dock_height - terminal_window.height].min]
       RubyOS.invariant([compositor.focused_window.x, compositor.focused_window.y] == expected_terminal_position,
                        "window title drag did not move Terminal")
       clock_window = applications.fetch("Clock").launch(compositor)
@@ -579,8 +582,10 @@ module RubyOS
       client.hello
       desktop = Bridge::RemoteDesktop.new(client, width: INTERACTIVE_DESKTOP_WIDTH,
                                           height: INTERACTIVE_DESKTOP_HEIGHT, title: "RubyOS")
-      compositor = GUI::Compositor.new(width: INTERACTIVE_DESKTOP_WIDTH,
-                                       height: INTERACTIVE_DESKTOP_HEIGHT, title: "RubyOS")
+      # Size the desktop from what the host actually opened, not from what we
+      # asked for -- see RemoteDesktop#initialize.
+      compositor = GUI::Compositor.new(width: desktop.width, height: desktop.height,
+                                       title: "RubyOS")
       audio = client.features.include?("audio.pcm") ? Sound::BridgeOutput.new(client) : nil
       compositor.install_audio(audio)
       file_transfer = Bridge::FileTransfer.new(client:, vfs: state.fetch(:vfs))
@@ -602,7 +607,8 @@ module RubyOS
         compositor.draw(desktop.surface, uptime: "#{state.fetch(:clock).milliseconds} ms")
         desktop.present
         unless ready
-          HAL.serial_write("[RubyOS] interactive desktop: READY 1024x768 audio=#{audio ? 'on' : 'off'}\n")
+          HAL.serial_write("[RubyOS] interactive desktop: READY " \
+                           "#{desktop.width}x#{desktop.height} audio=#{audio ? 'on' : 'off'}\n")
           ready = true
         end
         HAL.sleep_us(16_000)
