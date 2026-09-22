@@ -1,65 +1,96 @@
-# RubyOS v0.3.2
+# RubyOS v0.4.0
 
-## PythonOS breadth and depth, expressed as Ruby
+## The desktop gets real type
 
-RubyOS now covers the measured PythonOS behavior surface while keeping Ruby's
-object model and idioms at the center. The catalog contains complete system
-applications, thirteen Ruby-focused demonstrations and five playable games.
-Every catalog entry is rendered and compared in frozen ARM64 and x86_64 guests;
-the same acceptance suites exercise real guest file dragging and animated media
-transitions.
+Every string the GUI drew went through an embedded 8x8 bitmap font, one
+`SDL_FillRect` per lit pixel, ASCII only. SDL_ttf had been available across the
+bridge the whole time and nothing used it.
 
-The desktop has moved well beyond static showcase windows. It includes
-responsive anchored layouts, resizable windows, app-aware menus, persistent
-dock pins and shortcuts, shared file choosers, bounded host/guest file transfer,
-transactional source editing, scrollable runtime tools, and live Ruby object,
+`RubyOS::GUI::Text` now routes every `draw_text` through TTF, caching rendered
+runs host-side and falling back to the bitmap face on a host with no usable
+font. Menlo at 14pt advances exactly 8 pixels — the same grid the bitmap font
+used — so no layout had to move. The literal `8`s that *assumed* that grid are
+gone regardless, replaced by the measured advance, because the next host's font
+will not be Menlo. A proportional face is refused outright rather than laid out
+on a column grid it does not honour.
+
+Frames got cheaper in the process: one cached blit per string, against one fill
+per lit pixel. Visual goldens pin themselves to the bitmap face so their tile
+hashes stay reproducible on a host that ships DejaVu instead of Menlo.
+
+## A dock with icons, and a desktop with a size
+
+The dock painted text labels in boxes. It now paints centred square icons with
+a hover label and a running-app pip. `RubyOS::GUI::Icons` declares each icon as
+rectangles and lines on a 48x48 grid and renders it at whatever edge the dock
+asks for, so a compact desktop gets a genuinely smaller icon rather than a
+shrunken one. They are drawn rather than loaded because kernel sources are
+embedded as a C string literal and have to stay 7-bit ASCII, which would make a
+baked-in image cost several times its own size. The debug-grid wallpaper is now
+a banded gradient.
+
+The desktop was also fixed at 1024x768. It now treats that as a request:
+`display.open` reports the framebuffer the host actually created and the guest
+adopts it, which `RUBYOS_DESKTOP_SIZE=1920x1080 make run-gui` steers from the
+host side. Window geometry follows, scaling against a 1024x768 reference and
+capped at 2x, with anchored children riding the same relayout path a
+resize-grip drag uses. At or below the reference it changes nothing.
+
+The editor, launcher and inspector were still sized for a 480x300 screen and
+clipped source mid-line on a full desktop. They now open at sizes that fit
+their contents.
+
+## Two allocator defects, one of them longstanding
+
+`rubyos-arm64-gui-smoke` had been failing before this release. The reported
+symptom was CRuby's `[FATAL] failed to allocate memory`, and the heap was not
+the problem — it had over a hundred megabytes free at the moment it died.
+
+`mmap` kept live mappings in a fixed table of 128 records. CRuby's GC takes a
+mapping per heap page, so the table filled after a few megabytes of object heap
+and `mmap` began returning `MAP_FAILED` with memory still plentiful. CRuby
+reports that as exhaustion and aborts, which is why the failure looked like a
+heap problem and why it was intermittent. The table now holds 16384 mappings.
+Enlarging the guest heap does not help and enlarging it far enough to satisfy
+the speculative 384 MiB allocation CRuby makes at startup actively hurts,
+because the reservation then succeeds and consumes the heap.
+
+Separately, the virtio-console bridge transport allocated a DMA buffer for
+every message it wrote and never freed it, leaking a page per bridge message.
+It now holds one bounce buffer and grows it on demand. The native-TCP transport
+was never affected, which is why the desktop acceptance suite stayed green
+throughout.
+
+Bridge payloads also move by `memcpy` now rather than a Ruby call per byte.
+arm64 had no bulk DMA primitive; it does now, and both architectures gained the
+read direction.
+
+## Everything from the unreleased 0.3.2
+
+This release also carries the work prepared as 0.3.2, which was never tagged:
+the full PythonOS behaviour surface expressed in Ruby, with complete system
+applications, thirteen Ruby-focused demonstrations and five playable games, all
+rendered and compared in frozen ARM64 and x86_64 guests.
+
+That work brought responsive anchored layouts, resizable windows, app-aware
+menus, persistent dock pins and shortcuts, shared file choosers, bounded
+host/guest file transfer, transactional source editing and live Ruby object,
 Fiber, driver and heap inspection. F5 opens the focused application's archived
-Ruby source and safely replaces its class only after validation succeeds.
-
-## A genuinely interactive Ruby environment
-
-The serial, TCP and graphical consoles now share one stateful shell. It provides
-syntax-aware multiline Ruby evaluation, command/path/method completion,
-VFS-persistent Terminal history, a current directory, file copy/move, Ruby
-source execution, task lifecycle controls, system and network inspection,
-desktop/editor launch, and streaming TCP file transfer.
-
-Structured concurrency remains idiomatic Ruby: cooperative Fibers gain
-join/gather, monotonic timeouts, bounded Enumerable channels, events,
-block-scoped semaphores and task groups. Eighteen readable lessons across
-eleven tracks demonstrate these APIs alongside modern language, storage,
-networking, graphics, audio, web and internals examples.
-
-## Ruby-native graphics, media and applications
-
-The interactive desktop now matches PythonOS at 1024x768. Games use a larger
-640x400 presentation with shaded sprite cells instead of nearest-neighbor
-blocks, and all five titles route audible Ruby-generated sound-effect cues
-through the desktop PCM device.
-
-This release also establishes `RubyOS::App`, the supported application class
-library. A Ruby application targets Canvas, lifecycle, input and Audio objects,
-then selects an in-memory/native-surface or RemoteOS-SDL backend. SDL is an
-optional device service, not an application programming model; the same app
-logic and renderer run without it. See `docs/applications.md`.
-
-The Image Viewer handles BMP, PNG, JPEG and P3/P6 portable pixmaps. The Media
-Workbench is a two-program studio with direct cuts, four-direction seekable
-wipes, a timeline, live meters, keyboard/menu control and Ruby-generated PCM
-cues. The graphical catalog adds Enumerable, Fiber and pattern-matching labs;
-Life, Mandelbrot, Spirograph, Paint, immutable-Data animation, Plasma, event,
-sprite and tone demonstrations; and Invaders, Snake, Maze, Raiders and Defender.
-
-Remote bitmap surfaces now have explicit bounded lifetimes, preventing cached
-capture resources from accumulating across long ARM64 desktop acceptance runs.
-The TCP stack also exposes active stream connections and treats FIN as EOF,
-which supports the shell's bounded file-transfer workflow.
+Ruby source and replaces its class only after validation succeeds. The serial,
+TCP and graphical consoles share one stateful shell with syntax-aware multiline
+evaluation, completion, VFS-persistent history and streaming TCP file transfer.
+`RubyOS::App` remains the supported backend-neutral application class library;
+see `docs/applications.md`.
 
 ## Release validation
 
 The release commit is accepted independently on Linux ARM64, Linux x86_64 and
 Apple Silicon macOS. ARM64 and x86_64 frozen guests boot the expanded console,
 network stack and native-TCP desktop, while architecture-specific visual
-goldens cover every application and the interaction captures described above.
+goldens cover every application and the interaction captures. Both golden sets
+were refreshed for the new dock and wallpaper and then re-verified in a
+separate run, since a refresh passes by construction.
 
-[RubyOS v0.3.2](https://github.com/jordanhubbard/RubyOS/releases/tag/v0.3.2).
+Pins RemoteOS-SDL 0.3.0.
+
+[RubyOS v0.4.0](https://github.com/jordanhubbard/RubyOS/releases/tag/v0.4.0).

@@ -4,7 +4,33 @@ All notable RubyOS changes are documented here.
 
 ## [Unreleased]
 
-## [0.3.2] - 2026-09-17
+## [0.4.0] - 2026-09-21
+
+- Render all GUI text through SDL_ttf via `RubyOS::GUI::Text`, caching rendered
+  runs host-side, with the embedded 8x8 face as the fallback for a host with no
+  usable font. Column arithmetic follows the measured advance instead of an
+  assumed 8 pixels, and a proportional face is refused rather than laid out on
+  a grid it does not honour. Visual goldens pin the bitmap face so their hashes
+  stay host-independent.
+- Replace the dock's text labels with centred square icons, a hover label and a
+  running-app pip. `RubyOS::GUI::Icons` renders each icon at whatever size the
+  dock asks for. Replace the debug-grid wallpaper with a banded gradient.
+- Treat the desktop size as a request rather than a constant: adopt the
+  framebuffer `display.open` reports, steerable from the host with
+  `RUBYOS_DESKTOP_SIZE`. Scale window geometry against a 1024x768 reference,
+  capped at 2x. Open the editor, launcher and inspector at sizes that fit their
+  contents on a full desktop.
+- Raise the `mmap` record table from 128 to 16384 mappings. CRuby's GC takes a
+  mapping per heap page, so the table filled after a few megabytes of object
+  heap and `mmap` returned `MAP_FAILED` with memory still plentiful, which
+  CRuby reports as exhaustion and aborts on. This is why
+  `rubyos-arm64-gui-smoke` had been failing.
+- Stop the virtio-console transport leaking a DMA buffer per bridge message,
+  and move payloads with `memcpy` rather than a Ruby call per byte. arm64 gains
+  a bulk DMA primitive; both architectures gain the read direction.
+- Pin RemoteOS-SDL 0.3.0.
+
+## [0.3.2] - 2026-09-17 (unreleased; shipped in 0.4.0)
 
 - Match PythonOS's 1024x768 interactive desktop, replace enlarged game pixels
   with shaded high-resolution arcade rendering, and connect all five games to
